@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Interium Loader
 // @namespace    https://github.com/warmpain9/Interium
-// @version      1.0.2
+// @version      1.0.3
 // @description  Loads the current unofficial Interium trading runtime from jsDelivr.
 // @author       Interium contributors
 // @license      MIT
@@ -24,8 +24,8 @@
 (() => {
   'use strict';
   const PREFIX = '[Interium Loader]';
-  const SOURCE_URL = 'https://cdn.jsdelivr.net/gh/warmpain9/Interium@main/dist/interium-main.js';
-  const CACHE_KEY = 'interium.loader.lastGoodSource.v1';
+  const SOURCE_URL = 'https://cdn.jsdelivr.net/gh/warmpain9/Interium@main/dist/interium-main-v2.js';
+  const CACHE_KEY = 'interium.loader.lastGoodSource.v2';
   const TIMEOUT_MS = 15_000;
 
   function compile(source, label) {
