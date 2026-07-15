@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Interium Loader
 // @namespace    https://github.com/warmpain9/Interium
-// @version      1.0.1
+// @version      1.0.0
 // @description  Small, auditable loader for the unofficial Interium community userscript.
 // @author       Interium contributors
 // @license      MIT
