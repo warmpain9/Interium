@@ -1,0 +1,9 @@
+{
+  "name": "interium-userscript",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Unofficial open-source Pekora community userscript",
+  "scripts": { "build": "node scripts/build.mjs", "check": "node --check loader/interium-loader.user.js && node --check dist/interium-main.js", "test": "node tests/audit.mjs" },
+  "license": "MIT"
+}
