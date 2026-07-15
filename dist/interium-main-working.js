@@ -2,7 +2,7 @@
  * Unofficial community software; not affiliated with Pekora.
  */
 /* INTERIUM_MAIN */
-console.info('[Interium] Working 1.1.0 runtime started at', document.readyState);
+console.info('[Interium] Working 1.1.1 runtime started at', document.readyState);
 
 (function () {
 	'use strict';
@@ -567,9 +567,15 @@ else window.addEventListener('DOMContentLoaded', init);
 (function () {
     'use strict';
     if (!/^\/internal\/collectibles/i.test(location.pathname)) return;
+    console.info('[Interium] Collectibles suite: page detected, starting.');
     try {
         const _pcsCfg = JSON.parse(GM_getValue('pcs_cfg_v1', 'null') || 'null');
-        if (_pcsCfg && _pcsCfg.collectiblesSuite === false) return;
+        if (_pcsCfg && _pcsCfg.collectiblesSuite === false) {
+            // This build keeps every feature always on. Older Interium builds could
+            // leave a stale "disabled" flag behind in this script's storage, which
+            // silently killed the collectibles page. Ignore it (and log it).
+            console.warn('[Interium] Ignoring stale saved setting that disabled the collectibles suite.');
+        }
     } catch (_) {}
 
     const VALUES_JSON_URL = 'https://www.koromons.net/api/items';
@@ -603,7 +609,7 @@ else window.addEventListener('DOMContentLoaded', init);
     installAntiFlashStyles();
 
     const userId = new URLSearchParams(location.search).get('userId');
-    if (!userId) return;
+    if (!userId) { console.warn('[Interium] Collectibles suite: no userId in the URL, leaving page as-is.'); return; }
 
     const pi = new URLSearchParams(location.search).get('pageIndex');
     if (pi && pi !== '0') {
@@ -1795,6 +1801,14 @@ else window.addEventListener('DOMContentLoaded', init);
             bootObserver.observe(document.documentElement, { childList: true, subtree: true });
         }
         setTimeout(() => { if (bootTimer && pkBootDone) clearInterval(bootTimer); }, 30000);
+        setTimeout(() => {
+            if (!pkBootDone) {
+                console.warn('[Interium] Collectibles UI still not booted after 12s.', {
+                    inventoryBodyFound: !!getInventoryBody(),
+                    shellRowFound: !!document.querySelector('main .card.card-body.bg-dark.text-light .col-12.col-lg-9 .row')
+                });
+            }
+        }, 12000);
     }
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', startBootWatcher, { once: true });
