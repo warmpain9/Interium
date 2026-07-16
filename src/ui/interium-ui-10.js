@@ -310,7 +310,7 @@
         applyGuiFont(cfg.miscGuiFont || 'Share Tech Mono');
     };
 
-    // ── Unified glass recipe ─────────────────────────�����────────────────
+    // ── Unified glass recipe ──────────────────────────────────────────
     // Every blur / glassify surface (navbar, sidebar, cards, frames,
     // dropdowns, chips) uses these EXACT values so the glass effect looks
     // identical everywhere. Tweak here to retune all glass at once.
@@ -975,7 +975,7 @@
     };
 
     let _fxCanvas = null, _fxCtx = null, _fxRaf = null, _fxParticles = [], _fxCols = [], _fxResize = null, _fxLast = 0;
-    const MATRIX_CHARS = '���ウエカキクケコサシスセソダツナニノハホマミムメモヤユヨリワ0123456789'.split('');
+    const MATRIX_CHARS = 'アウエカキクケコサシスセソダツナニノハホマミムメモヤユヨリワ0123456789'.split('');
 
     const fxResolveColor = (type) => {
         if (cfg.effectColor?.trim()) return cfg.effectColor.trim();
@@ -2073,7 +2073,7 @@
         if (document.getElementById('pks-avatar-bg-strip')) return;
         const strip = document.createElement('div');
         strip.id = 'pks-avatar-bg-strip';
-        strip.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0 4px;position:relative;z-index:2;';
+        strip.style.cssText = 'display:flex;gap:8px;align-items:center;margin:10px 0;padding:4px 2px;overflow-x:auto;overflow-y:hidden;position:relative;z-index:2;scrollbar-width:thin;';
         const none = document.createElement('div');
         none.textContent = '\u2715';
         none.title = 'No background';
@@ -2102,7 +2102,12 @@
             im.src = u;
             strip.appendChild(im);
         });
-        frame.insertAdjacentElement('afterend', strip);
+        // Place the strip between the avatar preview and the "Scaling"
+        // section; fall back to right under the preview if no header found.
+        const scalingHeader = [...document.querySelectorAll('h1,h2,h3,h4')]
+            .find(h => /^\s*scaling\s*$/i.test(h.textContent || ''));
+        if (scalingHeader) scalingHeader.insertAdjacentElement('beforebegin', strip);
+        else frame.insertAdjacentElement('afterend', strip);
     };
 
     const isFriendsPage = () => /\/friends/i.test(location.pathname);
