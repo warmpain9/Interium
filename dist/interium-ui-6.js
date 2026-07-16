@@ -429,49 +429,55 @@
         });
     };
 
-    // Bulletproof friends transparency: inline styles (with !important) win
-    // over ANY site stylesheet, on both the Friends page and profile strips.
-    const FRIENDS_INLINE_PROPS = ['background', 'background-color', 'backdrop-filter', '-webkit-backdrop-filter', 'box-shadow', 'border-color'];
+    // Friends glass: applies the SAME unified glass recipe as "Transparent
+    // page frames" to friends sections, via inline styles so no site CSS can
+    // override it. Covers the Friends page and profile friends strips, on
+    // both live-site markup (friendEntry/friendWrapper) and older builds
+    // (listItemFriend/sideRow).
+    const FRIENDS_INLINE_PROPS = ['background', 'background-color', 'backdrop-filter', '-webkit-backdrop-filter', 'box-shadow', 'border', 'border-radius', 'color'];
     const applyFriendsTransparencyDirect = () => {
         if (!cfg.miscFriendsFrameTransparent) {
             document.querySelectorAll('[data-interium-friends]').forEach(el => {
                 FRIENDS_INLINE_PROPS.forEach(p => el.style.removeProperty(p));
-                el.style.removeProperty('color');
                 el.removeAttribute('data-interium-friends');
             });
             return;
         }
-        const targets = new Set();
-        // Friends page (/internal/friends + friend requests)
-        document.querySelectorAll('[class*="friendsContainer-"],[class*="friendCard-"],[class*="friendCardWrapper-"],[class*="manageRequestCard-"]').forEach(el => targets.add(el));
-        // Profile page friends strip: climb from each entry to its card container
-        document.querySelectorAll('[class*="listItemFriend-"]').forEach(li => {
-            const card = li.closest('[class*="card-0-2-"],.card');
-            if (card) targets.add(card);
-            const row = li.closest('[class*="sideRow-"],ul');
-            if (row) targets.add(row);
+        const glass = new Set();
+        const clear = new Set();
+        // Friends page cards -> glass
+        document.querySelectorAll('[class*="friendCard-"],[class*="manageRequestCard-"]').forEach(el => glass.add(el));
+        document.querySelectorAll('[class*="friendsContainer-"],[class*="friendCardWrapper-"]').forEach(el => clear.add(el));
+        // Profile friends strip: find entries, glass their section container
+        document.querySelectorAll('[class*="friendEntry"],[class*="friendWrapper"],[class*="listItemFriend-"]').forEach(li => {
+            clear.add(li);
+            const box = li.closest('.section-content,[class*="card-0-2-"],.card');
+            if (box) glass.add(box);
         });
-        targets.forEach(el => {
+        glass.forEach(el => {
+            clear.delete(el);
+            el.setAttribute('data-interium-friends', '1');
+            el.style.setProperty('background', GLASS_BG, 'important');
+            el.style.setProperty('backdrop-filter', GLASS_FILTER, 'important');
+            el.style.setProperty('-webkit-backdrop-filter', GLASS_FILTER, 'important');
+            el.style.setProperty('border', `1px solid ${GLASS_BORDER_COLOR}`, 'important');
+            el.style.setProperty('border-radius', '14px', 'important');
+            el.style.setProperty('box-shadow', GLASS_SHADOW, 'important');
+        });
+        clear.forEach(el => {
             el.setAttribute('data-interium-friends', '1');
             el.style.setProperty('background', 'transparent', 'important');
             el.style.setProperty('background-color', 'transparent', 'important');
-            el.style.setProperty('backdrop-filter', 'none', 'important');
-            el.style.setProperty('-webkit-backdrop-filter', 'none', 'important');
-            el.style.setProperty('box-shadow', 'none', 'important');
-            el.style.setProperty('border-color', 'rgba(255,255,255,0.10)', 'important');
-        });
-        document.querySelectorAll('[class*="listItemFriend-"] [class*="avatarWrapper-"]').forEach(el => {
-            el.setAttribute('data-interium-friends', '1');
-            el.style.setProperty('background', 'transparent', 'important');
             el.style.setProperty('box-shadow', 'none', 'important');
         });
-        document.querySelectorAll('[class*="listItemFriend-"] [class*="playerName-"],[class*="friendCard-"] [class*="username-"],[class*="manageRequestCard-"] [class*="username-"]').forEach(el => {
+        document.querySelectorAll('[class*="listItemFriend-"] [class*="playerName-"],[class*="friendEntry"] [class*="playerName"],[class*="friendCard-"] [class*="username-"],[class*="manageRequestCard-"] [class*="username-"]').forEach(el => {
             el.setAttribute('data-interium-friends', '1');
             el.style.setProperty('color', '#fff', 'important');
         });
-        if (applyFriendsTransparencyDirect._last !== targets.size) {
-            applyFriendsTransparencyDirect._last = targets.size;
-            console.info('[Interium] Friends transparency: matched', targets.size, 'containers on', location.pathname);
+        const sig = location.pathname + ':' + glass.size + '/' + clear.size;
+        if (applyFriendsTransparencyDirect._sig !== sig) {
+            applyFriendsTransparencyDirect._sig = sig;
+            console.info('[Interium] Friends glass: ' + glass.size + ' glass containers + ' + clear.size + ' cleared entries on ' + location.pathname);
         }
     };
 
@@ -542,17 +548,12 @@
             document.getElementById('pks-profile-glass-style')?.remove();
         }
         if (cfg.miscFriendsFrameTransparent) {
-            // Truly transparent - no glass, no blur (real Friends page classes).
-            css += `[class*="friendsContainer-"],[class*="friendCard-"],[class*="manageRequestCard-"]{background:transparent!important;background-color:transparent!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;border-color:rgba(255,255,255,0.08)!important;box-shadow:none!important;}`;
-            css += `[class*="friendCardWrapper-"]{background:transparent!important;box-shadow:none!important;border:1px solid rgba(255,255,255,0.10)!important;border-radius:10px!important;}`;
-            // Profile page friends strip (different markup than the Friends page):
-            // the strip is a .card containing listItemFriend entries.
-            css += `[class*="card-0-2-"]:has([class*="listItemFriend-"]){background:transparent!important;background-color:transparent!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;border:1px solid rgba(255,255,255,0.08)!important;box-shadow:none!important;}`;
-            css += `[class*="sideRow-"]{background:transparent!important;background-color:transparent!important;}`;
-            css += `[class*="listItemFriend-"] [class*="avatarWrapper-"]{background:transparent!important;background-color:transparent!important;box-shadow:none!important;}`;
-            css += `[class*="listItemFriend-"] [class*="playerName-"]{color:#fff!important;}`;
-            css += `[class*="friendsContainer-"] [class*="username-"],[class*="manageRequestCard-"] [class*="username-"]{color:#fff!important;}`;
-            css += `[class*="friendsContainer-"] [class*="imageWrapper-"],[class*="manageRequestCard-"] [class*="imageWrapper-"]{border-color:rgba(255,255,255,0.10)!important;background:transparent!important;}`;
+            // Friends sections get the SAME glass as "Transparent page frames".
+            css += `.section-content:has([class*="friendEntry"],[class*="listItemFriend-"]){${GLASS_CSS}border-radius:14px!important;}`;
+            css += `[class*="friendCard-"],[class*="manageRequestCard-"]{${GLASS_CSS}border-radius:10px!important;}`;
+            css += `[class*="friendsContainer-"],[class*="friendCardWrapper-"]{background:transparent!important;background-color:transparent!important;box-shadow:none!important;}`;
+            css += `[class*="friendEntry"],[class*="friendWrapper"],[class*="thumbnailWrapper"],[class*="listItemFriend-"],[class*="sideRow-"]{background:transparent!important;background-color:transparent!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;}`;
+            css += `[class*="listItemFriend-"] [class*="playerName-"],[class*="friendCard-"] [class*="username-"],[class*="manageRequestCard-"] [class*="username-"]{color:#fff!important;}`;
         }
         applyFriendsTransparencyDirect();
         if (cfg.miscAvatarFrameTransparent) css += `.avatarCardContainer-0-2-570,.catalogContainer-0-2-4{${FRAME_CSS}}.pillToggle-0-2-553{background:${GLASS_BG}!important;border-color:rgba(255,255,255,0.1)!important;}`;
