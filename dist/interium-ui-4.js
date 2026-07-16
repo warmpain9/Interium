@@ -310,6 +310,16 @@
         applyGuiFont(cfg.miscGuiFont || 'Share Tech Mono');
     };
 
+    // ── Unified glass recipe ──────────────────────────────────────────
+    // Every blur / glassify surface (navbar, sidebar, cards, frames,
+    // dropdowns, chips) uses these EXACT values so the glass effect looks
+    // identical everywhere. Tweak here to retune all glass at once.
+    const GLASS_BG = 'rgba(255,255,255,0.05)';
+    const GLASS_FILTER = 'blur(14px) saturate(160%)';
+    const GLASS_BORDER_COLOR = 'rgba(255,255,255,0.12)';
+    const GLASS_SHADOW = '0 8px 28px rgba(0,0,0,0.28)';
+    const GLASS_CSS = `background:${GLASS_BG}!important;backdrop-filter:${GLASS_FILTER}!important;-webkit-backdrop-filter:${GLASS_FILTER}!important;border:1px solid ${GLASS_BORDER_COLOR}!important;box-shadow:${GLASS_SHADOW}!important;`;
+
     const SIDEBAR_SELECTORS = [
         '.container-0-2-79 .card-0-2-80',
         '.card-d0-0-2-87',
@@ -328,7 +338,7 @@
             if (cfg.sidebarMode === 'transparent') {
                 css += `${SIDEBAR_SELECTORS} { background:transparent!important;border-color:rgba(255,255,255,0.07)!important;box-shadow:none!important; }`;
             } else if (cfg.sidebarMode === 'blur') {
-                css += `${SIDEBAR_SELECTORS} { background:rgba(15,15,22,${(op * 0.45).toFixed(3)})!important;backdrop-filter:blur(${blur}px) saturate(150%)!important;-webkit-backdrop-filter:blur(${blur}px) saturate(150%)!important;border-color:rgba(255,255,255,0.09)!important;box-shadow:none!important; }`;
+                css += `${SIDEBAR_SELECTORS} { ${GLASS_CSS} }`;
             } else if (cfg.sidebarMode === 'colour') {
                 const col = cfg.sidebarColour || '#0d0d14';
                 const r = parseInt(col.slice(1,3),16), g = parseInt(col.slice(3,5),16), b = parseInt(col.slice(5,7),16);
@@ -341,7 +351,7 @@
             if (cfg.navbarMode === 'transparent') {
                 css += `.navbar-0-2-49,nav.navbar.navbar-0-2-49,.navbar-wrapper-main .navbar{background:transparent!important;border-bottom:1px solid rgba(255,255,255,0.06)!important;box-shadow:none!important;}`;
             } else if (cfg.navbarMode === 'blur') {
-                css += `.navbar-0-2-49,nav.navbar.navbar-0-2-49,.navbar-wrapper-main .navbar{background:rgba(15,15,22,${(op * 0.45).toFixed(3)})!important;backdrop-filter:blur(${blur}px) saturate(150%)!important;-webkit-backdrop-filter:blur(${blur}px) saturate(150%)!important;border-bottom:1px solid rgba(255,255,255,0.08)!important;box-shadow:none!important;}`;
+                css += `.navbar-0-2-49,nav.navbar.navbar-0-2-49,.navbar-wrapper-main .navbar{${GLASS_CSS}border:none!important;border-bottom:1px solid ${GLASS_BORDER_COLOR}!important;}`;
             } else if (cfg.navbarMode === 'colour') {
                 const col = cfg.navbarColour || '#0d0d14';
                 const r = parseInt(col.slice(1,3),16), g = parseInt(col.slice(3,5),16), b = parseInt(col.slice(5,7),16);
@@ -377,12 +387,12 @@
             card.style.setProperty('border-color', 'rgba(255,255,255,0.07)', 'important');
             card.style.setProperty('box-shadow', 'none', 'important');
         } else if (cfg.sidebarMode === 'blur') {
-            // Real glass: keep the tint translucent so the backdrop blur is visible.
-            card.style.setProperty('background', `rgba(15,15,22,${(op * 0.45).toFixed(3)})`, 'important');
-            card.style.setProperty('backdrop-filter', `blur(${blur}px) saturate(150%)`, 'important');
-            card.style.setProperty('-webkit-backdrop-filter', `blur(${blur}px) saturate(150%)`, 'important');
-            card.style.setProperty('border-color', 'rgba(255,255,255,0.09)', 'important');
-            card.style.setProperty('box-shadow', 'none', 'important');
+            // Unified glass recipe - identical to every other glass surface.
+            card.style.setProperty('background', GLASS_BG, 'important');
+            card.style.setProperty('backdrop-filter', GLASS_FILTER, 'important');
+            card.style.setProperty('-webkit-backdrop-filter', GLASS_FILTER, 'important');
+            card.style.setProperty('border-color', GLASS_BORDER_COLOR, 'important');
+            card.style.setProperty('box-shadow', GLASS_SHADOW, 'important');
         } else if (cfg.sidebarMode === 'colour') {
             const col = cfg.sidebarColour || '#0d0d14';
             const r = parseInt(col.slice(1,3),16), g = parseInt(col.slice(3,5),16), b = parseInt(col.slice(5,7),16);
@@ -447,9 +457,9 @@
                 [class*="cardBody-0-2-"],
                 .avatarImageCard-0-2-334,
                 .groupCard-0-2-402 {
-                    background: rgba(255,255,255,0.05) !important;
-                    backdrop-filter: blur(20px) saturate(180%) !important;
-                    -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+                    background:${GLASS_BG}!important;
+                    backdrop-filter:${GLASS_FILTER}!important;
+                    -webkit-backdrop-filter:${GLASS_FILTER}!important;
                     border: 1px solid rgba(255,255,255,0.15) !important;
                     border-radius: 12px !important;
                     box-shadow: 0 8px 32px rgba(0,0,0,.20), inset 0 1px 0 rgba(255,255,255,.15) !important;
@@ -465,8 +475,8 @@
                     border: none !important;
                 }
                 .avatarWrapper-0-2-191 {
-                    backdrop-filter: blur(12px) !important;
-                    -webkit-backdrop-filter: blur(12px) !important;
+                    backdrop-filter:${GLASS_FILTER}!important;
+                    -webkit-backdrop-filter:${GLASS_FILTER}!important;
                 }
                 /* backdrop-filter makes each card its own stacking context, which
                    buries the Past Usernames popover under the next glass frame.
@@ -498,18 +508,18 @@
             css += `[class*="friendsContainer-"] [class*="username-"],[class*="manageRequestCard-"] [class*="username-"]{color:#fff!important;}`;
             css += `[class*="friendsContainer-"] [class*="imageWrapper-"],[class*="manageRequestCard-"] [class*="imageWrapper-"]{border-color:rgba(255,255,255,0.10)!important;background:transparent!important;}`;
         }
-        if (cfg.miscAvatarFrameTransparent) css += `.avatarCardContainer-0-2-570,.catalogContainer-0-2-4{${FRAME_CSS}}.pillToggle-0-2-553{background:rgba(255,255,255,0.05)!important;border-color:rgba(255,255,255,0.1)!important;}`;
+        if (cfg.miscAvatarFrameTransparent) css += `.avatarCardContainer-0-2-570,.catalogContainer-0-2-4{${FRAME_CSS}}.pillToggle-0-2-553{background:${GLASS_BG}!important;border-color:rgba(255,255,255,0.1)!important;}`;
         if (cfg.miscAvatarBlurDropdown) {
             // Avatar editor category tab strip + its dropdown panel -> glass blur.
-            css += `[class*="buttonCol-"]{background:rgba(15,15,22,0.45)!important;backdrop-filter:blur(14px) saturate(150%)!important;-webkit-backdrop-filter:blur(14px) saturate(150%)!important;box-shadow:none!important;border:1px solid rgba(255,255,255,0.08)!important;border-radius:12px!important;}`;
+            css += `[class*="buttonCol-"]{${GLASS_CSS}border-radius:12px!important;}`;
             css += `[class*="vTabLabel-"]{background:transparent!important;background-color:transparent!important;color:#fff!important;}`;
             css += `p[class*="vTabUnselected-"]{box-shadow:none!important;}`;
-            css += `[class*="buttonCol-"] + div:not(:empty),[class*="buttonCol-"] ~ div .section-content{background:rgba(15,15,22,0.55)!important;backdrop-filter:blur(14px) saturate(150%)!important;-webkit-backdrop-filter:blur(14px) saturate(150%)!important;border:1px solid rgba(255,255,255,0.08)!important;border-radius:0 0 12px 12px!important;box-shadow:0 14px 34px rgba(0,0,0,0.4)!important;}`;
+            css += `[class*="buttonCol-"] + div:not(:empty),[class*="buttonCol-"] ~ div .section-content{${GLASS_CSS}border-radius:0 0 12px 12px!important;}`;
         }
         if (cfg.miscFooterTransparent) css += `[class*="footerContainer"],footer[class*="footerContainer"]{background:transparent!important;border-top:1px solid rgba(255,255,255,0.06)!important;box-shadow:none!important;backdrop-filter:none!important;}`;
         if (cfg.miscGamesGlassify) {
             const accentDark = darkenHex(t.accent, 0.62);
-            const GLASS = `background:rgba(255,255,255,0.05)!important;backdrop-filter:blur(16px) saturate(160%)!important;-webkit-backdrop-filter:blur(16px) saturate(160%)!important;border:1px solid rgba(255,255,255,0.12)!important;border-radius:16px!important;box-shadow:0 8px 30px rgba(0,0,0,0.3)!important;`;
+            const GLASS = `${GLASS_CSS}border-radius:16px!important;`;
             css += `
                 /* every major frame → glass */
                 [class*="callsToAction"],[class*="recommendedGamesContainer"],[class*="serverContainer"],[class*="subSectionContainer"],[class*="gameDescription"],[class*="contentContainer"]{${GLASS}padding:16px!important;}
@@ -521,26 +531,26 @@
                 [class*="voteText"],[class*="voteNumbers"],[class*="playerCount"],[class*="creatorLabel"]{color:#e6e9f5!important;}
                 /* game stats → modern glass chips */
                 [class*="gameStatsContainer"]{display:flex!important;flex-wrap:wrap!important;gap:8px!important;border:none!important;padding:0!important;margin-top:12px!important;}
-                [class*="gameStat-"]{list-style:none!important;background:rgba(255,255,255,0.05)!important;backdrop-filter:blur(10px)!important;-webkit-backdrop-filter:blur(10px)!important;border:1px solid rgba(255,255,255,0.1)!important;border-radius:12px!important;padding:8px 13px!important;transition:border-color 0.15s ease,transform 0.12s ease!important;}
+                [class*="gameStat-"]{list-style:none!important;background:${GLASS_BG}!important;backdrop-filter:${GLASS_FILTER}!important;-webkit-backdrop-filter:${GLASS_FILTER}!important;border:1px solid rgba(255,255,255,0.1)!important;border-radius:12px!important;padding:8px 13px!important;transition:border-color 0.15s ease,transform 0.12s ease!important;}
                 [class*="gameStat-"]:hover{border-color:${t.accent}66!important;transform:translateY(-1px)!important;}
                 [class*="gameStatLabel"]{color:#9aa0c0!important;}
                 [class*="gameStatStat"]{color:#fff!important;font-weight:700!important;}
                 [class*="reportAbuseContainer"] a,[class*="abuseLink"]{color:${t.accent}!important;}
                 /* comments → glass */
-                [class*="commentContainer"]{background:rgba(255,255,255,0.04)!important;backdrop-filter:blur(10px)!important;-webkit-backdrop-filter:blur(10px)!important;border:1px solid rgba(255,255,255,0.1)!important;border-radius:12px!important;padding:10px!important;margin-bottom:8px!important;}
-                [class*="createCommentContainer"],[class*="commentBox"]{background:rgba(255,255,255,0.05)!important;backdrop-filter:blur(12px)!important;-webkit-backdrop-filter:blur(12px)!important;border:1px solid rgba(255,255,255,0.12)!important;border-radius:12px!important;}
+                [class*="commentContainer"]{background:${GLASS_BG}!important;backdrop-filter:${GLASS_FILTER}!important;-webkit-backdrop-filter:${GLASS_FILTER}!important;border:1px solid rgba(255,255,255,0.1)!important;border-radius:12px!important;padding:10px!important;margin-bottom:8px!important;}
+                [class*="createCommentContainer"],[class*="commentBox"]{background:${GLASS_BG}!important;backdrop-filter:${GLASS_FILTER}!important;-webkit-backdrop-filter:${GLASS_FILTER}!important;border:1px solid rgba(255,255,255,0.12)!important;border-radius:12px!important;}
                 [class*="commentBox"] input,[class*="createCommentContainer"] input{background:transparent!important;color:#fff!important;border:none!important;}
                 /* modern, sleek buttons */
                 [class*="actionButtonsContainer"]{gap:8px!important;}
                 [class*="playButtonContainer"] button,[class*="buttonWrapper"] button{background:linear-gradient(135deg,${t.accent},${accentDark})!important;border:none!important;border-radius:14px!important;box-shadow:0 6px 22px ${t.accent}55!important;transition:transform 0.16s ease,box-shadow 0.16s ease,filter 0.16s ease!important;}
                 [class*="playButtonContainer"] button:hover,[class*="buttonWrapper"] button:hover{transform:translateY(-2px) scale(1.02)!important;filter:brightness(1.08)!important;box-shadow:0 12px 30px ${t.accent}88!important;}
                 [class*="playButtonContainer"] button [class*="iconPlay"]{filter:drop-shadow(0 1px 2px rgba(0,0,0,0.4))!important;}
-                [class*="favoriteButton"],[class*="followButton"]{display:flex!important;align-items:center!important;justify-content:center!important;gap:6px!important;background:rgba(255,255,255,0.06)!important;backdrop-filter:blur(10px)!important;-webkit-backdrop-filter:blur(10px)!important;border:1px solid rgba(255,255,255,0.14)!important;border-radius:14px!important;padding:8px 14px!important;transition:background 0.15s ease,border-color 0.15s ease,transform 0.15s ease!important;}
+                [class*="favoriteButton"],[class*="followButton"]{display:flex!important;align-items:center!important;justify-content:center!important;gap:6px!important;background:${GLASS_BG}!important;backdrop-filter:${GLASS_FILTER}!important;-webkit-backdrop-filter:${GLASS_FILTER}!important;border:1px solid rgba(255,255,255,0.14)!important;border-radius:14px!important;padding:8px 14px!important;transition:background 0.15s ease,border-color 0.15s ease,transform 0.15s ease!important;}
                 [class*="favoriteButton"]:hover,[class*="followButton"]:hover{background:rgba(255,255,255,0.11)!important;border-color:${t.accent}99!important;transform:translateY(-1px)!important;}
                 [class*="favoriteLabel"],[class*="followLabel"]{color:#fff!important;font-weight:600!important;}
                 /* About / Store / Servers tabs → modern glass segmented control */
                 [class*="buttonCol"]{display:flex!important;gap:8px!important;flex-wrap:wrap!important;}
-                [class*="vTab-"]{background:rgba(255,255,255,0.05)!important;backdrop-filter:blur(10px)!important;-webkit-backdrop-filter:blur(10px)!important;border:1px solid rgba(255,255,255,0.12)!important;border-radius:12px!important;overflow:hidden!important;transition:border-color 0.15s ease,transform 0.12s ease,background 0.15s ease!important;}
+                [class*="vTab-"]{background:${GLASS_BG}!important;backdrop-filter:${GLASS_FILTER}!important;-webkit-backdrop-filter:${GLASS_FILTER}!important;border:1px solid rgba(255,255,255,0.12)!important;border-radius:12px!important;overflow:hidden!important;transition:border-color 0.15s ease,transform 0.12s ease,background 0.15s ease!important;}
                 [class*="vTab-"]:hover{border-color:${t.accent}66!important;transform:translateY(-1px)!important;}
                 [class*="vTabLabel"]{color:#cfd3e6!important;font-weight:600!important;margin:0!important;padding:9px 16px!important;text-align:center!important;cursor:pointer!important;}
                 [class*="vTabLabel"]:not([class*="vTabUnselected"]){color:#fff!important;background:linear-gradient(135deg,${t.accent}33,${t.accent}11)!important;box-shadow:inset 0 -2px 0 ${t.accent}!important;}
@@ -564,12 +574,12 @@
         let el = document.getElementById('pks-messages-glass-style');
         if (!el) { el = document.createElement('style'); el.id = 'pks-messages-glass-style'; document.head.appendChild(el); }
         const t = getTheme();
-        const GLASS = `background:rgba(255,255,255,0.05)!important;backdrop-filter:blur(16px) saturate(160%)!important;-webkit-backdrop-filter:blur(16px) saturate(160%)!important;border:1px solid rgba(255,255,255,0.12)!important;border-radius:16px!important;box-shadow:0 8px 30px rgba(0,0,0,0.3)!important;`;
+        const GLASS = `${GLASS_CSS}border-radius:16px!important;`;
         const M = 'div[class*="messagesContainer-"]';
         el.textContent = `
             ${M}{${GLASS}padding:18px!important;color:#e6e9f5!important;}
             /* tabs (Inbox / Sent / Notifications / Archive) */
-            ${M} [class*="vTab-0-2"]{background:rgba(255,255,255,0.05)!important;backdrop-filter:blur(10px)!important;-webkit-backdrop-filter:blur(10px)!important;border:1px solid rgba(255,255,255,0.12)!important;border-radius:12px!important;overflow:hidden!important;margin-bottom:8px!important;transition:border-color 0.15s ease,transform 0.12s ease!important;}
+            ${M} [class*="vTab-0-2"]{background:${GLASS_BG}!important;backdrop-filter:${GLASS_FILTER}!important;-webkit-backdrop-filter:${GLASS_FILTER}!important;border:1px solid rgba(255,255,255,0.12)!important;border-radius:12px!important;overflow:hidden!important;margin-bottom:8px!important;transition:border-color 0.15s ease,transform 0.12s ease!important;}
             ${M} [class*="vTab-0-2"]:hover{border-color:${t.accent}66!important;transform:translateY(-1px)!important;}
             ${M} [class*="vTabLabel"]{margin:0!important;padding:10px 16px!important;color:#cfd3e6!important;font-weight:600!important;cursor:pointer!important;}
             ${M} [class*="vTabLabel"]:not([class*="vTabUnselected"]){color:#fff!important;background:linear-gradient(135deg,${t.accent}33,${t.accent}11)!important;box-shadow:inset 3px 0 0 ${t.accent}!important;}
@@ -586,7 +596,7 @@
             ${M} [class*="body-0-2"]{color:#9aa0c0!important;}
             ${M} [class*="divider-top"]{display:none!important;}
             /* action + pagination buttons → glass */
-            ${M} button{background:rgba(255,255,255,0.06)!important;color:#e6e9f5!important;border:1px solid rgba(255,255,255,0.14)!important;border-radius:10px!important;transition:all 0.15s ease!important;}
+            ${M} button{background:${GLASS_BG}!important;color:#e6e9f5!important;border:1px solid rgba(255,255,255,0.14)!important;border-radius:10px!important;transition:all 0.15s ease!important;}
             ${M} button:hover:not(:disabled){border-color:${t.accent}99!important;background:rgba(255,255,255,0.1)!important;transform:translateY(-1px)!important;}
             ${M} button:disabled{opacity:0.4!important;}
             /* checkboxes */
@@ -1133,13 +1143,13 @@
         const t = getTheme();
         let cssOut = '';
         if (cfg.miscModernGameCards) {
-            cssOut += `[class*="gameCardContainer"]{background:rgba(255,255,255,0.05)!important;backdrop-filter:blur(14px) saturate(160%)!important;-webkit-backdrop-filter:blur(14px) saturate(160%)!important;border-radius:14px!important;border:1px solid ${t.cardBorder}!important;box-shadow:${t.cardGlow}!important;transition:border-color 0.22s,box-shadow 0.22s,transform 0.18s!important;overflow:hidden!important;}[class*="gameCardContainer"]:hover{border-color:${t.cardHoverBorder}!important;box-shadow:${t.cardHoverGlow}!important;transform:translateY(-3px)!important;z-index:2!important;}[class*="gameCardTitle"]{color:#fff!important;}`;
+            cssOut += `[class*="gameCardContainer"]{background:${GLASS_BG}!important;backdrop-filter:blur(14px) saturate(160%)!important;-webkit-backdrop-filter:blur(14px) saturate(160%)!important;border-radius:14px!important;border:1px solid ${t.cardBorder}!important;box-shadow:${t.cardGlow}!important;transition:border-color 0.22s,box-shadow 0.22s,transform 0.18s!important;overflow:hidden!important;}[class*="gameCardContainer"]:hover{border-color:${t.cardHoverBorder}!important;box-shadow:${t.cardHoverGlow}!important;transform:translateY(-3px)!important;z-index:2!important;}[class*="gameCardTitle"]{color:#fff!important;}`;
         }
         if (cfg.miscCatalogItemCards) {
             cssOut += `
                 /* catalog listing cards (scoped under the results grid so
                    avatarCardWrapper etc. on other pages are not affected) */
-                [class*="resultsContainer-"] [class*="cardWrapper-"]{background:rgba(255,255,255,0.045)!important;backdrop-filter:blur(13px) saturate(160%)!important;-webkit-backdrop-filter:blur(13px) saturate(160%)!important;border:1px solid rgba(255,255,255,0.12)!important;border-radius:14px!important;box-shadow:0 8px 28px rgba(0,0,0,0.28)!important;padding:8px!important;overflow:hidden!important;transition:transform 0.16s ease,box-shadow 0.16s ease,border-color 0.16s ease!important;}
+                [class*="resultsContainer-"] [class*="cardWrapper-"]{background:${GLASS_BG}!important;backdrop-filter:${GLASS_FILTER}!important;-webkit-backdrop-filter:${GLASS_FILTER}!important;border:1px solid rgba(255,255,255,0.12)!important;border-radius:14px!important;box-shadow:0 8px 28px rgba(0,0,0,0.28)!important;padding:8px!important;overflow:hidden!important;transition:transform 0.16s ease,box-shadow 0.16s ease,border-color 0.16s ease!important;}
                 [class*="resultsContainer-"] [class*="cardWrapper-"]:hover{transform:translateY(-4px)!important;box-shadow:0 14px 38px rgba(0,0,0,0.45)!important;border-color:${t.accent}77!important;}
                 [class*="resultsContainer-"] [class*="cardImage-"]{background:transparent!important;}
                 [class*="resultsContainer-"] [class*="cardImage-"] img{border:none!important;border-radius:10px!important;background:transparent!important;}
@@ -1147,7 +1157,7 @@
                 [class*="resultsContainer-"] [class*="salesCounter-"]{color:#9aa0c0!important;}
                 [class*="resultsContainer-"] [class*="salesCounterValue-"]{color:#fff!important;}
                 [class*="resultsContainer-"] [class*="itemStatusSaleBadge-"]{border-radius:6px!important;}
-                [class*="catalogPage-"] [class*="selectorClosed-"]{background:rgba(255,255,255,0.06)!important;border:1px solid rgba(255,255,255,0.14)!important;border-radius:8px!important;color:#fff!important;}
+                [class*="catalogPage-"] [class*="selectorClosed-"]{background:${GLASS_BG}!important;border:1px solid rgba(255,255,255,0.14)!important;border-radius:8px!important;color:#fff!important;}
                 [class*="breadcrumbsContainer-"],[class*="breadcrumbsContainer-"] span{color:#dfe3f0!important;}
             `;
             const catDark = darkenHex(t.accent, 0.6);
@@ -1156,16 +1166,16 @@
                 [class*="catalogContainer"] h1,[class*="catalogContainer"] h2,[class*="catalogContainer"] [class*="bottom-0-2"],[class*="catalogContainer"] [class*="top-0-2"]{color:#fff!important;}
                 [class*="catalogContainer"] h3,[class*="catalogContainer"] label,[class*="catalogContainer"] summary,[class*="catalogContainer"] p,[class*="catalogContainer"] [class*="sortByLabel"]{color:#dfe3f0!important;}
                 [class*="catalogContainer"] a{color:${t.accent}!important;}
-                [class*="catalogContainer"] input[type="text"],[class*="catalogContainer"] select{background:rgba(255,255,255,0.06)!important;border:1px solid rgba(255,255,255,0.14)!important;border-radius:8px!important;color:#fff!important;padding:5px 9px!important;}
+                [class*="catalogContainer"] input[type="text"],[class*="catalogContainer"] select{background:${GLASS_BG}!important;border:1px solid rgba(255,255,255,0.14)!important;border-radius:8px!important;color:#fff!important;padding:5px 9px!important;}
                 [class*="catalogContainer"] select option{background:#16161f!important;color:#fff!important;}
                 [class*="catalogContainer"] [class*="caret-0-2"]{background:transparent!important;border:none!important;color:#fff!important;}
                 [class*="catalogContainer"] .buttons_legacyButton__vUgL2,[class*="catalogContainer"] [class*="button-0-2"]{background:linear-gradient(135deg,${t.accent},${catDark})!important;border:none!important;color:#050508!important;border-radius:8px!important;font-weight:700!important;transition:filter 0.15s ease!important;}
                 [class*="catalogContainer"] .buttons_legacyButton__vUgL2:hover,[class*="catalogContainer"] [class*="button-0-2"]:hover{filter:brightness(1.12)!important;color:#050508!important;}
-                [class*="catalogContainer"] [class*="itemDiv-0-2"]{background:rgba(255,255,255,0.04)!important;border:1px solid rgba(255,255,255,0.08)!important;border-radius:8px!important;margin-bottom:4px!important;padding:2px 8px!important;transition:background 0.15s ease,border-color 0.15s ease!important;}
+                [class*="catalogContainer"] [class*="itemDiv-0-2"]{background:${GLASS_BG}!important;border:1px solid rgba(255,255,255,0.08)!important;border-radius:8px!important;margin-bottom:4px!important;padding:2px 8px!important;transition:background 0.15s ease,border-color 0.15s ease!important;}
                 [class*="catalogContainer"] [class*="itemDiv-0-2"]:hover{background:${t.accent}1f!important;border-color:${t.accent}66!important;}
                 [class*="catalogContainer"] [class*="separator-0-2"]{border-color:rgba(255,255,255,0.1)!important;background:rgba(255,255,255,0.1)!important;}
                 [class*="catalogContainer"] [class*="divider-right"]{border-color:rgba(255,255,255,0.1)!important;}
-                [class*="catalogContainer"] [class*="wrapper-0-2"]{background:rgba(255,255,255,0.04)!important;backdrop-filter:blur(12px) saturate(150%)!important;-webkit-backdrop-filter:blur(12px) saturate(150%)!important;border:1px solid rgba(255,255,255,0.1)!important;border-radius:12px!important;padding:10px!important;}
+                [class*="catalogContainer"] [class*="wrapper-0-2"]{background:${GLASS_BG}!important;backdrop-filter:${GLASS_FILTER}!important;-webkit-backdrop-filter:${GLASS_FILTER}!important;border:1px solid rgba(255,255,255,0.1)!important;border-radius:12px!important;padding:10px!important;}
             `;
         }
         cs.textContent = cssOut;
@@ -1199,14 +1209,14 @@
 
         css += `
             [class*="moneyContainer"]{overflow:visible!important;}
-            [class*="moneyContainer"] .col-lg-10{flex:0 0 100%!important;max-width:100%!important;background:rgba(255,255,255,0.05)!important;backdrop-filter:blur(16px) saturate(160%)!important;-webkit-backdrop-filter:blur(16px) saturate(160%)!important;border-radius:16px!important;padding:16px!important;box-shadow:0 8px 30px rgba(0,0,0,0.3)!important;}
+            [class*="moneyContainer"] .col-lg-10{flex:0 0 100%!important;max-width:100%!important;background:${GLASS_BG}!important;backdrop-filter:${GLASS_FILTER}!important;-webkit-backdrop-filter:${GLASS_FILTER}!important;border-radius:16px!important;padding:16px!important;box-shadow:0 8px 30px rgba(0,0,0,0.3)!important;}
             [class*="moneyContainer"] table{width:100%!important;border-collapse:separate!important;border-spacing:0!important;}
-            [class*="moneyContainer"] thead{background:rgba(255,255,255,0.05)!important;border:none!important;}
+            [class*="moneyContainer"] thead{background:${GLASS_BG}!important;border:none!important;}
             [class*="moneyContainer"] thead th{color:#9aa0c0!important;font-weight:700!important;text-transform:uppercase!important;letter-spacing:0.05em!important;font-size:11px!important;border:none!important;padding:11px 14px!important;}
             [class*="moneyContainer"] thead tr th:first-child{border-top-left-radius:10px!important;border-bottom-left-radius:10px!important;}
             [class*="moneyContainer"] thead tr th:last-child{border-top-right-radius:10px!important;border-bottom-right-radius:10px!important;}
             [class*="moneyContainer"] tbody tr{transition:background 0.15s ease!important;}
-            [class*="moneyContainer"] tbody tr:hover{background:rgba(255,255,255,0.06)!important;}
+            [class*="moneyContainer"] tbody tr:hover{background:${GLASS_BG}!important;}
             [class*="moneyContainer"] tbody td{color:#dfe3f0!important;border:none!important;border-top:1px solid rgba(255,255,255,0.06)!important;padding:12px 14px!important;vertical-align:middle!important;}
             [class*="moneyContainer"] tbody [class*="image-"]{border:1px solid rgba(255,255,255,0.15)!important;}
             [class*="senderName"]{color:#fff!important;font-weight:600!important;}
@@ -1214,7 +1224,7 @@
             [class*="viewDetails"]:hover{text-decoration:underline!important;}
             [class*="tradeTypeActions"]{color:#cfd3e6!important;}
             [class*="tradeTypeActions"] a{color:${t.accent}!important;}
-            [class*="tradeTypeActions"] select{background:rgba(255,255,255,0.06)!important;color:#fff!important;border:1px solid rgba(255,255,255,0.14)!important;border-radius:8px!important;padding:4px 8px!important;}
+            [class*="tradeTypeActions"] select{background:${GLASS_BG}!important;color:#fff!important;border:1px solid rgba(255,255,255,0.14)!important;border-radius:8px!important;padding:4px 8px!important;}
         `;
         css += `
             [class*="modalWrapper"]{position:fixed!important;top:50%!important;left:50%!important;transform:translate(-50%,-50%)!important;z-index:2147483647!important;margin:0!important;max-width:92vw!important;background:rgba(20,20,30,0.5)!important;backdrop-filter:blur(26px) saturate(170%)!important;-webkit-backdrop-filter:blur(26px) saturate(170%)!important;border:none!important;border-radius:16px!important;box-shadow:0 20px 60px rgba(0,0,0,0.6)!important;color:#fff!important;overflow:hidden!important;}
@@ -1224,14 +1234,14 @@
             [class*="modalWrapper"] a{color:${t.accent}!important;}
             [class*="modalWrapper"] [class*="robuxLabel"]{color:#3fd07e!important;}
             [class*="modalWrapper"] [class*="imageWrapper"]{background:transparent!important;}
-            [class*="modalWrapper"] [class*="col-0-2"]{background:rgba(255,255,255,0.05)!important;border:1px solid rgba(255,255,255,0.1)!important;border-radius:10px!important;}
+            [class*="modalWrapper"] [class*="col-0-2"]{background:${GLASS_BG}!important;border:1px solid rgba(255,255,255,0.1)!important;border-radius:10px!important;}
             [class*="modalWrapper"] [class*="divider-right"],[class*="modalWrapper"] [class*="divider-top"]{border-color:rgba(255,255,255,0.14)!important;}
             [class*="modalWrapper"] [class*="closeButton"]{color:#fff!important;cursor:pointer!important;opacity:0.85!important;}
             [class*="modalWrapper"] [class*="closeButton"]:hover{opacity:1!important;}
             /* Profile friend-action buttons (Unfriend / Message / Chat) → modern glass */
             [class*="actionContainer"]{display:flex!important;gap:8px!important;flex-wrap:wrap!important;align-items:center!important;}
             [class*="actionContainer"] [class*="buttonContainer"]{margin:0!important;}
-            [class*="actionContainer"] button{background:rgba(255,255,255,0.06)!important;backdrop-filter:blur(10px) saturate(160%)!important;-webkit-backdrop-filter:blur(10px) saturate(160%)!important;border:1px solid rgba(255,255,255,0.14)!important;border-radius:12px!important;color:#fff!important;font-weight:600!important;letter-spacing:0.02em!important;padding:8px 18px!important;box-shadow:0 4px 16px rgba(0,0,0,0.25)!important;transition:background 0.16s ease,border-color 0.16s ease,transform 0.14s ease,box-shadow 0.16s ease!important;}
+            [class*="actionContainer"] button{background:${GLASS_BG}!important;backdrop-filter:${GLASS_FILTER}!important;-webkit-backdrop-filter:${GLASS_FILTER}!important;border:1px solid rgba(255,255,255,0.14)!important;border-radius:12px!important;color:#fff!important;font-weight:600!important;letter-spacing:0.02em!important;padding:8px 18px!important;box-shadow:0 4px 16px rgba(0,0,0,0.25)!important;transition:background 0.16s ease,border-color 0.16s ease,transform 0.14s ease,box-shadow 0.16s ease!important;}
             [class*="actionContainer"] button:hover{background:rgba(255,255,255,0.12)!important;border-color:${t.accent}!important;transform:translateY(-2px)!important;box-shadow:0 8px 24px ${t.accent}55!important;}
             /* Remove the (disabled) Chat button entirely */
             [class*="actionContainer"] [class*="newDisabledCancelButton"]{display:none!important;}
@@ -1929,7 +1939,7 @@
         let el = document.getElementById('pks-avatar-glass-style');
         if (!el) { el = document.createElement('style'); el.id = 'pks-avatar-glass-style'; document.head.appendChild(el); }
         el.textContent = cfg.avatarGlassify
-            ? `[class*="avatarCardContainer"]{background:rgba(255,255,255,0.05)!important;backdrop-filter:blur(14px) saturate(160%)!important;-webkit-backdrop-filter:blur(14px) saturate(160%)!important;border:1px solid rgba(255,255,255,0.14)!important;border-radius:12px!important;box-shadow:0 8px 28px rgba(0,0,0,0.25)!important;overflow:hidden!important;}[class*="avatarCardImage"]{background:transparent!important;}`
+            ? `[class*="avatarCardContainer"]{background:${GLASS_BG}!important;backdrop-filter:blur(14px) saturate(160%)!important;-webkit-backdrop-filter:blur(14px) saturate(160%)!important;border:1px solid rgba(255,255,255,0.14)!important;border-radius:12px!important;box-shadow:0 8px 28px rgba(0,0,0,0.25)!important;overflow:hidden!important;}[class*="avatarCardImage"]{background:transparent!important;}`
             : '';
     };
 
