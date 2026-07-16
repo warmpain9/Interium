@@ -16,7 +16,7 @@
 // @connect      www.pekora.zip
 // @connect      www.koromons.net
 // @require      https://cdn.jsdelivr.net/gh/warmpain9/Interium@main/dist/interium-trading-1.js
-// @require      https://cdn.jsdelivr.net/gh/warmpain9/Interium@main/dist/interium-ui-2.js
+// @require      https://cdn.jsdelivr.net/gh/warmpain9/Interium@main/dist/interium-ui-3.js
 // @updateURL    https://cdn.jsdelivr.net/gh/warmpain9/Interium@main/loader/interium-loader.user.js
 // @downloadURL  https://cdn.jsdelivr.net/gh/warmpain9/Interium@main/loader/interium-loader.user.js
 // @homepageURL  https://github.com/warmpain9/Interium
