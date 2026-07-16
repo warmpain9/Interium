@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Interium Loader
 // @namespace    https://github.com/warmpain9/Interium
-// @version      2.5.0
+// @version      1.0.0
 // @description  CSP-safe loader: Tampermonkey attaches the Interium trading + UI runtimes from GitHub (via jsDelivr) using @require.
 // @author       Interium contributors
 // @license      MIT
@@ -16,7 +16,7 @@
 // @connect      www.pekora.zip
 // @connect      www.koromons.net
 // @require      https://cdn.jsdelivr.net/gh/warmpain9/Interium@main/dist/interium-trading-1.js
-// @require      https://cdn.jsdelivr.net/gh/warmpain9/Interium@main/dist/interium-ui-4.js
+// @require      https://cdn.jsdelivr.net/gh/warmpain9/Interium@main/dist/interium-ui.js
 // @updateURL    https://cdn.jsdelivr.net/gh/warmpain9/Interium@main/loader/interium-loader.user.js
 // @downloadURL  https://cdn.jsdelivr.net/gh/warmpain9/Interium@main/loader/interium-loader.user.js
 // @homepageURL  https://github.com/warmpain9/Interium
@@ -34,7 +34,7 @@
  * How updates ship:
  * 1. Commit the changed runtime file on main:
  *      - trading (rank, collectibles, koromons values) -> dist/interium-trading-1.js
- *      - UI (panel, themes, watermark, styling)        -> dist/interium-ui-4.js
+ *      - UI (panel, themes, watermark, styling)        -> dist/interium-ui.js
  * 2. Bump @version in THIS file and commit it too.
  * Tampermonkey auto-updates the loader from @updateURL and re-downloads the
  * @require'd runtime along with it - users never reinstall anything.
