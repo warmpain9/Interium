@@ -310,7 +310,7 @@
         applyGuiFont(cfg.miscGuiFont || 'Share Tech Mono');
     };
 
-    // ── Unified glass recipe ──────────────────────────────────────────
+    // ── Unified glass recipe ─────────────────────────���────────────────
     // Every blur / glassify surface (navbar, sidebar, cards, frames,
     // dropdowns, chips) uses these EXACT values so the glass effect looks
     // identical everywhere. Tweak here to retune all glass at once.
@@ -1749,7 +1749,7 @@
                     cfg.avatarBgEnabled = !!cfg.avatarBgImage;
                     const cb = document.getElementById('cfg-avatarBgEnabled'); if (cb) cb.checked = cfg.avatarBgEnabled;
                     saveCfg(cfg); applyAvatarBg();
-                    const strip = document.getElementById('pks-avatar-bg-strip'); if (strip) stripMarkSelected(strip);
+                    const avCard = document.getElementById('pks-avatar-tools'); if (avCard) { avCard.remove(); injectAvatarBgStrip(); }
                     notify(cfg.avatarBgEnabled ? 'Avatar background applied' : 'Avatar background cleared', 'info');
                 }
             });
@@ -2059,55 +2059,82 @@
         }
     };
 
-    const stripMarkSelected = (strip) => {
-        strip.querySelectorAll('img[data-bg-url]').forEach(im => {
-            const on = cfg.avatarBgEnabled && cfg.avatarBgImage === im.dataset.bgUrl;
-            im.style.borderColor = on ? '#00e87a' : 'rgba(255,255,255,0.15)';
-            im.style.boxShadow = on ? '0 0 8px rgba(0,232,122,0.45)' : 'none';
-        });
-    };
+    // Hexium-style avatar Background card: glass panel under the preview
+    // with a 5-column grid of preset tiles + custom URL input.
     const injectAvatarBgStrip = () => {
         if (!isAvatarPage()) return;
-        const frame = document.querySelector('[class*="avatarThumbContainer"]');
-        if (!frame) return;
-        if (document.getElementById('pks-avatar-bg-strip')) return;
-        const strip = document.createElement('div');
-        strip.id = 'pks-avatar-bg-strip';
-        strip.style.cssText = 'display:flex;gap:8px;align-items:center;margin:10px 0;padding:4px 2px;overflow-x:auto;overflow-y:hidden;position:relative;z-index:2;scrollbar-width:thin;';
-        const none = document.createElement('div');
-        none.textContent = '\u2715';
-        none.title = 'No background';
-        none.style.cssText = 'width:56px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:#8a90ad;font-size:13px;cursor:pointer;flex:none;';
-        none.addEventListener('click', () => {
-            cfg.avatarBgEnabled = false; saveCfg(cfg); applyAvatarBg(); stripMarkSelected(strip);
-            const cb = document.getElementById('cfg-avatarBgEnabled'); if (cb) cb.checked = false;
-            notify('Avatar background off', 'info');
-        });
-        strip.appendChild(none);
-        AVATAR_BG_PRESET_CANDIDATES.forEach(u => {
-            const im = document.createElement('img');
-            im.dataset.bgUrl = u;
-            im.loading = 'lazy';
-            im.style.cssText = 'width:56px;height:36px;object-fit:cover;border-radius:8px;border:1px solid rgba(255,255,255,0.15);cursor:pointer;display:none;flex:none;transition:transform 0.12s ease;';
-            im.addEventListener('load', () => { im.style.display = 'block'; stripMarkSelected(strip); });
-            im.addEventListener('mouseenter', () => { im.style.transform = 'scale(1.06)'; });
-            im.addEventListener('mouseleave', () => { im.style.transform = 'none'; });
-            im.addEventListener('click', () => {
-                cfg.avatarBgImage = u; cfg.avatarBgEnabled = true; saveCfg(cfg);
-                applyAvatarBg(); stripMarkSelected(strip);
-                const cb = document.getElementById('cfg-avatarBgEnabled'); if (cb) cb.checked = true;
-                const inp = document.getElementById('cfg-avatarBgImage'); if (inp) inp.value = u;
-                notify('Avatar background applied', 'info');
+        if (document.getElementById('pks-avatar-tools')) return;
+        const anchor = document.querySelector('[class*="avatarThumbContainer"]');
+        if (!anchor || !anchor.parentElement) return;
+        const card = document.createElement('div');
+        card.id = 'pks-avatar-tools';
+        card.style.cssText = `margin-top:14px;padding:14px;border-radius:14px;${GLASS_CSS}color:#d0d0e0;position:relative;z-index:2;`;
+        card.innerHTML = `
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                <span style="font-size:12px;font-weight:700;letter-spacing:0.12em;color:#fff;text-transform:uppercase;">Background</span>
+            </div>
+            <div id="pks-av-bg-hint" style="font-size:10px;color:#777;margin-bottom:10px;">Choose a background below.</div>
+            <div id="pks-av-bg-grid" style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:8px;max-height:240px;overflow-y:auto;"></div>
+            <input type="text" id="pks-av-bgimg" placeholder="Custom URL: image / gif / mp4 (press Enter)" style="width:100%;box-sizing:border-box;background:#16161f;border:1px solid #2a2a3a;border-radius:7px;color:#e6e6f2;font-size:12px;padding:7px 9px;outline:none;font-family:inherit;">
+        `;
+        anchor.parentElement.insertBefore(card, anchor.nextSibling);
+
+        const grid = card.querySelector('#pks-av-bg-grid');
+        const hint = card.querySelector('#pks-av-bg-hint');
+        const loaded = [];
+        const presetNum = (u) => parseInt((u.match(/(\d+)\.\w+$/) || [])[1]) || 0;
+        const renderBgGrid = () => {
+            grid.innerHTML = '';
+            const off = !cfg.avatarBgEnabled || !cfg.avatarBgImage;
+            const none = document.createElement('div');
+            none.title = 'No background';
+            none.textContent = 'OFF';
+            none.style.cssText = `aspect-ratio:1;border-radius:8px;background:#16161f;border:2px solid ${off ? '#fff' : '#2a2a3a'};cursor:pointer;display:flex;align-items:center;justify-content:center;color:#777;font-size:9px;font-weight:700;`;
+            none.addEventListener('click', () => {
+                cfg.avatarBgEnabled = false; saveCfg(cfg); applyAvatarBg(); renderBgGrid();
+                const cb = document.getElementById('cfg-avatarBgEnabled'); if (cb) cb.checked = false;
             });
-            im.src = u;
-            strip.appendChild(im);
+            grid.appendChild(none);
+            loaded.forEach(url => {
+                const sel = cfg.avatarBgEnabled && cfg.avatarBgImage === url;
+                const tile = document.createElement('div');
+                tile.style.cssText = `aspect-ratio:1;border-radius:8px;background-image:url('${url}');background-size:cover;background-position:center;border:2px solid ${sel ? '#fff' : 'transparent'};cursor:pointer;box-shadow:${sel ? '0 0 0 1px #fff,0 0 10px #ffffff66' : '0 1px 4px rgba(0,0,0,0.4)'};transition:transform 0.12s;`;
+                tile.addEventListener('mouseenter', () => { tile.style.transform = 'scale(1.07)'; });
+                tile.addEventListener('mouseleave', () => { tile.style.transform = 'scale(1)'; });
+                tile.addEventListener('click', () => {
+                    cfg.avatarBgImage = url; cfg.avatarBgEnabled = true; saveCfg(cfg);
+                    applyAvatarBg(); renderBgGrid();
+                    const cb = document.getElementById('cfg-avatarBgEnabled'); if (cb) cb.checked = true;
+                    const inp = document.getElementById('cfg-avatarBgImage'); if (inp) inp.value = url;
+                });
+                grid.appendChild(tile);
+            });
+        };
+        renderBgGrid();
+
+        // Probe the repo folder; only files that actually exist become tiles.
+        let pending = AVATAR_BG_PRESET_CANDIDATES.length;
+        const done = () => {
+            console.info(`[Interium] avatar bg presets: ${loaded.length} found at ${AVATAR_BG_BASE}`);
+            if (!loaded.length) { hint.textContent = 'No preset images found - is assets/avatar-bgs/ pushed to GitHub?'; hint.style.color = '#c96'; }
+        };
+        AVATAR_BG_PRESET_CANDIDATES.forEach(url => {
+            const probe = new Image();
+            probe.onload = () => { loaded.push(url); loaded.sort((a, b) => presetNum(a) - presetNum(b)); renderBgGrid(); if (--pending === 0) done(); };
+            probe.onerror = () => { if (--pending === 0) done(); };
+            probe.src = url;
         });
-        // Place the strip between the avatar preview and the "Scaling"
-        // section; fall back to right under the preview if no header found.
-        const scalingHeader = [...document.querySelectorAll('h1,h2,h3,h4')]
-            .find(h => /^\s*scaling\s*$/i.test(h.textContent || ''));
-        if (scalingHeader) scalingHeader.insertAdjacentElement('beforebegin', strip);
-        else frame.insertAdjacentElement('afterend', strip);
+
+        const bgImg = card.querySelector('#pks-av-bgimg');
+        if (cfg.avatarBgImage && !AVATAR_BG_PRESET_CANDIDATES.includes(cfg.avatarBgImage)) bgImg.value = cfg.avatarBgImage;
+        bgImg.addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter') return;
+            cfg.avatarBgImage = bgImg.value.trim();
+            cfg.avatarBgEnabled = !!cfg.avatarBgImage;
+            saveCfg(cfg); applyAvatarBg(); renderBgGrid();
+            const cb = document.getElementById('cfg-avatarBgEnabled'); if (cb) cb.checked = cfg.avatarBgEnabled;
+            notify(cfg.avatarBgEnabled ? 'Avatar background applied' : 'Avatar background cleared', 'info');
+        });
     };
 
     const isFriendsPage = () => /\/friends/i.test(location.pathname);
