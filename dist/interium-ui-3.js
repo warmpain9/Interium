@@ -165,6 +165,7 @@
         miscProfileNameColor2:      '#f238f8',
         miscFriendsFrameTransparent:false,
         miscAvatarFrameTransparent: false,
+        miscAvatarBlurDropdown:     false,
         miscHomeFramesTransparent:  false,
         miscFooterTransparent:      false,
         profileBannerEnabled:       false,
@@ -488,10 +489,23 @@
             // Truly transparent - no glass, no blur (real Friends page classes).
             css += `[class*="friendsContainer-"],[class*="friendCard-"],[class*="manageRequestCard-"]{background:transparent!important;background-color:transparent!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;border-color:rgba(255,255,255,0.08)!important;box-shadow:none!important;}`;
             css += `[class*="friendCardWrapper-"]{background:transparent!important;box-shadow:none!important;border:1px solid rgba(255,255,255,0.10)!important;border-radius:10px!important;}`;
+            // Profile page friends strip (different markup than the Friends page):
+            // the strip is a .card containing listItemFriend entries.
+            css += `[class*="card-0-2-"]:has([class*="listItemFriend-"]){background:transparent!important;background-color:transparent!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;border:1px solid rgba(255,255,255,0.08)!important;box-shadow:none!important;}`;
+            css += `[class*="sideRow-"]{background:transparent!important;background-color:transparent!important;}`;
+            css += `[class*="listItemFriend-"] [class*="avatarWrapper-"]{background:transparent!important;background-color:transparent!important;box-shadow:none!important;}`;
+            css += `[class*="listItemFriend-"] [class*="playerName-"]{color:#fff!important;}`;
             css += `[class*="friendsContainer-"] [class*="username-"],[class*="manageRequestCard-"] [class*="username-"]{color:#fff!important;}`;
             css += `[class*="friendsContainer-"] [class*="imageWrapper-"],[class*="manageRequestCard-"] [class*="imageWrapper-"]{border-color:rgba(255,255,255,0.10)!important;background:transparent!important;}`;
         }
         if (cfg.miscAvatarFrameTransparent) css += `.avatarCardContainer-0-2-570,.catalogContainer-0-2-4{${FRAME_CSS}}.pillToggle-0-2-553{background:rgba(255,255,255,0.05)!important;border-color:rgba(255,255,255,0.1)!important;}`;
+        if (cfg.miscAvatarBlurDropdown) {
+            // Avatar editor category tab strip + its dropdown panel -> glass blur.
+            css += `[class*="buttonCol-"]{background:rgba(15,15,22,0.45)!important;backdrop-filter:blur(14px) saturate(150%)!important;-webkit-backdrop-filter:blur(14px) saturate(150%)!important;box-shadow:none!important;border:1px solid rgba(255,255,255,0.08)!important;border-radius:12px!important;}`;
+            css += `[class*="vTabLabel-"]{background:transparent!important;background-color:transparent!important;color:#fff!important;}`;
+            css += `p[class*="vTabUnselected-"]{box-shadow:none!important;}`;
+            css += `[class*="buttonCol-"] + div:not(:empty),[class*="buttonCol-"] ~ div .section-content{background:rgba(15,15,22,0.55)!important;backdrop-filter:blur(14px) saturate(150%)!important;-webkit-backdrop-filter:blur(14px) saturate(150%)!important;border:1px solid rgba(255,255,255,0.08)!important;border-radius:0 0 12px 12px!important;box-shadow:0 14px 34px rgba(0,0,0,0.4)!important;}`;
+        }
         if (cfg.miscFooterTransparent) css += `[class*="footerContainer"],footer[class*="footerContainer"]{background:transparent!important;border-top:1px solid rgba(255,255,255,0.06)!important;box-shadow:none!important;backdrop-filter:none!important;}`;
         if (cfg.miscGamesGlassify) {
             const accentDark = darkenHex(t.accent, 0.62);
@@ -1434,6 +1448,7 @@
                     <div class="pks-row"><label>Transparent friend cards</label><input type="checkbox" id="cfg-miscFriendsFrameTransparent"></div>
                     <div style="margin:14px 0 4px;"><span class="pks-page-badge">/My/Avatar</span></div>
                     <div class="pks-row"><label>Transparent frames</label><input type="checkbox" id="cfg-miscAvatarFrameTransparent"></div>
+                    <div class="pks-row"><label>Blur category dropdown</label><input type="checkbox" id="cfg-miscAvatarBlurDropdown"></div>
                     <div class="pks-row"><label>Glassify item frames</label><input type="checkbox" id="cfg-avatarGlassify"></div>
                     <div class="pks-row"><label>Avatar background</label><input type="checkbox" id="cfg-avatarBgEnabled"></div>
                     <div class="pks-row"><label style="font-size:10px;color:#555;padding-left:10px;">↳ Background blur</label><div class="pks-row-right"><input type="number" id="cfg-avatarBgBlur" min="0" max="40" step="1" style="width:55px;"><span class="pks-unit-label">px</span></div></div>
@@ -1592,6 +1607,7 @@
             'cfg-miscProfileNameColor1':'miscProfileNameColor1','cfg-miscProfileNameColor2':'miscProfileNameColor2',
             'cfg-miscFriendsFrameTransparent':'miscFriendsFrameTransparent',
             'cfg-miscAvatarFrameTransparent':'miscAvatarFrameTransparent','cfg-avatarGlassify':'avatarGlassify',
+            'cfg-miscAvatarBlurDropdown':'miscAvatarBlurDropdown',
             'cfg-avatarBgEnabled':'avatarBgEnabled','cfg-avatarBgBlur':'avatarBgBlur',
             'cfg-tradesBgColor':'tradesBgColor','cfg-tradesOpacity':'tradesOpacity','cfg-tradesBlur':'tradesBlur','cfg-tradesAccent':'tradesAccent',
             'cfg-profileBannerEnabled':'profileBannerEnabled','cfg-profileBannerImage':'profileBannerImage','cfg-profileBannerBlur':'profileBannerBlur','cfg-profileBannerTint':'profileBannerTint','cfg-profileBannerTintOpacity':'profileBannerTintOpacity','cfg-profileBannerBrightness':'profileBannerBrightness','cfg-hideHexBadge':'hideHexBadge','cfg-profileBannerTintGradient':'profileBannerTintGradient','cfg-profileBannerTint2':'profileBannerTint2','cfg-profileBannerTintAngle':'profileBannerTintAngle','cfg-tradesGlassCards':'tradesGlassCards','cfg-tradesMetric':'tradesMetric','cfg-tradesPillOpacity':'tradesPillOpacity',
