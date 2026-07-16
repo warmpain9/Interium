@@ -429,6 +429,52 @@
         });
     };
 
+    // Bulletproof friends transparency: inline styles (with !important) win
+    // over ANY site stylesheet, on both the Friends page and profile strips.
+    const FRIENDS_INLINE_PROPS = ['background', 'background-color', 'backdrop-filter', '-webkit-backdrop-filter', 'box-shadow', 'border-color'];
+    const applyFriendsTransparencyDirect = () => {
+        if (!cfg.miscFriendsFrameTransparent) {
+            document.querySelectorAll('[data-interium-friends]').forEach(el => {
+                FRIENDS_INLINE_PROPS.forEach(p => el.style.removeProperty(p));
+                el.style.removeProperty('color');
+                el.removeAttribute('data-interium-friends');
+            });
+            return;
+        }
+        const targets = new Set();
+        // Friends page (/internal/friends + friend requests)
+        document.querySelectorAll('[class*="friendsContainer-"],[class*="friendCard-"],[class*="friendCardWrapper-"],[class*="manageRequestCard-"]').forEach(el => targets.add(el));
+        // Profile page friends strip: climb from each entry to its card container
+        document.querySelectorAll('[class*="listItemFriend-"]').forEach(li => {
+            const card = li.closest('[class*="card-0-2-"],.card');
+            if (card) targets.add(card);
+            const row = li.closest('[class*="sideRow-"],ul');
+            if (row) targets.add(row);
+        });
+        targets.forEach(el => {
+            el.setAttribute('data-interium-friends', '1');
+            el.style.setProperty('background', 'transparent', 'important');
+            el.style.setProperty('background-color', 'transparent', 'important');
+            el.style.setProperty('backdrop-filter', 'none', 'important');
+            el.style.setProperty('-webkit-backdrop-filter', 'none', 'important');
+            el.style.setProperty('box-shadow', 'none', 'important');
+            el.style.setProperty('border-color', 'rgba(255,255,255,0.10)', 'important');
+        });
+        document.querySelectorAll('[class*="listItemFriend-"] [class*="avatarWrapper-"]').forEach(el => {
+            el.setAttribute('data-interium-friends', '1');
+            el.style.setProperty('background', 'transparent', 'important');
+            el.style.setProperty('box-shadow', 'none', 'important');
+        });
+        document.querySelectorAll('[class*="listItemFriend-"] [class*="playerName-"],[class*="friendCard-"] [class*="username-"],[class*="manageRequestCard-"] [class*="username-"]').forEach(el => {
+            el.setAttribute('data-interium-friends', '1');
+            el.style.setProperty('color', '#fff', 'important');
+        });
+        if (applyFriendsTransparencyDirect._last !== targets.size) {
+            applyFriendsTransparencyDirect._last = targets.size;
+            console.info('[Interium] Friends transparency: matched', targets.size, 'containers on', location.pathname);
+        }
+    };
+
     const applyPageFrameTransparency = () => {
         let el = document.getElementById('pks-frame-style');
         if (!el) { el = document.createElement('style'); el.id = 'pks-frame-style'; document.head.appendChild(el); }
@@ -508,6 +554,7 @@
             css += `[class*="friendsContainer-"] [class*="username-"],[class*="manageRequestCard-"] [class*="username-"]{color:#fff!important;}`;
             css += `[class*="friendsContainer-"] [class*="imageWrapper-"],[class*="manageRequestCard-"] [class*="imageWrapper-"]{border-color:rgba(255,255,255,0.10)!important;background:transparent!important;}`;
         }
+        applyFriendsTransparencyDirect();
         if (cfg.miscAvatarFrameTransparent) css += `.avatarCardContainer-0-2-570,.catalogContainer-0-2-4{${FRAME_CSS}}.pillToggle-0-2-553{background:${GLASS_BG}!important;border-color:rgba(255,255,255,0.1)!important;}`;
         if (cfg.miscAvatarBlurDropdown) {
             // Avatar editor category tab strip + its dropdown panel -> glass blur.
@@ -2094,6 +2141,7 @@
             debounce = setTimeout(() => {
                 debounce = null;
                 if (cfg.sidebarEnabled) applySidebarDirect();
+                if (cfg.miscFriendsFrameTransparent) applyFriendsTransparencyDirect();
                 injectSidebarLinks();
                 applyAgeOverride();
                 ensureTradesOverlay();
