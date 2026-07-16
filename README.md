@@ -8,7 +8,7 @@ Interium is an **unofficial, open-source community userscript for Pekora**. It i
 2. Open `loader/interium-loader.user.js` in GitHub and choose **Raw**.
 3. Confirm the installation in Tampermonkey.
 
-The loader requests `dist/interium-main.js` from this repository on every matching page load. If GitHub is temporarily unavailable, it uses the last copy that downloaded and ran successfully.
+The loader attaches the current runtimes (`src/core/core.js`, `src/trading/`, `src/ui/`) from this repository through jsDelivr using Tampermonkey `@require`, so every loader update ships the newest code without reinstalling.
 
 ## Why a loader?
 
@@ -16,10 +16,10 @@ The loader stays short enough to audit. The full script can improve without aski
 
 ## Source policy
 
-- `src/features/trading-interium.js` is the **only authoritative trading implementation**.
+- `src/trading/` is the **only authoritative trading implementation**.
 - No trading, mass-trading, trade-send, or trade-window code was imported from the supplied `src.js`.
 - The project does not include the supplied Interium Worker authentication/profile/announcement backend.
-- `src/core.js` contains only local settings and small appearance preferences.
+- `src/core/core.js` contains only shared style constants, an asset URL helper and a module registry.
 
 ## Network access
 
@@ -27,7 +27,7 @@ All network behavior is visible in source:
 
 | Destination | Purpose | Credentials |
 | --- | --- | --- |
-| `raw.githubusercontent.com` | Download current Interium runtime | None |
+| `cdn.jsdelivr.net` | Download current Interium runtimes (Tampermonkey `@require`) | None |
 | `pekora.zip` / `www.pekora.zip` | Read Pekora pages and same-origin inventory/trade data used by Trading Interium | Existing browser session, sent only to Pekora |
 | `www.koromons.net` | Public item values, demand, and leaderboard data used by Trading Interium | None |
 
@@ -40,7 +40,6 @@ Settings are stored with Tampermonkey's `GM_setValue` (with localStorage fallbac
 ## Build and verify
 
 ```bash
-npm run build
 npm run check
 npm test
 ```
@@ -51,4 +50,4 @@ Read [SECURITY.md](SECURITY.md) and [PRIVACY.md](PRIVACY.md). Report vulnerabili
 
 ## License
 
-MIT. See [LICENSE](LICENSE). Preserve upstream attribution in `src/features/trading-interium.js`.
+MIT. See [LICENSE](LICENSE). Preserve upstream attribution in `src/trading/`.
