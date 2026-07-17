@@ -311,11 +311,14 @@
         applyGuiFont(cfg.miscGuiFont || 'Share Tech Mono');
     };
 
-    // ── Unified glass recipe ────────────���������������────────────���────────────────
+    // ── Unified glass recipe ────────────�������������������────────────���────────────────
     // Every blur / glassify surface (navbar, sidebar, cards, frames,
     // dropdowns, chips) uses these EXACT values so the glass effect looks
     // identical everywhere. Tweak here to retune all glass at once.
     const GLASS_BG = 'rgba(255,255,255,0.05)';
+    // GUI-only tint: deliberately darker than site glass. Do not reuse this
+    // outside #pks-panel; profile/catalog/avatar surfaces stay on GLASS_BG.
+    const GUI_GLASS_BG = 'rgba(10,10,14,0.86)';
     const GLASS_FILTER = 'blur(14px) saturate(160%)';
     const GLASS_BORDER_COLOR = 'rgba(255,255,255,0.12)';
     const GLASS_SHADOW = '0 8px 28px rgba(0,0,0,0.28)';
@@ -516,12 +519,8 @@
                 [class*="cardBody-0-2-"]${NOHOME},
                 [class*="avatarImageCard-"],
                 [class*="groupCard-"] {
-                    background:${GLASS_BG}!important;
-                    backdrop-filter:${GLASS_FILTER}!important;
-                    -webkit-backdrop-filter:${GLASS_FILTER}!important;
-                    border: 1px solid rgba(255,255,255,0.15) !important;
-                    border-radius: 12px !important;
-                    box-shadow: 0 8px 32px rgba(0,0,0,.20), inset 0 1px 0 rgba(255,255,255,.15) !important;
+                    ${GLASS_CSS}
+                    border-radius:12px!important;
                 }
                 [class*="avatarWrapper-"],
                 [class*="avatarContainer-"],
@@ -532,10 +531,6 @@
                     background-color: transparent !important;
                     box-shadow: none !important;
                     border: none !important;
-                }
-                [class*="avatarWrapper-"] {
-                    backdrop-filter:${GLASS_FILTER}!important;
-                    -webkit-backdrop-filter:${GLASS_FILTER}!important;
                 }
                 /* backdrop-filter makes each card its own stacking context, which
                    buries the Past Usernames popover under the next glass frame.
@@ -596,26 +591,26 @@
                 [class*="voteText"],[class*="voteNumbers"],[class*="playerCount"],[class*="creatorLabel"]{color:#e6e9f5!important;}
                 /* game stats → modern glass chips */
                 [class*="gameStatsContainer"]{display:flex!important;flex-wrap:wrap!important;gap:8px!important;border:none!important;padding:0!important;margin-top:12px!important;}
-                [class*="gameStat-"]{list-style:none!important;background:${GLASS_BG}!important;backdrop-filter:${GLASS_FILTER}!important;-webkit-backdrop-filter:${GLASS_FILTER}!important;border:1px solid rgba(255,255,255,0.1)!important;border-radius:12px!important;padding:8px 13px!important;transition:border-color 0.15s ease,transform 0.12s ease!important;}
+                [class*="gameStat-"]{list-style:none!important;${GLASS_CSS}border-radius:12px!important;padding:8px 13px!important;transition:border-color 0.15s ease,transform 0.12s ease!important;}
                 [class*="gameStat-"]:hover{border-color:${t.accent}66!important;transform:translateY(-1px)!important;}
                 [class*="gameStatLabel"]{color:#9aa0c0!important;}
                 [class*="gameStatStat"]{color:#fff!important;font-weight:700!important;}
                 [class*="reportAbuseContainer"] a,[class*="abuseLink"]{color:${t.accent}!important;}
                 /* comments → glass */
-                [class*="commentContainer"]{background:${GLASS_BG}!important;backdrop-filter:${GLASS_FILTER}!important;-webkit-backdrop-filter:${GLASS_FILTER}!important;border:1px solid rgba(255,255,255,0.1)!important;border-radius:12px!important;padding:10px!important;margin-bottom:8px!important;}
-                [class*="createCommentContainer"],[class*="commentBox"]{background:${GLASS_BG}!important;backdrop-filter:${GLASS_FILTER}!important;-webkit-backdrop-filter:${GLASS_FILTER}!important;border:1px solid rgba(255,255,255,0.12)!important;border-radius:12px!important;}
+                [class*="commentContainer"]{${GLASS_CSS}border-radius:12px!important;padding:10px!important;margin-bottom:8px!important;}
+                [class*="createCommentContainer"],[class*="commentBox"]{${GLASS_CSS}border-radius:12px!important;}
                 [class*="commentBox"] input,[class*="createCommentContainer"] input{background:transparent!important;color:#fff!important;border:none!important;}
                 /* modern, sleek buttons */
                 [class*="actionButtonsContainer"]{gap:8px!important;}
                 [class*="playButtonContainer"] button,[class*="buttonWrapper"] button{background:linear-gradient(135deg,${t.accent},${accentDark})!important;border:none!important;border-radius:14px!important;box-shadow:0 6px 22px ${t.accent}55!important;transition:transform 0.16s ease,box-shadow 0.16s ease,filter 0.16s ease!important;}
                 [class*="playButtonContainer"] button:hover,[class*="buttonWrapper"] button:hover{transform:translateY(-2px) scale(1.02)!important;filter:brightness(1.08)!important;box-shadow:0 12px 30px ${t.accent}88!important;}
                 [class*="playButtonContainer"] button [class*="iconPlay"]{filter:drop-shadow(0 1px 2px rgba(0,0,0,0.4))!important;}
-                [class*="favoriteButton"],[class*="followButton"]{display:flex!important;align-items:center!important;justify-content:center!important;gap:6px!important;background:${GLASS_BG}!important;backdrop-filter:${GLASS_FILTER}!important;-webkit-backdrop-filter:${GLASS_FILTER}!important;border:1px solid rgba(255,255,255,0.14)!important;border-radius:14px!important;padding:8px 14px!important;transition:background 0.15s ease,border-color 0.15s ease,transform 0.15s ease!important;}
+                [class*="favoriteButton"],[class*="followButton"]{display:flex!important;align-items:center!important;justify-content:center!important;gap:6px!important;${GLASS_CSS}border-radius:14px!important;padding:8px 14px!important;transition:background 0.15s ease,border-color 0.15s ease,transform 0.15s ease!important;}
                 [class*="favoriteButton"]:hover,[class*="followButton"]:hover{background:rgba(255,255,255,0.11)!important;border-color:${t.accent}99!important;transform:translateY(-1px)!important;}
                 [class*="favoriteLabel"],[class*="followLabel"]{color:#fff!important;font-weight:600!important;}
                 /* About / Store / Servers tabs → modern glass segmented control */
                 [class*="buttonCol"]{display:flex!important;gap:8px!important;flex-wrap:wrap!important;}
-                [class*="vTab-"]{background:${GLASS_BG}!important;backdrop-filter:${GLASS_FILTER}!important;-webkit-backdrop-filter:${GLASS_FILTER}!important;border:1px solid rgba(255,255,255,0.12)!important;border-radius:12px!important;overflow:hidden!important;transition:border-color 0.15s ease,transform 0.12s ease,background 0.15s ease!important;}
+                [class*="vTab-"]{${GLASS_CSS}border-radius:12px!important;overflow:hidden!important;transition:border-color 0.15s ease,transform 0.12s ease,background 0.15s ease!important;}
                 [class*="vTab-"]:hover{border-color:${t.accent}66!important;transform:translateY(-1px)!important;}
                 [class*="vTabLabel"]{color:#cfd3e6!important;font-weight:600!important;margin:0!important;padding:9px 16px!important;text-align:center!important;cursor:pointer!important;}
                 [class*="vTabLabel"]:not([class*="vTabUnselected"]){color:#fff!important;background:linear-gradient(135deg,${t.accent}33,${t.accent}11)!important;box-shadow:inset 0 -2px 0 ${t.accent}!important;}
@@ -644,7 +639,7 @@
         el.textContent = `
             ${M}{${GLASS}padding:18px!important;color:#e6e9f5!important;}
             /* tabs (Inbox / Sent / Notifications / Archive) */
-            ${M} [class*="vTab-0-2"]{background:${GLASS_BG}!important;backdrop-filter:${GLASS_FILTER}!important;-webkit-backdrop-filter:${GLASS_FILTER}!important;border:1px solid rgba(255,255,255,0.12)!important;border-radius:12px!important;overflow:hidden!important;margin-bottom:8px!important;transition:border-color 0.15s ease,transform 0.12s ease!important;}
+            ${M} [class*="vTab-0-2"]{${GLASS_CSS}border-radius:12px!important;overflow:hidden!important;margin-bottom:8px!important;transition:border-color 0.15s ease,transform 0.12s ease!important;}
             ${M} [class*="vTab-0-2"]:hover{border-color:${t.accent}66!important;transform:translateY(-1px)!important;}
             ${M} [class*="vTabLabel"]{margin:0!important;padding:10px 16px!important;color:#cfd3e6!important;font-weight:600!important;cursor:pointer!important;}
             ${M} [class*="vTabLabel"]:not([class*="vTabUnselected"]){color:#fff!important;background:linear-gradient(135deg,${t.accent}33,${t.accent}11)!important;box-shadow:inset 3px 0 0 ${t.accent}!important;}
@@ -661,7 +656,7 @@
             ${M} [class*="body-0-2"]{color:#9aa0c0!important;}
             ${M} [class*="divider-top"]{display:none!important;}
             /* action + pagination buttons → glass */
-            ${M} button{background:${GLASS_BG}!important;color:#e6e9f5!important;border:1px solid rgba(255,255,255,0.14)!important;border-radius:10px!important;transition:all 0.15s ease!important;}
+            ${M} button{${GLASS_CSS}color:#e6e9f5!important;border-radius:10px!important;transition:all 0.15s ease!important;}
             ${M} button:hover:not(:disabled){border-color:${t.accent}99!important;background:rgba(255,255,255,0.1)!important;transform:translateY(-1px)!important;}
             ${M} button:disabled{opacity:0.4!important;}
             /* checkboxes */
@@ -753,12 +748,15 @@
         tabbar?.style.removeProperty('background');
 
         if (cfg.panelGlass) {
-            // Panel glass uses the same canonical preset as every glassify surface.
-            panel.style.setProperty('background', GLASS_BG, 'important');
+            // Only the Interium GUI uses the darker glass tint. Blur/border/shadow
+            // remain canonical, while every site glassify surface keeps GLASS_BG.
+            panel.style.setProperty('background', GUI_GLASS_BG, 'important');
             panel.style.setProperty('backdrop-filter', GLASS_FILTER, 'important');
             panel.style.setProperty('-webkit-backdrop-filter', GLASS_FILTER, 'important');
             panel.style.setProperty('border-color', GLASS_BORDER_COLOR, 'important');
             panel.style.setProperty('box-shadow', GLASS_SHADOW, 'important');
+            header?.style.setProperty('background', 'transparent', 'important');
+            tabbar?.style.setProperty('background', 'transparent', 'important');
         } else {
             panel.style.removeProperty('background');
             panel.style.removeProperty('backdrop-filter');
@@ -1207,13 +1205,13 @@
         const t = getTheme();
         let cssOut = '';
         if (cfg.miscModernGameCards) {
-            cssOut += `[class*="gameCardContainer"]{background:${GLASS_BG}!important;backdrop-filter:${GLASS_FILTER}!important;-webkit-backdrop-filter:${GLASS_FILTER}!important;border-radius:14px!important;border:1px solid ${t.cardBorder}!important;box-shadow:${t.cardGlow}!important;transition:border-color 0.22s,box-shadow 0.22s,transform 0.18s!important;overflow:hidden!important;}[class*="gameCardContainer"]:hover{border-color:${t.cardHoverBorder}!important;box-shadow:${t.cardHoverGlow}!important;transform:translateY(-3px)!important;z-index:2!important;}[class*="gameCardTitle"]{color:#fff!important;}`;
+            cssOut += `[class*="gameCardContainer"]{${GLASS_CSS}border-radius:14px!important;transition:border-color 0.22s,box-shadow 0.22s,transform 0.18s!important;overflow:hidden!important;}[class*="gameCardContainer"]:hover{border-color:${t.cardHoverBorder}!important;box-shadow:${t.cardHoverGlow}!important;transform:translateY(-3px)!important;z-index:2!important;}[class*="gameCardTitle"]{color:#fff!important;}`;
         }
         if (cfg.miscCatalogItemCards) {
             cssOut += `
                 /* catalog listing cards (scoped under the results grid so
                    avatarCardWrapper etc. on other pages are not affected) */
-                [class*="resultsContainer-"] [class*="cardWrapper-"]{background:${GLASS_BG}!important;backdrop-filter:${GLASS_FILTER}!important;-webkit-backdrop-filter:${GLASS_FILTER}!important;border:1px solid rgba(255,255,255,0.12)!important;border-radius:14px!important;box-shadow:0 8px 28px rgba(0,0,0,0.28)!important;padding:8px!important;overflow:hidden!important;transition:transform 0.16s ease,box-shadow 0.16s ease,border-color 0.16s ease!important;}
+                [class*="resultsContainer-"] [class*="cardWrapper-"]{${GLASS_CSS}border-radius:14px!important;padding:8px!important;overflow:hidden!important;transition:transform 0.16s ease,box-shadow 0.16s ease,border-color 0.16s ease!important;}
                 [class*="resultsContainer-"] [class*="cardWrapper-"]:hover{transform:translateY(-4px)!important;box-shadow:0 14px 38px rgba(0,0,0,0.45)!important;border-color:${t.accent}77!important;}
                 [class*="resultsContainer-"] [class*="cardContainer-"]{background:transparent!important;box-shadow:none!important;border:none!important;border-radius:10px!important;}
                 [class*="resultsContainer-"] [class*="cardWrapper-"] a{background:transparent!important;text-decoration:none!important;}
@@ -1225,7 +1223,7 @@
                 [class*="resultsContainer-"] [class*="salesCounter-"]{color:#9aa0c0!important;}
                 [class*="resultsContainer-"] [class*="salesCounterValue-"]{color:#fff!important;}
                 [class*="resultsContainer-"] [class*="itemStatusSaleBadge-"]{border-radius:6px!important;}
-                [class*="catalogPage-"] [class*="selectorClosed-"]{background:${GLASS_BG}!important;border:1px solid rgba(255,255,255,0.14)!important;border-radius:8px!important;color:#fff!important;}
+                [class*="catalogPage-"] [class*="selectorClosed-"]{${GLASS_CSS}border-radius:8px!important;color:#fff!important;}
                 [class*="breadcrumbsContainer-"],[class*="breadcrumbsContainer-"] span{color:#dfe3f0!important;}
             `;
             const catDark = darkenHex(t.accent, 0.6);
@@ -1238,16 +1236,16 @@
                 [class*="searchOptionsContainer-"] a{color:#dfe3f0!important;}
                 [class*="searchOptionsContainer-"] a:hover{color:${t.accent}!important;}
                 [class*="searchOptionsContainer-"] h1,[class*="searchOptionsContainer-"] h2,[class*="searchOptionsContainer-"] h3{color:#fff!important;}
-                [class*="catalogContainer"] input[type="text"],[class*="catalogContainer"] select{background:${GLASS_BG}!important;border:1px solid rgba(255,255,255,0.14)!important;border-radius:8px!important;color:#fff!important;padding:5px 9px!important;}
+                [class*="catalogContainer"] input[type="text"],[class*="catalogContainer"] select{${GLASS_CSS}border-radius:8px!important;color:#fff!important;padding:5px 9px!important;}
                 [class*="catalogContainer"] select option{background:#16161f!important;color:#fff!important;}
                 [class*="catalogContainer"] [class*="caret-0-2"]{background:transparent!important;border:none!important;color:#fff!important;}
                 [class*="catalogContainer"] .buttons_legacyButton__vUgL2,[class*="catalogContainer"] [class*="button-0-2"]{background:linear-gradient(135deg,${t.accent},${catDark})!important;border:none!important;color:#050508!important;border-radius:8px!important;font-weight:700!important;transition:filter 0.15s ease!important;}
                 [class*="catalogContainer"] .buttons_legacyButton__vUgL2:hover,[class*="catalogContainer"] [class*="button-0-2"]:hover{filter:brightness(1.12)!important;color:#050508!important;}
-                [class*="catalogContainer"] [class*="itemDiv-0-2"]{background:${GLASS_BG}!important;border:1px solid rgba(255,255,255,0.08)!important;border-radius:8px!important;margin-bottom:4px!important;padding:2px 8px!important;transition:background 0.15s ease,border-color 0.15s ease!important;}
+                [class*="catalogContainer"] [class*="itemDiv-0-2"]{${GLASS_CSS}border-radius:8px!important;margin-bottom:4px!important;padding:2px 8px!important;transition:background 0.15s ease,border-color 0.15s ease!important;}
                 [class*="catalogContainer"] [class*="itemDiv-0-2"]:hover{background:${t.accent}1f!important;border-color:${t.accent}66!important;}
                 [class*="catalogContainer"] [class*="separator-0-2"]{border-color:rgba(255,255,255,0.1)!important;background:rgba(255,255,255,0.1)!important;}
                 [class*="catalogContainer"] [class*="divider-right"]{border-color:rgba(255,255,255,0.1)!important;}
-                [class*="catalogContainer"] [class*="wrapper-0-2"]{background:${GLASS_BG}!important;backdrop-filter:${GLASS_FILTER}!important;-webkit-backdrop-filter:${GLASS_FILTER}!important;border:1px solid rgba(255,255,255,0.1)!important;border-radius:12px!important;padding:10px!important;}
+                [class*="catalogContainer"] [class*="wrapper-0-2"]{${GLASS_CSS}border-radius:12px!important;padding:10px!important;}
             `;
         }
         cs.textContent = cssOut;
@@ -1281,9 +1279,9 @@
 
         css += `
             [class*="moneyContainer"]{overflow:visible!important;}
-            [class*="moneyContainer"] .col-lg-10{flex:0 0 100%!important;max-width:100%!important;background:${GLASS_BG}!important;backdrop-filter:${GLASS_FILTER}!important;-webkit-backdrop-filter:${GLASS_FILTER}!important;border-radius:16px!important;padding:16px!important;box-shadow:0 8px 30px rgba(0,0,0,0.3)!important;}
+            [class*="moneyContainer"] .col-lg-10{flex:0 0 100%!important;max-width:100%!important;${GLASS_CSS}border-radius:16px!important;padding:16px!important;}
             [class*="moneyContainer"] table{width:100%!important;border-collapse:separate!important;border-spacing:0!important;}
-            [class*="moneyContainer"] thead{background:${GLASS_BG}!important;border:none!important;}
+            [class*="moneyContainer"] thead{${GLASS_CSS}border-radius:10px!important;}
             [class*="moneyContainer"] thead th{color:#9aa0c0!important;font-weight:700!important;text-transform:uppercase!important;letter-spacing:0.05em!important;font-size:11px!important;border:none!important;padding:11px 14px!important;}
             [class*="moneyContainer"] thead tr th:first-child{border-top-left-radius:10px!important;border-bottom-left-radius:10px!important;}
             [class*="moneyContainer"] thead tr th:last-child{border-top-right-radius:10px!important;border-bottom-right-radius:10px!important;}
@@ -1296,24 +1294,24 @@
             [class*="viewDetails"]:hover{text-decoration:underline!important;}
             [class*="tradeTypeActions"]{color:#cfd3e6!important;}
             [class*="tradeTypeActions"] a{color:${t.accent}!important;}
-            [class*="tradeTypeActions"] select{background:${GLASS_BG}!important;color:#fff!important;border:1px solid rgba(255,255,255,0.14)!important;border-radius:8px!important;padding:4px 8px!important;}
+            [class*="tradeTypeActions"] select{${GLASS_CSS}color:#fff!important;border-radius:8px!important;padding:4px 8px!important;}
         `;
         css += `
-            [class*="modalWrapper"]{position:fixed!important;top:50%!important;left:50%!important;transform:translate(-50%,-50%)!important;z-index:2147483647!important;margin:0!important;max-width:92vw!important;background:${GLASS_BG}!important;backdrop-filter:${GLASS_FILTER}!important;-webkit-backdrop-filter:${GLASS_FILTER}!important;border:1px solid ${GLASS_BORDER_COLOR}!important;border-radius:16px!important;box-shadow:${GLASS_SHADOW}!important;color:#fff!important;overflow:hidden!important;}
+            [class*="modalWrapper"]{position:fixed!important;top:50%!important;left:50%!important;transform:translate(-50%,-50%)!important;z-index:2147483647!important;margin:0!important;max-width:92vw!important;${GLASS_CSS}border-radius:16px!important;color:#fff!important;overflow:hidden!important;}
             [class*="modalWrapper"] [class*="innerSection"]{background:transparent!important;border:none!important;}
             [class*="modalWrapper"] [class*="title-"]{color:#fff!important;font-weight:700!important;}
             [class*="modalWrapper"] p,[class*="modalWrapper"] span{color:#e6e9f5;}
             [class*="modalWrapper"] a{color:${t.accent}!important;}
             [class*="modalWrapper"] [class*="robuxLabel"]{color:#3fd07e!important;}
             [class*="modalWrapper"] [class*="imageWrapper"]{background:transparent!important;}
-            [class*="modalWrapper"] [class*="col-0-2"]{background:${GLASS_BG}!important;border:1px solid rgba(255,255,255,0.1)!important;border-radius:10px!important;}
+            [class*="modalWrapper"] [class*="col-0-2"]{${GLASS_CSS}border-radius:10px!important;}
             [class*="modalWrapper"] [class*="divider-right"],[class*="modalWrapper"] [class*="divider-top"]{border-color:rgba(255,255,255,0.14)!important;}
             [class*="modalWrapper"] [class*="closeButton"]{color:#fff!important;cursor:pointer!important;opacity:0.85!important;}
             [class*="modalWrapper"] [class*="closeButton"]:hover{opacity:1!important;}
             /* Profile friend-action buttons (Unfriend / Message / Chat) → modern glass */
             [class*="actionContainer"]{display:flex!important;gap:8px!important;flex-wrap:wrap!important;align-items:center!important;}
             [class*="actionContainer"] [class*="buttonContainer"]{margin:0!important;}
-            [class*="actionContainer"] button{background:${GLASS_BG}!important;backdrop-filter:${GLASS_FILTER}!important;-webkit-backdrop-filter:${GLASS_FILTER}!important;border:1px solid rgba(255,255,255,0.14)!important;border-radius:12px!important;color:#fff!important;font-weight:600!important;letter-spacing:0.02em!important;padding:8px 18px!important;box-shadow:0 4px 16px rgba(0,0,0,0.25)!important;transition:background 0.16s ease,border-color 0.16s ease,transform 0.14s ease,box-shadow 0.16s ease!important;}
+            [class*="actionContainer"] button{${GLASS_CSS}border-radius:12px!important;color:#fff!important;font-weight:600!important;letter-spacing:0.02em!important;padding:8px 18px!important;transition:background 0.16s ease,border-color 0.16s ease,transform 0.14s ease,box-shadow 0.16s ease!important;}
             [class*="actionContainer"] button:hover{background:rgba(255,255,255,0.12)!important;border-color:${t.accent}!important;transform:translateY(-2px)!important;box-shadow:0 8px 24px ${t.accent}55!important;}
             /* Remove the (disabled) Chat button entirely */
             [class*="actionContainer"] [class*="newDisabledCancelButton"]{display:none!important;}

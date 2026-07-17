@@ -21,7 +21,16 @@ for (const forbidden of ['interium.zxwxtt.workers.dev', '/trades/v1/trades/send'
 const ui = bodies.find((b) => b.includes('Interium UI runtime')) || '';
 if (!ui.includes("const GLASS_BG = 'rgba(255,255,255,0.05)';")) fail('canonical glass background changed or missing');
 if (!ui.includes("const GLASS_FILTER = 'blur(14px) saturate(160%)';")) fail('canonical glass filter changed or missing');
+if (!ui.includes("const GUI_GLASS_BG = 'rgba(10,10,14,0.86)';")) fail('GUI-only dark glass tint changed or missing');
+if (!ui.includes("panel.style.setProperty('background', GUI_GLASS_BG, 'important')")) fail('GUI panel does not use GUI_GLASS_BG');
 const hardcodedBackdropBlurs = [...ui.matchAll(/(?:-webkit-)?backdrop-filter\s*:\s*blur\((?!0px)/g)];
 if (hardcodedBackdropBlurs.length) fail('hard-coded positive backdrop blur found; use GLASS_FILTER');
+for (const marker of [
+  '[class*="groupCard-"] {\n                    ${GLASS_CSS}',
+  '[class*="gameCardContainer"]{${GLASS_CSS}',
+  '[class*="resultsContainer-"] [class*="cardWrapper-"]{${GLASS_CSS}',
+  '[class*="avatarCardContainer"]{${GLASS_CSS}',
+  '[class*="buttonCol-"],[class*="submenuContainer-"][class~="section-content"]{${GLASS_CSS}',
+]) if (!ui.includes(marker)) fail('glassify surface does not use GLASS_CSS: ' + marker);
 
-if (!process.exitCode) console.log('Audit passed: loader sources, privacy markers, and unified glass preset verified.');
+if (!process.exitCode) console.log('Audit passed: loader sources, privacy markers, and unified glassify surfaces verified.');
