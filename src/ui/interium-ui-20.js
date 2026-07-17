@@ -214,6 +214,7 @@
         avatarBgImage:          '',
         avatarBgBlur:           0,
         avatarGlassify:         false,
+        avatarEditorGlass:      true,
         avatarFakeItems:        [],
         avatarFakeQty:          {},
         anonymous:             false,
@@ -571,7 +572,7 @@
             css += `[class*="buttonCol-"] + div:not(:empty),[class*="buttonCol-"] ~ div .section-content{${GLASS_CSS}border-radius:0 0 12px 12px!important;}`;
         }
         if (cfg.miscFooterTransparent) css += `[class*="footerContainer"],footer[class*="footerContainer"]{background:transparent!important;border-top:1px solid rgba(255,255,255,0.06)!important;box-shadow:none!important;backdrop-filter:none!important;}`;
-        if (cfg.miscGamesGlassify) {
+        if (cfg.miscGamesGlassify && !isAvatarPage()) {
             const accentDark = darkenHex(t.accent, 0.62);
             const GLASS = `background:rgba(255,255,255,0.05)!important;backdrop-filter:blur(16px) saturate(160%)!important;-webkit-backdrop-filter:blur(16px) saturate(160%)!important;border:1px solid rgba(255,255,255,0.12)!important;border-radius:16px!important;box-shadow:0 8px 30px rgba(0,0,0,0.3)!important;`;
             css += `
@@ -1500,6 +1501,7 @@
                     <div class="pks-row"><label>Hide My Feed</label><input type="checkbox" id="cfg-miscHideMyFeed"></div>
                     <div class="pks-row"><label>Hide Blog / News</label><input type="checkbox" id="cfg-miscHideBlogNews"></div>
                     <div class="pks-row"><label>Modern game cards</label><input type="checkbox" id="cfg-miscModernGameCards"></div>
+                    <div class="pks-row"><label>Transparent friend cards</label><input type="checkbox" id="cfg-miscFriendsFrameTransparent"></div>
                     <div style="margin:14px 0 4px;"><span class="pks-page-badge">/games</span></div>
                     <div class="pks-row"><label>Glassify game page</label><input type="checkbox" id="cfg-miscGamesGlassify"></div>
                     <div class="pks-row"><label>Hero backdrop (blurred thumb)</label><input type="checkbox" id="cfg-miscGamesHeroBackdrop"></div>
@@ -1514,12 +1516,11 @@
                     <div class="pks-row"><label>Animated username colour</label><input type="checkbox" id="cfg-miscProfileNameAnimate"></div>
                     <div class="pks-row"><label style="font-size:10px;color:#555;padding-left:10px;">\u21b3 Colour 1</label><input type="color" id="cfg-miscProfileNameColor1"></div>
                     <div class="pks-row"><label style="font-size:10px;color:#555;padding-left:10px;">\u21b3 Colour 2</label><input type="color" id="cfg-miscProfileNameColor2"></div>
-                    <div style="margin:14px 0 4px;"><span class="pks-page-badge">/friends</span></div>
-                    <div class="pks-row"><label>Transparent friend cards</label><input type="checkbox" id="cfg-miscFriendsFrameTransparent"></div>
                     <div style="margin:14px 0 4px;"><span class="pks-page-badge">/My/Avatar</span></div>
                     <div class="pks-row"><label>Transparent frames</label><input type="checkbox" id="cfg-miscAvatarFrameTransparent"></div>
                     <div class="pks-row"><label>Blur category dropdown</label><input type="checkbox" id="cfg-miscAvatarBlurDropdown"></div>
                     <div class="pks-row"><label>Glassify item frames</label><input type="checkbox" id="cfg-avatarGlassify"></div>
+                    <div class="pks-row"><label>Glassify avatar editor</label><input type="checkbox" id="cfg-avatarEditorGlass"></div>
                     <div class="pks-row"><label>Avatar background</label><input type="checkbox" id="cfg-avatarBgEnabled"></div>
                     <div class="pks-row"><label style="font-size:10px;color:#555;padding-left:10px;">↳ Background blur</label><div class="pks-row-right"><input type="number" id="cfg-avatarBgBlur" min="0" max="40" step="1" style="width:55px;"><span class="pks-unit-label">px</span></div></div>
                     <div class="pks-row"><label style="font-size:10px;color:#555;padding-left:10px;">↳ Custom URL (image / gif / mp4)</label></div>
@@ -1678,7 +1679,7 @@
             'cfg-miscProfileNameAnimate':'miscProfileNameAnimate',
             'cfg-miscProfileNameColor1':'miscProfileNameColor1','cfg-miscProfileNameColor2':'miscProfileNameColor2',
             'cfg-miscFriendsFrameTransparent':'miscFriendsFrameTransparent',
-            'cfg-miscAvatarFrameTransparent':'miscAvatarFrameTransparent','cfg-avatarGlassify':'avatarGlassify',
+            'cfg-miscAvatarFrameTransparent':'miscAvatarFrameTransparent','cfg-avatarGlassify':'avatarGlassify','cfg-avatarEditorGlass':'avatarEditorGlass',
             'cfg-miscAvatarBlurDropdown':'miscAvatarBlurDropdown',
             'cfg-avatarBgEnabled':'avatarBgEnabled','cfg-avatarBgBlur':'avatarBgBlur',
             'cfg-tradesBgColor':'tradesBgColor','cfg-tradesOpacity':'tradesOpacity','cfg-tradesBlur':'tradesBlur','cfg-tradesAccent':'tradesAccent',
@@ -1720,7 +1721,7 @@
         const reapplyAll = () => {
             applyThemeToDom(); applyMisc(); applyCardStyle(); updateWatermark();
             applySidebarNavStyle(); applySidebarDirect(); applyPageFrameTransparency(); updateModeVisibility();
-            applyEffects(); applyAvatarGlass(); applyAvatarBg();
+            applyEffects(); applyAvatarGlass(); applyAvatarEditorGlass(); applyAvatarBg();
             if (isTradePage()) applyTradeStyle();
             applyTradesCustom();
             applyProfileBannerForPage();
@@ -2056,6 +2057,16 @@
             : '';
     };
 
+    // Standalone "Glassify avatar editor" (Hexium game-page glass recipe,
+    // applied ONLY to the avatar editor block on /My/Avatar).
+    const applyAvatarEditorGlass = () => {
+        let el = document.getElementById('pks-avatar-editor-glass-style');
+        if (!el) { el = document.createElement('style'); el.id = 'pks-avatar-editor-glass-style'; document.head.appendChild(el); }
+        el.textContent = (cfg.avatarEditorGlass && isAvatarPage())
+            ? `[class*="contentContainer"],[class*="subSectionContainer"]{background:rgba(255,255,255,0.05)!important;backdrop-filter:blur(16px) saturate(160%)!important;-webkit-backdrop-filter:blur(16px) saturate(160%)!important;border:1px solid rgba(255,255,255,0.12)!important;border-radius:16px!important;box-shadow:0 8px 30px rgba(0,0,0,0.3)!important;padding:16px!important;}`
+            : '';
+    };
+
     const applyAvatarControls = () => {
         if (!isAvatarPage()) return;
         if (!document.getElementById('pks-avatar-controls-style')) {
@@ -2299,7 +2310,7 @@
                 ensureTradesOverlay();
                 removeNagAlerts();
                 injectProfileTradeButton();
-                applyAvatarControls(); injectAvatarBgStrip(); applyAvatarGlass(); if (cfg.avatarBgEnabled) applyAvatarBg();
+                applyAvatarControls(); injectAvatarBgStrip(); applyAvatarGlass(); applyAvatarEditorGlass(); if (cfg.avatarBgEnabled) applyAvatarBg();
                 applyBadges();
                 applyProfileBannerForPage();
             }, 60);
@@ -2308,7 +2319,7 @@
         applyAgeOverride();
         removeNagAlerts();
         injectProfileTradeButton();
-        applyAvatarControls(); injectAvatarBgStrip(); applyAvatarGlass(); if (cfg.avatarBgEnabled) applyAvatarBg();
+        applyAvatarControls(); injectAvatarBgStrip(); applyAvatarGlass(); applyAvatarEditorGlass(); if (cfg.avatarBgEnabled) applyAvatarBg();
         applyBadges();
         applyProfileBannerForPage();
     };
@@ -2319,6 +2330,7 @@
         const onNav = () => {
             const url = location.href; if (url === state.session.lastUrl) return;
             state.session.lastUrl = url;
+            applyMisc(); applyAvatarEditorGlass();
             _tradeWindowInjected = false;
             _tradesPageInjected = false;
             _tradesInjecting = false;
