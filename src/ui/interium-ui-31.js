@@ -311,7 +311,7 @@
         applyGuiFont(cfg.miscGuiFont || 'Share Tech Mono');
     };
 
-    // ── Unified glass recipe ────────────���������────────────���────────────────
+    // ── Unified glass recipe ────────────�����������────────────���────────────────
     // Every blur / glassify surface (navbar, sidebar, cards, frames,
     // dropdowns, chips) uses these EXACT values so the glass effect looks
     // identical everywhere. Tweak here to retune all glass at once.
@@ -569,8 +569,13 @@
             // submenuContainer-* section-content is the hover dropdown rendered directly below it.
             // Apply the SAME complete glass recipe directly to both. Do not style their common
             // parent: backdrop-filter never blurs a parent's own children (the item cards).
-            css += `[class*="buttonCol-"]{${GLASS_CSS}border-radius:12px 12px 0 0!important;border-bottom:0!important;}`;
-            css += `[class*="submenuContainer-"][class~="section-content"]{${GLASS_CSS}border-radius:0 0 12px 12px!important;border-top:0!important;margin-top:0!important;}`;
+            // One literal preset for BOTH surfaces. The stronger shared tint normalises the
+            // different backdrops (dark page behind the strip, bright cards behind submenu)
+            // while retaining the same live 14px backdrop blur on each element.
+            const AVATAR_GLASS_CSS = `background:rgba(30,30,34,0.78)!important;background-color:rgba(30,30,34,0.78)!important;backdrop-filter:${GLASS_FILTER}!important;-webkit-backdrop-filter:${GLASS_FILTER}!important;border:1px solid ${GLASS_BORDER_COLOR}!important;box-shadow:${GLASS_SHADOW}!important;`;
+            css += `[class*="buttonCol-"],[class*="submenuContainer-"][class~="section-content"]{${AVATAR_GLASS_CSS}}`;
+            css += `[class*="buttonCol-"]{border-radius:12px 12px 0 0!important;border-bottom:0!important;}`;
+            css += `[class*="submenuContainer-"][class~="section-content"]{border-radius:0 0 12px 12px!important;border-top:0!important;margin-top:0!important;}`;
 
             // Pekora gives unselected category <p> elements their own opaque background. Clear
             // only those child paints so the real blur on buttonCol remains visible.
