@@ -2054,7 +2054,7 @@
         let el = document.getElementById('pks-avatar-glass-style');
         if (!el) { el = document.createElement('style'); el.id = 'pks-avatar-glass-style'; document.head.appendChild(el); }
         el.textContent = cfg.avatarGlassify
-            ? `[class*="avatarCardContainer"]{background:${GLASS_BG}!important;backdrop-filter:blur(14px) saturate(160%)!important;-webkit-backdrop-filter:blur(14px) saturate(160%)!important;border:1px solid rgba(255,255,255,0.14)!important;border-radius:12px!important;box-shadow:0 8px 28px rgba(0,0,0,0.25)!important;overflow:hidden!important;}[class*="avatarCardImage"]{background:transparent!important;}`
+            ? `[class*="avatarCardContainer"]{${GLASS_CSS}border-radius:12px!important;overflow:hidden!important;}[class*="avatarCardImage"]{background:transparent!important;}`
             : '';
     };
 
@@ -2064,7 +2064,11 @@
         let el = document.getElementById('pks-avatar-editor-glass-style');
         if (!el) { el = document.createElement('style'); el.id = 'pks-avatar-editor-glass-style'; document.head.appendChild(el); }
         el.textContent = (cfg.avatarEditorGlass && isAvatarPage())
-            ? `[class*="contentContainer"],[class*="subSectionContainer"]{${GLASS_CSS}border-radius:16px!important;padding:16px!important;}`
+            ? `[class*="contentContainer"],[class*="subSectionContainer"]{${GLASS_CSS}border-radius:16px!important;padding:16px!important;}
+[class*="buttonCol-"]{${GLASS_CSS}border-radius:12px 12px 0 0!important;}
+[class*="vTabLabel-"]{background:transparent!important;background-color:transparent!important;color:#fff!important;}
+p[class*="vTabUnselected-"]{box-shadow:none!important;}
+[class*="buttonCol-"] + div:not(:empty),[class*="buttonCol-"] ~ div .section-content{${GLASS_CSS}border-radius:0 0 12px 12px!important;}`
             : '';
     };
 
