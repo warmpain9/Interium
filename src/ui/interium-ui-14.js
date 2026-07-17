@@ -503,10 +503,12 @@
             let glassEl = document.getElementById('pks-profile-glass-style');
             if (!glassEl) { glassEl = document.createElement('style'); glassEl.id = 'pks-profile-glass-style'; document.head.appendChild(glassEl); }
             glassEl.textContent = `
-                .card,
-                [class*="card-0-2-"],
-                .card-body,
-                [class*="cardBody-0-2-"],
+                /* :not(:has(a[href="/home"])) keeps the site's left nav sidebar
+                   (which is also a .card) out of the glassify effect */
+                .card:not(:has(a[href="/home"])),
+                [class*="card-0-2-"]:not(:has(a[href="/home"])),
+                .card-body:not(:has(a[href="/home"])),
+                [class*="cardBody-0-2-"]:not(:has(a[href="/home"])),
                 .avatarImageCard-0-2-334,
                 .groupCard-0-2-402 {
                     background:${GLASS_BG}!important;
@@ -557,9 +559,9 @@
         }
         applyFriendsTransparencyDirect();
         if (cfg.miscAvatarFrameTransparent) css += `.avatarCardContainer-0-2-570,.catalogContainer-0-2-4{${FRAME_CSS}}.pillToggle-0-2-553{background:${GLASS_BG}!important;border-color:rgba(255,255,255,0.1)!important;}`;
-        if (cfg.miscAvatarBlurDropdown) {
+        if (cfg.miscAvatarBlurDropdown && isAvatarPage()) { // buttonCol- also exists on profile pages
             // Avatar editor category tab strip + its dropdown panel -> glass blur.
-            css += `[class*="buttonCol-"]{${GLASS_CSS}border-radius:12px!important;}`;
+            css += `[class*="buttonCol-"]{${GLASS_CSS}border-radius:12px 12px 0 0!important;}`; // rounded top, sharp bottom - merges with the dropdown below
             css += `[class*="vTabLabel-"]{background:transparent!important;background-color:transparent!important;color:#fff!important;}`;
             css += `p[class*="vTabUnselected-"]{box-shadow:none!important;}`;
             css += `[class*="buttonCol-"] + div:not(:empty),[class*="buttonCol-"] ~ div .section-content{${GLASS_CSS}border-radius:0 0 12px 12px!important;}`;
@@ -1213,6 +1215,10 @@
                 [class*="catalogContainer"] h1,[class*="catalogContainer"] h2,[class*="catalogContainer"] [class*="bottom-0-2"],[class*="catalogContainer"] [class*="top-0-2"]{color:#fff!important;}
                 [class*="catalogContainer"] h3,[class*="catalogContainer"] label,[class*="catalogContainer"] summary,[class*="catalogContainer"] p,[class*="catalogContainer"] [class*="sortByLabel"]{color:#dfe3f0!important;}
                 [class*="catalogContainer"] a{color:${t.accent}!important;}
+                /* ...but the Category/Filters sidebar keeps neutral text (accent only on hover) */
+                [class*="searchOptionsContainer-"] a{color:#dfe3f0!important;}
+                [class*="searchOptionsContainer-"] a:hover{color:${t.accent}!important;}
+                [class*="searchOptionsContainer-"] h1,[class*="searchOptionsContainer-"] h2,[class*="searchOptionsContainer-"] h3{color:#fff!important;}
                 [class*="catalogContainer"] input[type="text"],[class*="catalogContainer"] select{background:${GLASS_BG}!important;border:1px solid rgba(255,255,255,0.14)!important;border-radius:8px!important;color:#fff!important;padding:5px 9px!important;}
                 [class*="catalogContainer"] select option{background:#16161f!important;color:#fff!important;}
                 [class*="catalogContainer"] [class*="caret-0-2"]{background:transparent!important;border:none!important;color:#fff!important;}
@@ -1995,7 +2001,7 @@
         let el = document.getElementById('pks-avatar-bg-style');
         if (!el) { el = document.createElement('style'); el.id = 'pks-avatar-bg-style'; document.head.appendChild(el); }
         const vid = document.getElementById('pks-avatar-bg-video');
-        const raw = (cfg.avatarBgImage || '').trim();
+        const raw = (cfg.avatarBgImage || '').trim().replace(/\.gifv(\?.*)?$/i, '.mp4'); // imgur .gifv -> direct .mp4
         if (!cfg.avatarBgEnabled || !raw) { el.textContent = ''; vid?.remove(); return; }
         const url  = raw.replace(/'/g, "\\'");
         const blur = Math.max(0, cfg.avatarBgBlur ?? 0);
@@ -2014,8 +2020,14 @@
                     v.id = 'pks-avatar-bg-video';
                     v.autoplay = true; v.loop = true; v.muted = true; v.playsInline = true;
                 }
+                // Inline styles: the video must never participate in layout,
+                // even if the injected stylesheet loses a specificity fight.
+                v.style.cssText = `position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none;${blur ? `filter:blur(${blur}px);transform:scale(1.12);` : ''}`;
                 if (v.getAttribute('src') !== raw) v.setAttribute('src', raw);
-                if (v.parentElement !== frame) frame.prepend(v);
+                // append as LAST child (not prepend): the site styles the avatar
+                // renderer via structural selectors like :first-child, and a
+                // prepended element broke the preview layout.
+                if (v.parentElement !== frame) frame.appendChild(v);
                 v.muted = true;
                 v.play?.().catch(() => {});
             }
@@ -2232,7 +2244,13 @@
             const t = getTheme();
             const heads = [...document.querySelectorAll('h2')];
             const reqH2 = heads.find(h => /FRIEND REQUESTS/i.test(h.textContent || ''));
-            if (reqH2 && !reqH2.querySelector('#pks-bulk-ignore'))
+            const activeTabName = (document.querySelector('[class*="entryActive"]')?.textContent || '').trim().toLowerCase();
+            const onRequestsTab = activeTabName ? activeTabName === 'friend requests' : !!reqH2;
+            // The site reuses the same <h2> element across tab switches, so the
+            // button used to survive into Friends / Followers / Followings.
+            const oldBulk = document.getElementById('pks-bulk-ignore');
+            if (oldBulk && (!onRequestsTab || !reqH2)) oldBulk.remove();
+            if (onRequestsTab && reqH2 && !reqH2.querySelector('#pks-bulk-ignore'))
                 reqH2.appendChild(mkBulkBtn('pks-bulk-ignore', 'Bulk Ignore', t, (b) => doBulk(b, 'Bulk Ignore', collectRequestIds, declineFriend, 'requests')));
             const activeTab = (document.querySelector('[class*="entryActive"]')?.textContent || '').trim().toLowerCase();
             if (activeTab === 'friends') addFriendRemoveButtons();
