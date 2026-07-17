@@ -15,7 +15,7 @@
 
     if (window.InteriumCore) return; // never double-init
 
-    const VERSION = '2.15.0';
+    const VERSION = '2.16.0';
 
     // ── Unified glass recipe (single source of truth) ──
     const GLASS_BG = 'rgba(255,255,255,0.05)';

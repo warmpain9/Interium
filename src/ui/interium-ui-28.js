@@ -566,17 +566,19 @@
         if (cfg.miscAvatarFrameTransparent) css += `[class*="avatarCardContainer-"]{${FRAME_CSS}}[class*="pillToggle-"]{background:${GLASS_BG}!important;border-color:rgba(255,255,255,0.1)!important;}`;
         if (cfg.miscAvatarBlurDropdown && isAvatarPage()) { // buttonCol- also exists on profile pages
             // Avatar editor category tab strip + its dropdown panel -> ONE unified glass surface.
-            // Strip and panel share the exact same GLASS_CSS; every child surface inside them is
-            // forced transparent so no site JSS background (or nested backdrop-filter, which never
-            // renders inside a glass parent - the parent becomes the backdrop root) breaks the look.
-            css += `[class*="buttonCol-"]{${GLASS_CSS}border-radius:12px 12px 0 0!important;border-bottom:none!important;}`; // rounded top, open bottom - merges with the dropdown below
+            // backdrop-filter shows what is BEHIND each element (dark page header behind the
+            // strip vs. bright item grid behind the panel), so the pure GLASS_CSS recipe can
+            // never look identical on both. A shared semi-opaque tint on top of the same blur
+            // makes the two surfaces read as one piece of glass over any backdrop.
+            const AV_GLASS = `${GLASS_CSS}background:rgba(16,16,22,0.40)!important;`;
+            css += `[class*="buttonCol-"]{${AV_GLASS}border-radius:12px 12px 0 0!important;border-bottom:none!important;}`; // rounded top, open bottom - merges with the dropdown below
             // the vTab children paint their own JSS backgrounds over the parent glass -> clear them
             css += `[class*="buttonCol-"] [class*="vTab-"]{background:transparent!important;background-color:transparent!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;}`;
             css += `[class*="vTabLabel-"]{background:transparent!important;background-color:transparent!important;color:#fff!important;}`;
             css += `p[class*="vTabUnselected-"]{box-shadow:none!important;}`;
             // the dropdown panel: match it by its own class (it is rendered dynamically, not always
             // as a DOM sibling of buttonCol-) AND keep the old sibling selectors as a fallback
-            css += `[class*="dropdownClass"],[class*="dropdownNew"],[class*="buttonCol-"] + div:not(:empty),[class*="buttonCol-"] ~ div .section-content{${GLASS_CSS}border-radius:0 0 12px 12px!important;border-top:none!important;margin-top:0!important;}`;
+            css += `[class*="dropdownClass"],[class*="dropdownNew"],[class*="buttonCol-"] + div:not(:empty),[class*="buttonCol-"] ~ div .section-content{${AV_GLASS}border-radius:0 0 12px 12px!important;border-top:none!important;margin-top:0!important;}`;
             // nested backdrop-filter inside the panel would silently no-op and desync the blur
             css += `[class*="dropdownClass"] *,[class*="dropdownNew"] *{backdrop-filter:none!important;-webkit-backdrop-filter:none!important;}`;
         }
