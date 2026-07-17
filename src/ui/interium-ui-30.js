@@ -311,7 +311,7 @@
         applyGuiFont(cfg.miscGuiFont || 'Share Tech Mono');
     };
 
-    // ── Unified glass recipe ────────────�������────────────���────────────────
+    // ── Unified glass recipe ────────────���������────────────���────────────────
     // Every blur / glassify surface (navbar, sidebar, cards, frames,
     // dropdowns, chips) uses these EXACT values so the glass effect looks
     // identical everywhere. Tweak here to retune all glass at once.
@@ -565,23 +565,17 @@
         applyFriendsTransparencyDirect();
         if (cfg.miscAvatarFrameTransparent) css += `[class*="avatarCardContainer-"]{${FRAME_CSS}}[class*="pillToggle-"]{background:${GLASS_BG}!important;border-color:rgba(255,255,255,0.1)!important;}`;
         if (cfg.miscAvatarBlurDropdown && isAvatarPage()) { // buttonCol- also exists on profile pages
-            // ONE real glass layer on the common editor wrapper. The previous implementation
-            // blurred the tab strip and dropdown separately, so each sampled a different backdrop
-            // and inevitably looked like a different preset.
-            const AVATAR_MENU = `[class*="itemContainer-"]:has([class*="buttonCol-"])`;
-            css += `${AVATAR_MENU}{${GLASS_CSS}border-radius:12px!important;overflow:hidden!important;isolation:isolate!important;}`;
+            // Exact Pekora Avatar DOM (from Avatar runtime): buttonCol-* is the category strip;
+            // submenuContainer-* section-content is the hover dropdown rendered directly below it.
+            // Apply the SAME complete glass recipe directly to both. Do not style their common
+            // parent: backdrop-filter never blurs a parent's own children (the item cards).
+            css += `[class*="buttonCol-"]{${GLASS_CSS}border-radius:12px 12px 0 0!important;border-bottom:0!important;}`;
+            css += `[class*="submenuContainer-"][class~="section-content"]{${GLASS_CSS}border-radius:0 0 12px 12px!important;border-top:0!important;margin-top:0!important;}`;
 
-            // Every visible part inside the shared glass must be transparent and must not start
-            // another backdrop-filter layer. This preserves only text, separators and active tabs.
-            css += `${AVATAR_MENU} [class*="buttonCol-"],${AVATAR_MENU} [class*="dropdownClass"],${AVATAR_MENU} [class*="dropdownNew"],${AVATAR_MENU} .section-content{background:transparent!important;background-color:transparent!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;border-color:transparent!important;box-shadow:none!important;}`;
-            css += `${AVATAR_MENU} [class*="vTab-"]{background:transparent!important;background-color:transparent!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;}`;
-            css += `${AVATAR_MENU} [class*="vTabLabel-"]{background:transparent!important;background-color:transparent!important;color:#fff!important;}`;
-            css += `${AVATAR_MENU} p[class*="vTabUnselected-"]{box-shadow:none!important;}`;
-
-            // Fallback for builds where React portals the dropdown outside itemContainer. Do not
-            // add a second blur: use the exact resolved glass colour so it cannot become greener
-            // or darker than the strip.
-            css += `body > [class*="dropdownClass"],body > [class*="dropdownNew"]{background:rgba(20,20,25,0.82)!important;background-color:rgba(20,20,25,0.82)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;border:1px solid ${GLASS_BORDER_COLOR}!important;border-top:none!important;border-radius:0 0 12px 12px!important;box-shadow:${GLASS_SHADOW}!important;}`;
+            // Pekora gives unselected category <p> elements their own opaque background. Clear
+            // only those child paints so the real blur on buttonCol remains visible.
+            css += `[class*="buttonCol-"] [class*="vTab-"],[class*="buttonCol-"] [class*="vTabLabel-"],[class*="buttonCol-"] [class*="vTabUnselected-"]{background:transparent!important;background-color:transparent!important;}`;
+            css += `[class*="buttonCol-"] p[class*="vTabUnselected-"]{box-shadow:none!important;}`;
         }
         if (cfg.miscFooterTransparent) css += `[class*="footerContainer"],footer[class*="footerContainer"]{background:transparent!important;border-top:1px solid rgba(255,255,255,0.06)!important;box-shadow:none!important;backdrop-filter:none!important;}`;
         if (cfg.miscGamesGlassify && !isAvatarPage()) {
