@@ -612,8 +612,8 @@
                 [class*="vTabUnselected"]{color:#8a90ad!important;}
             `;
         }
-        css += `[class*="gameContainer"] [class*="background-"],[class*="gameContainer"] [class*="thumbContainer"],[class*="gameContainer"] [class*="carouselGameDetails"],[class*="gameContainer"] [class*="descriptionContainer"]{background:transparent!important;background-color:transparent!important;border:none!important;box-shadow:none!important;}`;
-        if (!cfg.miscGamesGlassify) css += `[class*="gameContainer"] [class*="contentContainer"],[class*="gameContainer"] [class*="callsToAction"],[class*="gameContainer"] [class*="recommendedGamesContainer"],[class*="gameContainer"] [class*="commentsContainer"],[class*="gameContainer"] [class*="createCommentContainer"],[class*="gameContainer"] [class*="commentBox"]{background:transparent!important;background-color:transparent!important;border:none!important;box-shadow:none!important;}`;
+        // Only strip native frames when a feature that draws its own (glass / hero backdrop) is enabled.
+        if (cfg.miscGamesGlassify || cfg.miscGamesHeroBackdrop) css += `[class*="gameContainer"] [class*="background-"],[class*="gameContainer"] [class*="thumbContainer"],[class*="gameContainer"] [class*="carouselGameDetails"],[class*="gameContainer"] [class*="descriptionContainer"]{background:transparent!important;background-color:transparent!important;border:none!important;box-shadow:none!important;}`;
         if (cfg.miscGamesHideRecommended) css += `[class*="recommendedGamesContainer"]{display:none!important;}`;
         if (cfg.miscGamesHideComments) css += `[class*="commentsContainer"]{display:none!important;}[class*="containerHeader"]:has(+[class*="commentsContainer"]){display:none!important;}`;
         el.textContent = css;
@@ -2074,7 +2074,7 @@
             st.id = 'pks-avatar-controls-style';
             // Hexium look: hide the site 3D toggle button; give the avatar
             // preview frame an always-on glass outline that survives re-renders.
-            st.textContent = `[class*="thumbnail3DButtonContainer"]{display:none!important;}[class*="avatarThumbContainer"]{border:1px solid rgba(255,255,255,0.12)!important;border-radius:14px!important;box-shadow:0 8px 28px rgba(0,0,0,0.28)!important;overflow:hidden!important;}`;
+            st.textContent = '';
             document.head.appendChild(st);
         }
         const frame = document.querySelector('[class*="avatarThumbContainer"]');

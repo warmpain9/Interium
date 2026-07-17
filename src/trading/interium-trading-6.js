@@ -47,7 +47,7 @@ if(!d.nextPageCursor) break; cursor=d.nextPageCursor;
 return items;
 };
 /* ------------------------------------------------ modern /trades page stats (read-only) */
-/* Annotates the new React trades page (/trades) with per-item RAP + Koromons Value, side  */
+/* Annotates the new React trades page (/trades) with per-item RAP + Koromon’s Value, side  */
 /* RAP totals and a win/loss verdict. Data comes from the same authenticated trade APIs    */
 /* the page itself uses; this module only reads and annotates, never clicks or sends.      */
 const _pgMt = { listType:'', listAt:0, listRows:[], details:new Map(), inflight:'', lastSig:'' };
@@ -342,9 +342,9 @@ const applyTradeWindowStats = () => {
 		}
 	});
 };
-	/* ---------------------------------------------- Koromons Value badges */
+	/* ---------------------------------------------- Koromon’s Value badges */
 	/* Public read-only item values. No RAP fallback: large limiteds are judged */
-	/* by Value, and missing Koromons entries simply receive no badge.          */
+	/* by Value, and missing Koromon’s entries simply receive no badge.          */
 	const KOROMONS_VALUES_URL = 'https://www.koromons.net/items.json';
 	const KOROMONS_VALUES_CACHE_KEY = 'pcs_koromons_values_v1';
 	const KOROMONS_VALUES_TTL = 1000 * 60 * 60 * 6;
@@ -388,9 +388,9 @@ const applyTradeWindowStats = () => {
 				method:'GET', url:KOROMONS_VALUES_URL,
 				headers:{accept:'application/json','Cache-Control':'no-cache'},
 				responseType:'json', timeout:10000,
-				onload:r=>{ try { const d=typeof r.response==='string'?JSON.parse(r.response):(r.response||JSON.parse(r.responseText||'[]')); if(!Array.isArray(d)) throw new Error('Invalid Koromons response'); resolve(d); } catch(e){ reject(e); } },
-				onerror:()=>reject(new Error('Koromons request failed')),
-				ontimeout:()=>reject(new Error('Koromons request timed out')),
+				onload:r=>{ try { const d=typeof r.response==='string'?JSON.parse(r.response):(r.response||JSON.parse(r.responseText||'[]')); if(!Array.isArray(d)) throw new Error('Invalid Koromon’s response'); resolve(d); } catch(e){ reject(e); } },
+				onerror:()=>reject(new Error('Koromon’s request failed')),
+				ontimeout:()=>reject(new Error('Koromon’s request timed out')),
 			});
 		} catch(e){ reject(e); }
 	});
@@ -411,7 +411,7 @@ const applyTradeWindowStats = () => {
 		});
 		return koromonsValuesPromise;
 	};
-	/* ------------------------------ Koromons leaderboard cache + profile block (v1.0.11) */
+	/* ------------------------------ Koromon’s leaderboard cache + profile block (v1.0.11) */
 	const KOROMONS_LB_URL = 'https://www.koromons.net/api/leaderboard';
 	const KOROMONS_LB_CACHE_KEY = 'pcs_koromons_lb_v1';
 	const KOROMONS_LB_TTL = 1000 * 60 * 30;
@@ -432,9 +432,9 @@ const applyTradeWindowStats = () => {
 				method:'GET', url:KOROMONS_LB_URL,
 				headers:{accept:'application/json','Cache-Control':'no-cache'},
 				responseType:'json', timeout:15000,
-				onload:r=>{ try { const d=typeof r.response==='string'?JSON.parse(r.response):(r.response||JSON.parse(r.responseText||'null')); const rows=d&&Array.isArray(d.players)?d.players:(Array.isArray(d)?d:null); if(!rows) throw new Error('Invalid Koromons leaderboard response'); resolve(rows); } catch(e){ reject(e); } },
-				onerror:()=>reject(new Error('Koromons leaderboard request failed')),
-				ontimeout:()=>reject(new Error('Koromons leaderboard request timed out')),
+				onload:r=>{ try { const d=typeof r.response==='string'?JSON.parse(r.response):(r.response||JSON.parse(r.responseText||'null')); const rows=d&&Array.isArray(d.players)?d.players:(Array.isArray(d)?d:null); if(!rows) throw new Error('Invalid Koromon’s leaderboard response'); resolve(rows); } catch(e){ reject(e); } },
+				onerror:()=>reject(new Error('Koromon’s leaderboard request failed')),
+				ontimeout:()=>reject(new Error('Koromon’s leaderboard request timed out')),
 			});
 		} catch(e){ reject(e); }
 	});
@@ -484,7 +484,7 @@ const applyTradeWindowStats = () => {
 		box.className='pg-koro-profile';
 		box.setAttribute('data-uid', String(uid));
 		box.style.cssText='position:relative;z-index:1;margin-top:10px;padding:9px 14px;border-radius:10px;background:rgba(0,132,221,0.07);border:1px solid rgba(0,132,221,0.35);display:flex;align-items:center;gap:20px;flex-wrap:wrap;font-size:13px;line-height:1.4;';
-		const head='<span style="display:inline-flex;align-items:center;gap:6px;font-weight:800;letter-spacing:.02em;color:#0084dd !important;">'+PG_KOROMONS_SVG+'<span style="color:#0084dd !important;">Koromons</span></span>';
+		const head='<span style="display:inline-flex;align-items:center;gap:6px;font-weight:800;letter-spacing:.02em;color:#0084dd !important;">'+PG_KOROMONS_SVG+'<span style="color:#0084dd !important;">Koromon’s</span></span>';
 		box.innerHTML=head+'<span style="color:#9aa0a6;">loading\u2026</span>';
 		frame.appendChild(box);
 		(async () => {
@@ -505,9 +505,9 @@ const applyTradeWindowStats = () => {
 						+koroStatHtml('RAP:', '<span style="color:#02b757 !important;">'+est.rap.toLocaleString()+'</span>')
 						+'<span style="color:#9aa0a6;font-size:11px;">not on leaderboard \u00b7 estimated from public inventory</span>';
 				} else {
-					box.innerHTML=head+'<span style="color:#9aa0a6;font-size:12px;">no data \u2014 inventory is private and player is not on the Koromons leaderboard</span>';
+					box.innerHTML=head+'<span style="color:#9aa0a6;font-size:12px;">no data \u2014 inventory is private and player is not on the Koromon’s leaderboard</span>';
 				}
-			} catch(e){ if(box.isConnected) box.innerHTML=head+'<span style="color:#ffb454;font-size:12px;">Koromons data unavailable</span>'; }
+			} catch(e){ if(box.isConnected) box.innerHTML=head+'<span style="color:#ffb454;font-size:12px;">Koromon’s data unavailable</span>'; }
 		})();
 	};
 	const assetIdFromSrc = (src) => {
@@ -795,7 +795,7 @@ else window.addEventListener('DOMContentLoaded', init);
 
     function rawDemandFromValueItem(obj) {
         if (!obj || typeof obj !== 'object') return '';
-        // Koromons exposes demand directly as obj.Demand, e.g. "High", "Decent",
+        // Koromon’s exposes demand directly as obj.Demand, e.g. "High", "Decent",
         // "Low", "Terrible". Untracked items use "None"/"Unassigned" and must
         // never render a pill. Trend (e.g. "Stable") must never be read here.
         const scanDemand = (node, depth = 0) => {
@@ -913,7 +913,7 @@ else window.addEventListener('DOMContentLoaded', init);
         try {
             const data = await gmGetJson(VALUES_JSON_URL);
             const rows = Array.isArray(data) ? data : (Array.isArray(data?.items) ? data.items : (Array.isArray(data?.data) ? data.data : null));
-            if (!Array.isArray(rows)) throw new Error('Koromons response is not an item array.');
+            if (!Array.isArray(rows)) throw new Error('Koromon’s response is not an item array.');
             indexValueItems(rows);
             try { localStorage.setItem(VALUES_CACHE_KEY, JSON.stringify({ t: Date.now(), items: rows })); } catch (_) {}
             return true;
@@ -940,12 +940,12 @@ else window.addEventListener('DOMContentLoaded', init);
         try {
             const data = await gmGetJson(KOROMONS_ITEMS_URL);
             const rows = Array.isArray(data) ? data : (Array.isArray(data && data.items) ? data.items : (Array.isArray(data && data.data) ? data.data : null));
-            if (!Array.isArray(rows)) throw new Error('Koromons response is not an array.');
+            if (!Array.isArray(rows)) throw new Error('Koromon’s response is not an array.');
             indexKoromonsDemand(rows);
             try { localStorage.setItem(KOROMONS_DEMAND_CACHE_KEY, JSON.stringify({ t: Date.now(), items: rows })); } catch (_) {}
             return true;
         } catch (e) {
-            console.warn('[PK 5.0] Koromons demand refresh failed', e);
+            console.warn('[PK 5.0] Koromon’s demand refresh failed', e);
             return false;
         }
     }
@@ -1366,12 +1366,14 @@ else window.addEventListener('DOMContentLoaded', init);
     }
 
     function updateCalc() {
+        const panel = ensureCalcPanel();
+        if (!panel) return;
+        // Toggle visibility first: even if totals computation ever fails,
+        // the panel still opens/closes on click.
+        document.body.classList.toggle('pk-calc-open', state.calcOpen);
         const mine = totalsFor(state.mine, state.mineItems);
         const theirs = theirTotals();
         const diff = theirs.value - mine.value;
-        const panel = ensureCalcPanel();
-        if (!panel) return;
-        document.body.classList.toggle('pk-calc-open', state.calcOpen);
         panel.querySelector('#pk-calc-mine').innerHTML = calcSideHTML(mine.selected, 'mine');
         panel.querySelector('#pk-calc-theirs').innerHTML = calcSideHTML(theirs.selected, 'theirs');
         panel.querySelector('#pk-calc-summary').innerHTML = `
@@ -1466,6 +1468,35 @@ else window.addEventListener('DOMContentLoaded', init);
     }
 
 
+    // Toolbar events are delegated at the document level so every button
+    // keeps working even if the site re-renders/replaces the toolbar DOM
+    // (a React re-render keeps the visible buttons but silently strips
+    // directly-attached listeners - the exact "button does nothing" bug).
+    let _toolbarHandlersInstalled = false;
+    function installToolbarHandlers() {
+        if (_toolbarHandlersInstalled) return;
+        _toolbarHandlersInstalled = true;
+        document.addEventListener('input', (e) => {
+            const t = e.target;
+            if (t && t.id === 'pk-search') { state.query = t.value || ''; render(); }
+        }, true);
+        document.addEventListener('click', (e) => {
+            const t = e.target instanceof Element ? e.target : null;
+            if (!t) return;
+            try {
+                const sortBtn = t.closest('#pk-shell [data-sort]');
+                if (sortBtn) { state.sortMode = sortBtn.dataset.sort; render(); return; }
+                if (t.closest('#pk-toggle-calc')) { state.calcOpen = !state.calcOpen; updateCalc(); updateToolbarState(); return; }
+                if (t.closest('#pk-toggle-stack')) { state.stacked = !state.stacked; render(); return; }
+                if (t.closest('#pk-toggle-value-only')) { state.valueOnly = !state.valueOnly; saveSettings(); render(); return; }
+                if (t.closest('#pk-toggle-serial-outline')) { state.serialOutline = !state.serialOutline; saveSettings(); render(); return; }
+                if (t.closest('#pk-toggle-glow')) { state.rareGlow = !state.rareGlow; saveSettings(); applyRareGlowToggle(); return; }
+            } catch (err) {
+                console.error('[Interium] Toolbar action failed:', err);
+            }
+        }, true);
+    }
+
     function buildShell() {
         if (document.getElementById('pk-shell')) return true;
         const body = getInventoryBody();
@@ -1505,14 +1536,7 @@ else window.addEventListener('DOMContentLoaded', init);
         row.parentElement.insertBefore(toolbar, row);
 
         ensureCalcPanel();
-
-        toolbar.querySelector('#pk-search').addEventListener('input', e => { state.query = e.target.value || ''; render(); });
-        toolbar.querySelectorAll('[data-sort]').forEach(btn => btn.addEventListener('click', () => { state.sortMode = btn.dataset.sort; render(); }));
-        toolbar.querySelector('#pk-toggle-stack').addEventListener('click', () => { state.stacked = !state.stacked; render(); });
-        toolbar.querySelector('#pk-toggle-value-only').addEventListener('click', () => { state.valueOnly = !state.valueOnly; saveSettings(); render(); });
-        toolbar.querySelector('#pk-toggle-serial-outline').addEventListener('click', () => { state.serialOutline = !state.serialOutline; saveSettings(); render(); });
-        toolbar.querySelector('#pk-toggle-calc').addEventListener('click', () => { state.calcOpen = !state.calcOpen; updateCalc(); updateToolbarState(); });
-        toolbar.querySelector('#pk-toggle-glow').addEventListener('click', () => { state.rareGlow = !state.rareGlow; saveSettings(); applyRareGlowToggle(); });
+        installToolbarHandlers();
         return true;
     }
 
@@ -1560,7 +1584,7 @@ else window.addEventListener('DOMContentLoaded', init);
         modal.innerHTML = `
             <div class="pk-modal pk-picker-modal">
                 <div class="pk-modal-head">
-                    <div><b>${title}</b><br><span>Search Koromons items, sorted from highest value to lowest.</span></div>
+                    <div><b>${title}</b><br><span>Search Koromon’s items, sorted from highest value to lowest.</span></div>
                     <button class="pk-close">Close</button>
                 </div>
                 <input id="pk-picker-search" class="pk-search" placeholder="Search item name or asset id...">
