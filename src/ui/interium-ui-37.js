@@ -311,7 +311,7 @@
         applyGuiFont(cfg.miscGuiFont || 'Share Tech Mono');
     };
 
-    // ── Unified glass recipe ────────────���������������������────────────���────────────────
+    // ── Unified glass recipe ────────────�����������������������────────────���────────────────
     // Every blur / glassify surface (navbar, sidebar, cards, frames,
     // dropdowns, chips) uses these EXACT values so the glass effect looks
     // identical everywhere. Tweak here to retune all glass at once.
@@ -355,7 +355,14 @@
             if (cfg.navbarMode === 'transparent') {
                 css += `.navbar-0-2-49,nav.navbar.navbar-0-2-49,.navbar-wrapper-main .navbar{background:transparent!important;border-bottom:1px solid rgba(255,255,255,0.06)!important;box-shadow:none!important;}`;
             } else if (cfg.navbarMode === 'blur') {
-                css += `.navbar-0-2-49,nav.navbar.navbar-0-2-49,.navbar-wrapper-main .navbar{${GLASS_CSS}border:none!important;border-bottom:1px solid ${GLASS_BORDER_COLOR}!important;}`;
+                // NOTE: glass goes on a ::before layer, NOT the navbar element itself.
+                // backdrop-filter on the navbar makes it a "backdrop root", which kills
+                // the blur of the nested account dropdown (Settings/Help/Logout) -> it
+                // renders as just transparent. Do not add isolation/filter/opacity to the
+                // navbar here or it becomes a backdrop root again and the bug returns.
+                const NAV = '.navbar-0-2-49,nav.navbar.navbar-0-2-49,.navbar-wrapper-main .navbar';
+                css += `${NAV}{background:transparent!important;border:none!important;border-bottom:1px solid ${GLASS_BORDER_COLOR}!important;box-shadow:${GLASS_SHADOW}!important;position:relative!important;}`;
+                css += `${NAV}::before{content:''!important;position:absolute!important;inset:0!important;z-index:-1!important;pointer-events:none!important;background:${GLASS_BG}!important;backdrop-filter:${GLASS_FILTER}!important;-webkit-backdrop-filter:${GLASS_FILTER}!important;}`;
             } else if (cfg.navbarMode === 'colour') {
                 const col = cfg.navbarColour || '#0d0d14';
                 const r = parseInt(col.slice(1,3),16), g = parseInt(col.slice(3,5),16), b = parseInt(col.slice(5,7),16);
