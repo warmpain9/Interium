@@ -1332,7 +1332,7 @@ else window.addEventListener('DOMContentLoaded', init);
         const mine = totalsFor(state.mine, state.mineItems);
         const theirs = theirTotals();
         const diff = theirs.value - mine.value;
-        const panel = document.querySelector('#pk-calc-panel');
+        const panel = ensureCalcPanel();
         if (!panel) return;
         document.body.classList.toggle('pk-calc-open', state.calcOpen);
         panel.querySelector('#pk-calc-mine').innerHTML = calcSideHTML(mine.selected, 'mine');
@@ -1356,7 +1356,7 @@ else window.addEventListener('DOMContentLoaded', init);
 
     function render() {
         const row = getInventoryRow();
-        if (!row) return;
+        if (!row) { updateToolbarState(); updateCalc(); return; }
         removeOriginalPagination();
         const shown = visibleStacks();
         row.innerHTML = `<div class="pk-grid">${shown.map((s, i) => cardHTML(s, i)).join('')}</div>`;
@@ -1467,7 +1467,23 @@ else window.addEventListener('DOMContentLoaded', init);
         `;
         row.parentElement.insertBefore(toolbar, row);
 
-        const calc = document.createElement('aside');
+        toolbar.querySelector('#pk-search').addEventListener('input', e => { state.query = e.target.value || ''; render(); });
+        toolbar.querySelectorAll('[data-sort]').forEach(btn => btn.addEventListener('click', () => { state.sortMode = btn.dataset.sort; render(); }));
+        toolbar.querySelector('#pk-toggle-stack').addEventListener('click', () => { state.stacked = !state.stacked; render(); });
+        toolbar.querySelector('#pk-toggle-value-only').addEventListener('click', () => { state.valueOnly = !state.valueOnly; saveSettings(); render(); });
+        toolbar.querySelector('#pk-toggle-serial-outline').addEventListener('click', () => { state.serialOutline = !state.serialOutline; saveSettings(); render(); });
+        toolbar.querySelector('#pk-toggle-calc').addEventListener('click', () => { state.calcOpen = !state.calcOpen; updateCalc(); updateToolbarState(); });
+        toolbar.querySelector('#pk-toggle-glow').addEventListener('click', () => { state.rareGlow = !state.rareGlow; saveSettings(); applyRareGlowToggle(); });
+        ensureCalcPanel();
+        return true;
+    }
+
+    // Self-healing: (re)creates the calculator panel if it is missing, so the
+    // Item Calculator button always has something to open.
+    function ensureCalcPanel() {
+        let calc = document.querySelector('#pk-calc-panel');
+        if (calc) return calc;
+        calc = document.createElement('aside');
         calc.id = 'pk-calc-panel';
         calc.className = 'pk-calc-panel';
         calc.innerHTML = `
@@ -1482,14 +1498,6 @@ else window.addEventListener('DOMContentLoaded', init);
             <div id="pk-calc-summary" class="pk-calc-total"></div>
         `;
         document.body.appendChild(calc);
-
-        toolbar.querySelector('#pk-search').addEventListener('input', e => { state.query = e.target.value || ''; render(); });
-        toolbar.querySelectorAll('[data-sort]').forEach(btn => btn.addEventListener('click', () => { state.sortMode = btn.dataset.sort; render(); }));
-        toolbar.querySelector('#pk-toggle-stack').addEventListener('click', () => { state.stacked = !state.stacked; render(); });
-        toolbar.querySelector('#pk-toggle-value-only').addEventListener('click', () => { state.valueOnly = !state.valueOnly; saveSettings(); render(); });
-        toolbar.querySelector('#pk-toggle-serial-outline').addEventListener('click', () => { state.serialOutline = !state.serialOutline; saveSettings(); render(); });
-        toolbar.querySelector('#pk-toggle-calc').addEventListener('click', () => { state.calcOpen = !state.calcOpen; render(); });
-        toolbar.querySelector('#pk-toggle-glow').addEventListener('click', () => { state.rareGlow = !state.rareGlow; saveSettings(); applyRareGlowToggle(); });
         calc.querySelector('#pk-clear-calc').addEventListener('click', () => { state.mine.clear(); state.mineItems.clear(); state.theirItems.clear(); render(); });
         calc.querySelector('#pk-add-any-mine').addEventListener('click', () => showItemPicker('mine'));
         calc.querySelector('#pk-add-any-theirs').addEventListener('click', () => showItemPicker('theirs'));
@@ -1503,7 +1511,7 @@ else window.addEventListener('DOMContentLoaded', init);
             render();
         });
         makeDraggable(calc, calc.querySelector('#pk-calc-head'));
-        return true;
+        return calc;
     }
 
     function valueItemId(it, fallback = '') {

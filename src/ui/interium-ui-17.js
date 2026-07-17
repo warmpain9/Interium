@@ -370,7 +370,7 @@
                 const containers = document.querySelectorAll('[class*="container-0-2-"]');
                 for (const c of containers) {
                     const inner = c.querySelector('[class*="card-0-2-"]');
-                    if (inner && inner.querySelector('a[href*="/profile"], a[href="/home"]')) return inner;
+                    if (inner && inner.querySelector('a[href*="/profile"], a[href$="/home"]')) return inner;
                 }
                 return null;
             })();
@@ -491,7 +491,7 @@
         css += `[class*="userStatus"],[class*="statHeader"],[class*="statText"]{font-weight:700!important;}`;
         const FRAME_CSS = `background:transparent!important;backdrop-filter:blur(0px)!important;border-color:rgba(255,255,255,0.06)!important;box-shadow:none!important;`;
         if (cfg.miscHomeFramesTransparent) {
-            css += `.container.container-0-2-162,.container-0-2-162{${FRAME_CSS}}.myFeedContainer-0-2-176,.blogNewsContainer-0-2-177,.homeGamesContainer-0-2-172{${FRAME_CSS}}`;
+            css += `[class*="myFeedContainer-"],[class*="blogNewsContainer-"],[class*="homeGamesContainer-"]{${FRAME_CSS}}`;
             css += `[class*="friendSection"] .section-content,[class*="friendSection"]{background:transparent!important;}[class*="thumbnailWrapper"]{box-shadow:none!important;}`;
         }
         if (cfg.miscCatalogFrameTransparent) {
@@ -500,17 +500,21 @@
             css += `[class*="itemDetailsContainer-"],[class*="itemDetails-"],[class*="itemThumbContainer-"]{${FRAME_CSS}}`;
         }
         if (cfg.miscProfileFrameTransparent) {
+            // :has() feature detection - without it we drop only the sidebar
+            // exclusion, never the whole glass rule.
+            let NOHOME = '';
+            try { if (CSS.supports('selector(:has(a))')) NOHOME = ':not(:has(a[href$="/home"]))'; } catch {}
             let glassEl = document.getElementById('pks-profile-glass-style');
             if (!glassEl) { glassEl = document.createElement('style'); glassEl.id = 'pks-profile-glass-style'; document.head.appendChild(glassEl); }
             glassEl.textContent = `
                 /* :not(:has(a[href="/home"])) keeps the site's left nav sidebar
                    (which is also a .card) out of the glassify effect */
-                .card:not(:has(a[href="/home"])),
-                [class*="card-0-2-"]:not(:has(a[href="/home"])),
-                .card-body:not(:has(a[href="/home"])),
-                [class*="cardBody-0-2-"]:not(:has(a[href="/home"])),
-                .avatarImageCard-0-2-334,
-                .groupCard-0-2-402 {
+                .card${NOHOME},
+                [class*="card-0-2-"]${NOHOME},
+                .card-body${NOHOME},
+                [class*="cardBody-0-2-"]${NOHOME},
+                [class*="avatarImageCard-"],
+                [class*="groupCard-"] {
                     background:${GLASS_BG}!important;
                     backdrop-filter:${GLASS_FILTER}!important;
                     -webkit-backdrop-filter:${GLASS_FILTER}!important;
@@ -518,11 +522,11 @@
                     border-radius: 12px !important;
                     box-shadow: 0 8px 32px rgba(0,0,0,.20), inset 0 1px 0 rgba(255,255,255,.15) !important;
                 }
-                .avatarWrapper-0-2-191,
-                .avatarContainer-0-2-189,
-                .image-0-2-193,
-                .listItemFriend-0-2-188,
-                .friendLink-0-2-190 {
+                [class*="avatarWrapper-"],
+                [class*="avatarContainer-"],
+                [class*="image-0-2-"],
+                [class*="listItemFriend-"],
+                [class*="friendLink-"] {
                     background: transparent !important;
                     background-color: transparent !important;
                     box-shadow: none !important;
@@ -558,7 +562,7 @@
             css += `[class*="listItemFriend-"] [class*="playerName-"],[class*="friendCard-"] [class*="username-"],[class*="manageRequestCard-"] [class*="username-"]{color:#fff!important;}`;
         }
         applyFriendsTransparencyDirect();
-        if (cfg.miscAvatarFrameTransparent) css += `.avatarCardContainer-0-2-570,.catalogContainer-0-2-4{${FRAME_CSS}}.pillToggle-0-2-553{background:${GLASS_BG}!important;border-color:rgba(255,255,255,0.1)!important;}`;
+        if (cfg.miscAvatarFrameTransparent) css += `[class*="avatarCardContainer-"]{${FRAME_CSS}}[class*="pillToggle-"]{background:${GLASS_BG}!important;border-color:rgba(255,255,255,0.1)!important;}`;
         if (cfg.miscAvatarBlurDropdown && isAvatarPage()) { // buttonCol- also exists on profile pages
             // Avatar editor category tab strip + its dropdown panel -> glass blur.
             css += `[class*="buttonCol-"]{${GLASS_CSS}border-radius:12px 12px 0 0!important;}`; // rounded top, sharp bottom - merges with the dropdown below
@@ -1200,6 +1204,11 @@
                    avatarCardWrapper etc. on other pages are not affected) */
                 [class*="resultsContainer-"] [class*="cardWrapper-"]{background:${GLASS_BG}!important;backdrop-filter:${GLASS_FILTER}!important;-webkit-backdrop-filter:${GLASS_FILTER}!important;border:1px solid rgba(255,255,255,0.12)!important;border-radius:14px!important;box-shadow:0 8px 28px rgba(0,0,0,0.28)!important;padding:8px!important;overflow:hidden!important;transition:transform 0.16s ease,box-shadow 0.16s ease,border-color 0.16s ease!important;}
                 [class*="resultsContainer-"] [class*="cardWrapper-"]:hover{transform:translateY(-4px)!important;box-shadow:0 14px 38px rgba(0,0,0,0.45)!important;border-color:${t.accent}77!important;}
+                /* the site's inner card link paints var(--white-color) bg + light
+                   shadows on top of our glass - flatten it */
+                [class*="resultsContainer-"] [class*="cardContainer-"]{background:transparent!important;box-shadow:none!important;border-radius:10px!important;}
+                /* owned/equipped overlay: keep the info, match the glass look */
+                [class*="resultsContainer-"] [class*="cardEquipped-"]{border:1px solid rgba(2,183,87,0.6)!important;border-radius:12px!important;box-shadow:inset 0 0 16px rgba(2,183,87,0.14)!important;}
                 [class*="resultsContainer-"] [class*="cardImage-"],[class*="resultsContainer-"] div[class*="imageBig"],[class*="resultsContainer-"] div[class*="image-"],[class*="resultsContainer-"] div[class*="thumb"]{background:rgba(255,255,255,0.035)!important;border-radius:10px!important;overflow:hidden!important;border:none!important;box-shadow:none!important;}
                 [class*="resultsContainer-"] [class*="cardImage-"] img{border:none!important;border-radius:10px!important;background:transparent!important;}
                 [class*="resultsContainer-"] [class*="cardItemLink-"] span{color:#fff!important;font-weight:700!important;}
@@ -2054,7 +2063,7 @@
         if (!document.getElementById('pks-avatar-controls-style')) {
             const st = document.createElement('style');
             st.id = 'pks-avatar-controls-style';
-            st.textContent = '';
+            st.textContent = `[class*="avatarThumbContainer"]{border:1px solid rgba(255,255,255,0.12)!important;border-radius:14px!important;box-shadow:0 8px 28px rgba(0,0,0,0.28)!important;overflow:hidden!important;}`;
             document.head.appendChild(st);
         }
         const frame = document.querySelector('[class*="avatarThumbContainer"]');
@@ -2290,7 +2299,7 @@
                 ensureTradesOverlay();
                 removeNagAlerts();
                 injectProfileTradeButton();
-                applyAvatarControls(); injectAvatarBgStrip(); if (cfg.avatarBgEnabled) applyAvatarBg();
+                applyAvatarControls(); injectAvatarBgStrip(); applyAvatarGlass(); if (cfg.avatarBgEnabled) applyAvatarBg();
                 applyBadges();
                 applyProfileBannerForPage();
             }, 60);
@@ -2299,7 +2308,7 @@
         applyAgeOverride();
         removeNagAlerts();
         injectProfileTradeButton();
-        applyAvatarControls(); injectAvatarBgStrip(); if (cfg.avatarBgEnabled) applyAvatarBg();
+        applyAvatarControls(); injectAvatarBgStrip(); applyAvatarGlass(); if (cfg.avatarBgEnabled) applyAvatarBg();
         applyBadges();
         applyProfileBannerForPage();
     };
