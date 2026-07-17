@@ -311,7 +311,7 @@
         applyGuiFont(cfg.miscGuiFont || 'Share Tech Mono');
     };
 
-    // ── Unified glass recipe ────────────���────────────���────────────────
+    // ── Unified glass recipe ────────────�������────────────���────────────────
     // Every blur / glassify surface (navbar, sidebar, cards, frames,
     // dropdowns, chips) uses these EXACT values so the glass effect looks
     // identical everywhere. Tweak here to retune all glass at once.
@@ -565,22 +565,23 @@
         applyFriendsTransparencyDirect();
         if (cfg.miscAvatarFrameTransparent) css += `[class*="avatarCardContainer-"]{${FRAME_CSS}}[class*="pillToggle-"]{background:${GLASS_BG}!important;border-color:rgba(255,255,255,0.1)!important;}`;
         if (cfg.miscAvatarBlurDropdown && isAvatarPage()) { // buttonCol- also exists on profile pages
-            // Avatar editor category tab strip + its dropdown panel -> ONE unified glass surface.
-            // backdrop-filter shows what is BEHIND each element (dark page header behind the
-            // strip vs. bright item grid behind the panel), so the pure GLASS_CSS recipe can
-            // never look identical on both. A shared semi-opaque tint on top of the same blur
-            // makes the two surfaces read as one piece of glass over any backdrop.
-            const AV_GLASS = `${GLASS_CSS}background:rgba(16,16,22,0.40)!important;`;
-            css += `[class*="buttonCol-"]{${AV_GLASS}border-radius:12px 12px 0 0!important;border-bottom:none!important;}`; // rounded top, open bottom - merges with the dropdown below
-            // the vTab children paint their own JSS backgrounds over the parent glass -> clear them
-            css += `[class*="buttonCol-"] [class*="vTab-"]{background:transparent!important;background-color:transparent!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;}`;
-            css += `[class*="vTabLabel-"]{background:transparent!important;background-color:transparent!important;color:#fff!important;}`;
-            css += `p[class*="vTabUnselected-"]{box-shadow:none!important;}`;
-            // the dropdown panel: match it by its own class (it is rendered dynamically, not always
-            // as a DOM sibling of buttonCol-) AND keep the old sibling selectors as a fallback
-            css += `[class*="dropdownClass"],[class*="dropdownNew"],[class*="buttonCol-"] + div:not(:empty),[class*="buttonCol-"] ~ div .section-content{${AV_GLASS}border-radius:0 0 12px 12px!important;border-top:none!important;margin-top:0!important;}`;
-            // nested backdrop-filter inside the panel would silently no-op and desync the blur
-            css += `[class*="dropdownClass"] *,[class*="dropdownNew"] *{backdrop-filter:none!important;-webkit-backdrop-filter:none!important;}`;
+            // ONE real glass layer on the common editor wrapper. The previous implementation
+            // blurred the tab strip and dropdown separately, so each sampled a different backdrop
+            // and inevitably looked like a different preset.
+            const AVATAR_MENU = `[class*="itemContainer-"]:has([class*="buttonCol-"])`;
+            css += `${AVATAR_MENU}{${GLASS_CSS}border-radius:12px!important;overflow:hidden!important;isolation:isolate!important;}`;
+
+            // Every visible part inside the shared glass must be transparent and must not start
+            // another backdrop-filter layer. This preserves only text, separators and active tabs.
+            css += `${AVATAR_MENU} [class*="buttonCol-"],${AVATAR_MENU} [class*="dropdownClass"],${AVATAR_MENU} [class*="dropdownNew"],${AVATAR_MENU} .section-content{background:transparent!important;background-color:transparent!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;border-color:transparent!important;box-shadow:none!important;}`;
+            css += `${AVATAR_MENU} [class*="vTab-"]{background:transparent!important;background-color:transparent!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;}`;
+            css += `${AVATAR_MENU} [class*="vTabLabel-"]{background:transparent!important;background-color:transparent!important;color:#fff!important;}`;
+            css += `${AVATAR_MENU} p[class*="vTabUnselected-"]{box-shadow:none!important;}`;
+
+            // Fallback for builds where React portals the dropdown outside itemContainer. Do not
+            // add a second blur: use the exact resolved glass colour so it cannot become greener
+            // or darker than the strip.
+            css += `body > [class*="dropdownClass"],body > [class*="dropdownNew"]{background:rgba(20,20,25,0.82)!important;background-color:rgba(20,20,25,0.82)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;border:1px solid ${GLASS_BORDER_COLOR}!important;border-top:none!important;border-radius:0 0 12px 12px!important;box-shadow:${GLASS_SHADOW}!important;}`;
         }
         if (cfg.miscFooterTransparent) css += `[class*="footerContainer"],footer[class*="footerContainer"]{background:transparent!important;border-top:1px solid rgba(255,255,255,0.06)!important;box-shadow:none!important;backdrop-filter:none!important;}`;
         if (cfg.miscGamesGlassify && !isAvatarPage()) {
