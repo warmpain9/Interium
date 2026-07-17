@@ -500,15 +500,15 @@
             css += `[class*="itemDetailsContainer-"],[class*="itemDetails-"],[class*="itemThumbContainer-"]{${FRAME_CSS}}`;
         }
         if (cfg.miscProfileFrameTransparent) {
-            // :has() feature detection - without it we drop only the sidebar
-            // exclusion, never the whole glass rule.
+            // :has() may be unsupported in older engines - feature-detect so
+            // the glass never breaks (we only lose the sidebar exclusion).
             let NOHOME = '';
             try { if (CSS.supports('selector(:has(a))')) NOHOME = ':not(:has(a[href$="/home"]))'; } catch {}
             let glassEl = document.getElementById('pks-profile-glass-style');
             if (!glassEl) { glassEl = document.createElement('style'); glassEl.id = 'pks-profile-glass-style'; document.head.appendChild(glassEl); }
             glassEl.textContent = `
-                /* :not(:has(a[href="/home"])) keeps the site's left nav sidebar
-                   (which is also a .card) out of the glassify effect */
+                /* NOHOME keeps the site's left nav sidebar (also a .card)
+                   out of the glassify effect when :has() is supported */
                 .card${NOHOME},
                 [class*="card-0-2-"]${NOHOME},
                 .card-body${NOHOME},
@@ -532,7 +532,7 @@
                     box-shadow: none !important;
                     border: none !important;
                 }
-                .avatarWrapper-0-2-191 {
+                [class*="avatarWrapper-"] {
                     backdrop-filter:${GLASS_FILTER}!important;
                     -webkit-backdrop-filter:${GLASS_FILTER}!important;
                 }
@@ -573,7 +573,7 @@
         if (cfg.miscFooterTransparent) css += `[class*="footerContainer"],footer[class*="footerContainer"]{background:transparent!important;border-top:1px solid rgba(255,255,255,0.06)!important;box-shadow:none!important;backdrop-filter:none!important;}`;
         if (cfg.miscGamesGlassify) {
             const accentDark = darkenHex(t.accent, 0.62);
-            const GLASS = `${GLASS_CSS}border-radius:16px!important;`;
+            const GLASS = `background:rgba(255,255,255,0.05)!important;backdrop-filter:blur(16px) saturate(160%)!important;-webkit-backdrop-filter:blur(16px) saturate(160%)!important;border:1px solid rgba(255,255,255,0.12)!important;border-radius:16px!important;box-shadow:0 8px 30px rgba(0,0,0,0.3)!important;`;
             css += `
                 /* every major frame → glass */
                 [class*="callsToAction"],[class*="recommendedGamesContainer"],[class*="serverContainer"],[class*="subSectionContainer"],[class*="gameDescription"],[class*="contentContainer"]{${GLASS}padding:16px!important;}
@@ -585,26 +585,26 @@
                 [class*="voteText"],[class*="voteNumbers"],[class*="playerCount"],[class*="creatorLabel"]{color:#e6e9f5!important;}
                 /* game stats → modern glass chips */
                 [class*="gameStatsContainer"]{display:flex!important;flex-wrap:wrap!important;gap:8px!important;border:none!important;padding:0!important;margin-top:12px!important;}
-                [class*="gameStat-"]{list-style:none!important;background:${GLASS_BG}!important;backdrop-filter:${GLASS_FILTER}!important;-webkit-backdrop-filter:${GLASS_FILTER}!important;border:1px solid rgba(255,255,255,0.1)!important;border-radius:12px!important;padding:8px 13px!important;transition:border-color 0.15s ease,transform 0.12s ease!important;}
+                [class*="gameStat-"]{list-style:none!important;background:rgba(255,255,255,0.05)!important;backdrop-filter:blur(10px)!important;-webkit-backdrop-filter:blur(10px)!important;border:1px solid rgba(255,255,255,0.1)!important;border-radius:12px!important;padding:8px 13px!important;transition:border-color 0.15s ease,transform 0.12s ease!important;}
                 [class*="gameStat-"]:hover{border-color:${t.accent}66!important;transform:translateY(-1px)!important;}
                 [class*="gameStatLabel"]{color:#9aa0c0!important;}
                 [class*="gameStatStat"]{color:#fff!important;font-weight:700!important;}
                 [class*="reportAbuseContainer"] a,[class*="abuseLink"]{color:${t.accent}!important;}
                 /* comments → glass */
-                [class*="commentContainer"]{background:${GLASS_BG}!important;backdrop-filter:${GLASS_FILTER}!important;-webkit-backdrop-filter:${GLASS_FILTER}!important;border:1px solid rgba(255,255,255,0.1)!important;border-radius:12px!important;padding:10px!important;margin-bottom:8px!important;}
-                [class*="createCommentContainer"],[class*="commentBox"]{background:${GLASS_BG}!important;backdrop-filter:${GLASS_FILTER}!important;-webkit-backdrop-filter:${GLASS_FILTER}!important;border:1px solid rgba(255,255,255,0.12)!important;border-radius:12px!important;}
+                [class*="commentContainer"]{background:rgba(255,255,255,0.04)!important;backdrop-filter:blur(10px)!important;-webkit-backdrop-filter:blur(10px)!important;border:1px solid rgba(255,255,255,0.1)!important;border-radius:12px!important;padding:10px!important;margin-bottom:8px!important;}
+                [class*="createCommentContainer"],[class*="commentBox"]{background:rgba(255,255,255,0.05)!important;backdrop-filter:blur(12px)!important;-webkit-backdrop-filter:blur(12px)!important;border:1px solid rgba(255,255,255,0.12)!important;border-radius:12px!important;}
                 [class*="commentBox"] input,[class*="createCommentContainer"] input{background:transparent!important;color:#fff!important;border:none!important;}
                 /* modern, sleek buttons */
                 [class*="actionButtonsContainer"]{gap:8px!important;}
                 [class*="playButtonContainer"] button,[class*="buttonWrapper"] button{background:linear-gradient(135deg,${t.accent},${accentDark})!important;border:none!important;border-radius:14px!important;box-shadow:0 6px 22px ${t.accent}55!important;transition:transform 0.16s ease,box-shadow 0.16s ease,filter 0.16s ease!important;}
                 [class*="playButtonContainer"] button:hover,[class*="buttonWrapper"] button:hover{transform:translateY(-2px) scale(1.02)!important;filter:brightness(1.08)!important;box-shadow:0 12px 30px ${t.accent}88!important;}
                 [class*="playButtonContainer"] button [class*="iconPlay"]{filter:drop-shadow(0 1px 2px rgba(0,0,0,0.4))!important;}
-                [class*="favoriteButton"],[class*="followButton"]{display:flex!important;align-items:center!important;justify-content:center!important;gap:6px!important;background:${GLASS_BG}!important;backdrop-filter:${GLASS_FILTER}!important;-webkit-backdrop-filter:${GLASS_FILTER}!important;border:1px solid rgba(255,255,255,0.14)!important;border-radius:14px!important;padding:8px 14px!important;transition:background 0.15s ease,border-color 0.15s ease,transform 0.15s ease!important;}
+                [class*="favoriteButton"],[class*="followButton"]{display:flex!important;align-items:center!important;justify-content:center!important;gap:6px!important;background:rgba(255,255,255,0.06)!important;backdrop-filter:blur(10px)!important;-webkit-backdrop-filter:blur(10px)!important;border:1px solid rgba(255,255,255,0.14)!important;border-radius:14px!important;padding:8px 14px!important;transition:background 0.15s ease,border-color 0.15s ease,transform 0.15s ease!important;}
                 [class*="favoriteButton"]:hover,[class*="followButton"]:hover{background:rgba(255,255,255,0.11)!important;border-color:${t.accent}99!important;transform:translateY(-1px)!important;}
                 [class*="favoriteLabel"],[class*="followLabel"]{color:#fff!important;font-weight:600!important;}
                 /* About / Store / Servers tabs → modern glass segmented control */
                 [class*="buttonCol"]{display:flex!important;gap:8px!important;flex-wrap:wrap!important;}
-                [class*="vTab-"]{background:${GLASS_BG}!important;backdrop-filter:${GLASS_FILTER}!important;-webkit-backdrop-filter:${GLASS_FILTER}!important;border:1px solid rgba(255,255,255,0.12)!important;border-radius:12px!important;overflow:hidden!important;transition:border-color 0.15s ease,transform 0.12s ease,background 0.15s ease!important;}
+                [class*="vTab-"]{background:rgba(255,255,255,0.05)!important;backdrop-filter:blur(10px)!important;-webkit-backdrop-filter:blur(10px)!important;border:1px solid rgba(255,255,255,0.12)!important;border-radius:12px!important;overflow:hidden!important;transition:border-color 0.15s ease,transform 0.12s ease,background 0.15s ease!important;}
                 [class*="vTab-"]:hover{border-color:${t.accent}66!important;transform:translateY(-1px)!important;}
                 [class*="vTabLabel"]{color:#cfd3e6!important;font-weight:600!important;margin:0!important;padding:9px 16px!important;text-align:center!important;cursor:pointer!important;}
                 [class*="vTabLabel"]:not([class*="vTabUnselected"]){color:#fff!important;background:linear-gradient(135deg,${t.accent}33,${t.accent}11)!important;box-shadow:inset 0 -2px 0 ${t.accent}!important;}
@@ -1204,11 +1204,9 @@
                    avatarCardWrapper etc. on other pages are not affected) */
                 [class*="resultsContainer-"] [class*="cardWrapper-"]{background:${GLASS_BG}!important;backdrop-filter:${GLASS_FILTER}!important;-webkit-backdrop-filter:${GLASS_FILTER}!important;border:1px solid rgba(255,255,255,0.12)!important;border-radius:14px!important;box-shadow:0 8px 28px rgba(0,0,0,0.28)!important;padding:8px!important;overflow:hidden!important;transition:transform 0.16s ease,box-shadow 0.16s ease,border-color 0.16s ease!important;}
                 [class*="resultsContainer-"] [class*="cardWrapper-"]:hover{transform:translateY(-4px)!important;box-shadow:0 14px 38px rgba(0,0,0,0.45)!important;border-color:${t.accent}77!important;}
-                /* the site's inner card link paints var(--white-color) bg + light
-                   shadows on top of our glass - flatten it */
-                [class*="resultsContainer-"] [class*="cardContainer-"]{background:transparent!important;box-shadow:none!important;border-radius:10px!important;}
-                /* owned/equipped overlay: keep the info, match the glass look */
-                [class*="resultsContainer-"] [class*="cardEquipped-"]{border:1px solid rgba(2,183,87,0.6)!important;border-radius:12px!important;box-shadow:inset 0 0 16px rgba(2,183,87,0.14)!important;}
+                [class*="resultsContainer-"] [class*="cardContainer-"]{background:transparent!important;box-shadow:none!important;border:none!important;border-radius:10px!important;}
+                [class*="resultsContainer-"] [class*="cardWrapper-"] a{background:transparent!important;text-decoration:none!important;}
+                [class*="resultsContainer-"] [class*="cardEquipped-"]{border:1px solid rgba(2,183,87,0.65)!important;border-radius:12px!important;box-shadow:inset 0 0 14px rgba(2,183,87,0.12)!important;}
                 [class*="resultsContainer-"] [class*="cardImage-"],[class*="resultsContainer-"] div[class*="imageBig"],[class*="resultsContainer-"] div[class*="image-"],[class*="resultsContainer-"] div[class*="thumb"]{background:rgba(255,255,255,0.035)!important;border-radius:10px!important;overflow:hidden!important;border:none!important;box-shadow:none!important;}
                 [class*="resultsContainer-"] [class*="cardImage-"] img{border:none!important;border-radius:10px!important;background:transparent!important;}
                 [class*="resultsContainer-"] [class*="cardItemLink-"] span{color:#fff!important;font-weight:700!important;}
@@ -2063,7 +2061,9 @@
         if (!document.getElementById('pks-avatar-controls-style')) {
             const st = document.createElement('style');
             st.id = 'pks-avatar-controls-style';
-            st.textContent = `[class*="avatarThumbContainer"]{border:1px solid rgba(255,255,255,0.12)!important;border-radius:14px!important;box-shadow:0 8px 28px rgba(0,0,0,0.28)!important;overflow:hidden!important;}`;
+            // Hexium look: hide the site 3D toggle button; give the avatar
+            // preview frame an always-on glass outline that survives re-renders.
+            st.textContent = `[class*="thumbnail3DButtonContainer"]{display:none!important;}[class*="avatarThumbContainer"]{border:1px solid rgba(255,255,255,0.12)!important;border-radius:14px!important;box-shadow:0 8px 28px rgba(0,0,0,0.28)!important;overflow:hidden!important;}`;
             document.head.appendChild(st);
         }
         const frame = document.querySelector('[class*="avatarThumbContainer"]');
@@ -2089,7 +2089,7 @@
         if (!anchor || !anchor.parentElement) return;
         const card = document.createElement('div');
         card.id = 'pks-avatar-tools';
-        card.style.cssText = `margin-top:14px;padding:14px;border-radius:14px;${GLASS_CSS}color:#d0d0e0;position:relative;z-index:2;`;
+        card.style.cssText = `margin-top:14px;padding:14px;border-radius:14px;background:rgba(10,10,16,0.55);backdrop-filter:blur(16px) saturate(160%);-webkit-backdrop-filter:blur(16px) saturate(160%);border:1px solid #ffffff40;box-shadow:0 8px 30px rgba(0,0,0,0.45);font-family:var(--pks-font),'Share Tech Mono',monospace;color:#d0d0e0;position:relative;z-index:2;`;
         card.innerHTML = `
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
                 <span style="font-size:12px;font-weight:700;letter-spacing:0.12em;color:#fff;text-transform:uppercase;">Background</span>

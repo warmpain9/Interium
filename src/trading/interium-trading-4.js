@@ -1328,6 +1328,43 @@ else window.addEventListener('DOMContentLoaded', init);
         return totalsFor(new Set(), state.theirItems);
     }
 
+    // The calculator panel lives on document.body and is created lazily, so
+    // the Item Calculator button works even if the grid re-render bailed out
+    // or a site re-render removed the panel.
+    function ensureCalcPanel() {
+        let calc = document.querySelector('#pk-calc-panel');
+        if (calc) return calc;
+        calc = document.createElement('aside');
+        calc.id = 'pk-calc-panel';
+        calc.className = 'pk-calc-panel';
+        calc.innerHTML = `
+            <div id="pk-calc-head" class="pk-calc-head">
+                <span>Trade Calculator</span>
+                <button id="pk-clear-calc" class="pk-clear">Clear</button>
+            </div>
+            <div class="pk-calc-columns">
+                <section><h4>My Side <button id="pk-add-any-mine" class="pk-clear pk-add-any">Add Any Item</button></h4><div id="pk-calc-mine" class="pk-calc-list"></div></section>
+                <section><h4>Their Side <button id="pk-add-any-theirs" class="pk-clear pk-add-any">Add Any Item</button></h4><div id="pk-calc-theirs" class="pk-calc-list"></div></section>
+            </div>
+            <div id="pk-calc-summary" class="pk-calc-total"></div>
+        `;
+        document.body.appendChild(calc);
+        calc.querySelector('#pk-clear-calc').addEventListener('click', () => { state.mine.clear(); state.mineItems.clear(); state.theirItems.clear(); render(); });
+        calc.querySelector('#pk-add-any-mine').addEventListener('click', () => showItemPicker('mine'));
+        calc.querySelector('#pk-add-any-theirs').addEventListener('click', () => showItemPicker('theirs'));
+        calc.addEventListener('click', e => {
+            const btn = e.target.closest('.pk-calc-remove');
+            if (!btn) return;
+            const row = btn.closest('.pk-calc-item');
+            const key = row?.dataset?.key;
+            if (row?.dataset?.side === 'mine') { state.mine.delete(String(key)); state.mineItems.delete(String(key)); }
+            else state.theirItems.delete(String(key));
+            render();
+        });
+        makeDraggable(calc, calc.querySelector('#pk-calc-head'));
+        return calc;
+    }
+
     function updateCalc() {
         const mine = totalsFor(state.mine, state.mineItems);
         const theirs = theirTotals();
@@ -1356,7 +1393,7 @@ else window.addEventListener('DOMContentLoaded', init);
 
     function render() {
         const row = getInventoryRow();
-        if (!row) { updateToolbarState(); updateCalc(); return; }
+        if (!row) { updateCalc(); updateToolbarState(); return; }
         removeOriginalPagination();
         const shown = visibleStacks();
         row.innerHTML = `<div class="pk-grid">${shown.map((s, i) => cardHTML(s, i)).join('')}</div>`;
@@ -1467,6 +1504,8 @@ else window.addEventListener('DOMContentLoaded', init);
         `;
         row.parentElement.insertBefore(toolbar, row);
 
+        ensureCalcPanel();
+
         toolbar.querySelector('#pk-search').addEventListener('input', e => { state.query = e.target.value || ''; render(); });
         toolbar.querySelectorAll('[data-sort]').forEach(btn => btn.addEventListener('click', () => { state.sortMode = btn.dataset.sort; render(); }));
         toolbar.querySelector('#pk-toggle-stack').addEventListener('click', () => { state.stacked = !state.stacked; render(); });
@@ -1474,44 +1513,7 @@ else window.addEventListener('DOMContentLoaded', init);
         toolbar.querySelector('#pk-toggle-serial-outline').addEventListener('click', () => { state.serialOutline = !state.serialOutline; saveSettings(); render(); });
         toolbar.querySelector('#pk-toggle-calc').addEventListener('click', () => { state.calcOpen = !state.calcOpen; updateCalc(); updateToolbarState(); });
         toolbar.querySelector('#pk-toggle-glow').addEventListener('click', () => { state.rareGlow = !state.rareGlow; saveSettings(); applyRareGlowToggle(); });
-        ensureCalcPanel();
         return true;
-    }
-
-    // Self-healing: (re)creates the calculator panel if it is missing, so the
-    // Item Calculator button always has something to open.
-    function ensureCalcPanel() {
-        let calc = document.querySelector('#pk-calc-panel');
-        if (calc) return calc;
-        calc = document.createElement('aside');
-        calc.id = 'pk-calc-panel';
-        calc.className = 'pk-calc-panel';
-        calc.innerHTML = `
-            <div id="pk-calc-head" class="pk-calc-head">
-                <span>Trade Calculator</span>
-                <button id="pk-clear-calc" class="pk-clear">Clear</button>
-            </div>
-            <div class="pk-calc-columns">
-                <section><h4>My Side <button id="pk-add-any-mine" class="pk-clear pk-add-any">Add Any Item</button></h4><div id="pk-calc-mine" class="pk-calc-list"></div></section>
-                <section><h4>Their Side <button id="pk-add-any-theirs" class="pk-clear pk-add-any">Add Any Item</button></h4><div id="pk-calc-theirs" class="pk-calc-list"></div></section>
-            </div>
-            <div id="pk-calc-summary" class="pk-calc-total"></div>
-        `;
-        document.body.appendChild(calc);
-        calc.querySelector('#pk-clear-calc').addEventListener('click', () => { state.mine.clear(); state.mineItems.clear(); state.theirItems.clear(); render(); });
-        calc.querySelector('#pk-add-any-mine').addEventListener('click', () => showItemPicker('mine'));
-        calc.querySelector('#pk-add-any-theirs').addEventListener('click', () => showItemPicker('theirs'));
-        calc.addEventListener('click', e => {
-            const btn = e.target.closest('.pk-calc-remove');
-            if (!btn) return;
-            const row = btn.closest('.pk-calc-item');
-            const key = row?.dataset?.key;
-            if (row?.dataset?.side === 'mine') { state.mine.delete(String(key)); state.mineItems.delete(String(key)); }
-            else state.theirItems.delete(String(key));
-            render();
-        });
-        makeDraggable(calc, calc.querySelector('#pk-calc-head'));
-        return calc;
     }
 
     function valueItemId(it, fallback = '') {
