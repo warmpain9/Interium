@@ -311,7 +311,7 @@
         applyGuiFont(cfg.miscGuiFont || 'Share Tech Mono');
     };
 
-    // ── Unified glass recipe ────────────�������������������────────────���────────────────
+    // ── Unified glass recipe ────────────���������������������────────────���────────────────
     // Every blur / glassify surface (navbar, sidebar, cards, frames,
     // dropdowns, chips) uses these EXACT values so the glass effect looks
     // identical everywhere. Tweak here to retune all glass at once.
@@ -515,13 +515,17 @@
                    out of the glassify effect when :has() is supported */
                 .card${NOHOME},
                 [class*="card-0-2-"]${NOHOME},
-                .card-body${NOHOME},
-                [class*="cardBody-0-2-"]${NOHOME},
                 [class*="avatarImageCard-"],
                 [class*="groupCard-"] {
                     ${GLASS_CSS}
                     border-radius:12px!important;
                 }
+                /* Nested card bodies must stay transparent: glass on both the
+                   outer card and card-body stacks two white layers and makes
+                   the profile header brighter than the About section. */
+                .card > .card-body,
+                [class*="card-0-2-"] > .card-body,
+                [class*="card-0-2-"] > [class*="cardBody-0-2-"],
                 [class*="avatarWrapper-"],
                 [class*="avatarContainer-"],
                 [class*="image-0-2-"],
@@ -536,8 +540,7 @@
                    buries the Past Usernames popover under the next glass frame.
                    Lift the hovered card so its popover paints above its siblings. */
                 .card:hover,
-                [class*="card-0-2-"]:hover:not([class*="dropdown"]),
-                [class*="cardBody-0-2-"]:hover {
+                [class*="card-0-2-"]:hover:not([class*="dropdown"]) {
                     position: relative !important;
                     z-index: 100 !important;
                 }

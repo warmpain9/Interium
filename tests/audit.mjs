@@ -23,6 +23,8 @@ if (!ui.includes("const GLASS_BG = 'rgba(255,255,255,0.05)';")) fail('canonical 
 if (!ui.includes("const GLASS_FILTER = 'blur(14px) saturate(160%)';")) fail('canonical glass filter changed or missing');
 if (!ui.includes("const GUI_GLASS_BG = 'rgba(10,10,14,0.86)';")) fail('GUI-only dark glass tint changed or missing');
 if (!ui.includes("panel.style.setProperty('background', GUI_GLASS_BG, 'important')")) fail('GUI panel does not use GUI_GLASS_BG');
+if (ui.includes('.card-body${NOHOME},')) fail('nested profile card-body still receives a second glass layer');
+if (!ui.includes('.card > .card-body,')) fail('nested profile card-body transparency rule missing');
 const hardcodedBackdropBlurs = [...ui.matchAll(/(?:-webkit-)?backdrop-filter\s*:\s*blur\((?!0px)/g)];
 if (hardcodedBackdropBlurs.length) fail('hard-coded positive backdrop blur found; use GLASS_FILTER');
 for (const marker of [
