@@ -16,4 +16,12 @@ if (!bodies.some((b) => b.includes('Trading Interium'))) fail('authoritative tra
 for (const forbidden of ['interium.zxwxtt.workers.dev', '/trades/v1/trades/send', 'Mass Trader']) {
   if (all.includes(forbidden)) fail('excluded src.js trade/backend content found: ' + forbidden);
 }
-if (!process.exitCode) console.log('Audit passed: 3 pinned @require sources, no cookie access, excluded trade/backend markers absent.');
+// All glassify surfaces must share the canonical visual preset. Keep the recipe in
+// one place and prohibit new hard-coded positive backdrop blur values.
+const ui = bodies.find((b) => b.includes('Interium UI runtime')) || '';
+if (!ui.includes("const GLASS_BG = 'rgba(30,30,34,0.78)';")) fail('canonical glass background changed or missing');
+if (!ui.includes("const GLASS_FILTER = 'blur(14px) saturate(160%)';")) fail('canonical glass filter changed or missing');
+const hardcodedBackdropBlurs = [...ui.matchAll(/(?:-webkit-)?backdrop-filter\s*:\s*blur\((?!0px)/g)];
+if (hardcodedBackdropBlurs.length) fail('hard-coded positive backdrop blur found; use GLASS_FILTER');
+
+if (!process.exitCode) console.log('Audit passed: loader sources, privacy markers, and unified glass preset verified.');

@@ -311,11 +311,11 @@
         applyGuiFont(cfg.miscGuiFont || 'Share Tech Mono');
     };
 
-    // ── Unified glass recipe ────────────�����������────────────���────────────────
+    // ── Unified glass recipe ────────────�������������────────────���────────────────
     // Every blur / glassify surface (navbar, sidebar, cards, frames,
     // dropdowns, chips) uses these EXACT values so the glass effect looks
     // identical everywhere. Tweak here to retune all glass at once.
-    const GLASS_BG = 'rgba(255,255,255,0.05)';
+    const GLASS_BG = 'rgba(30,30,34,0.78)';
     const GLASS_FILTER = 'blur(14px) saturate(160%)';
     const GLASS_BORDER_COLOR = 'rgba(255,255,255,0.12)';
     const GLASS_SHADOW = '0 8px 28px rgba(0,0,0,0.28)';
@@ -572,8 +572,7 @@
             // One literal preset for BOTH surfaces. The stronger shared tint normalises the
             // different backdrops (dark page behind the strip, bright cards behind submenu)
             // while retaining the same live 14px backdrop blur on each element.
-            const AVATAR_GLASS_CSS = `background:rgba(30,30,34,0.78)!important;background-color:rgba(30,30,34,0.78)!important;backdrop-filter:${GLASS_FILTER}!important;-webkit-backdrop-filter:${GLASS_FILTER}!important;border:1px solid ${GLASS_BORDER_COLOR}!important;box-shadow:${GLASS_SHADOW}!important;`;
-            css += `[class*="buttonCol-"],[class*="submenuContainer-"][class~="section-content"]{${AVATAR_GLASS_CSS}}`;
+            css += `[class*="buttonCol-"],[class*="submenuContainer-"][class~="section-content"]{${GLASS_CSS}}`;
             css += `[class*="buttonCol-"]{border-radius:12px 12px 0 0!important;border-bottom:0!important;}`;
             css += `[class*="submenuContainer-"][class~="section-content"]{border-radius:0 0 12px 12px!important;border-top:0!important;margin-top:0!important;}`;
 
@@ -754,12 +753,12 @@
         tabbar?.style.removeProperty('background');
 
         if (cfg.panelGlass) {
-            const op   = (cfg.panelOpacity ?? 85) / 100;
-            const blur = cfg.panelBlur ?? 14;
-            const c    = hexToRgbObj(t.panelBg) || { r: 12, g: 12, b: 14 };
-            panel.style.setProperty('background', `rgba(${c.r},${c.g},${c.b},${op})`, 'important');
-            panel.style.setProperty('backdrop-filter', `blur(${blur}px) saturate(160%)`, 'important');
-            panel.style.setProperty('-webkit-backdrop-filter', `blur(${blur}px) saturate(160%)`, 'important');
+            // Panel glass uses the same canonical preset as every glassify surface.
+            panel.style.setProperty('background', GLASS_BG, 'important');
+            panel.style.setProperty('backdrop-filter', GLASS_FILTER, 'important');
+            panel.style.setProperty('-webkit-backdrop-filter', GLASS_FILTER, 'important');
+            panel.style.setProperty('border-color', GLASS_BORDER_COLOR, 'important');
+            panel.style.setProperty('box-shadow', GLASS_SHADOW, 'important');
         } else {
             panel.style.removeProperty('background');
             panel.style.removeProperty('backdrop-filter');
@@ -864,7 +863,7 @@
         });
         const el = document.createElement('div');
         el.className = 'pks-notif';
-        el.style.cssText = `all:initial;position:fixed;${pos}z-index:2147483647;display:inline-flex;align-items:center;gap:9px;background:${c.bg};border:1px solid ${c.border};border-radius:10px;padding:10px 14px;width:auto;max-width:340px;white-space:nowrap;font-family:var(--pks-font),'Share Tech Mono',monospace;font-size:11px;color:#e0e0e0;box-shadow:0 0 18px ${c.border}33,0 4px 14px rgba(0,0,0,0.5);opacity:0;transition:opacity 0.2s,top 0.2s,bottom 0.2s;pointer-events:none;backdrop-filter:blur(14px) saturate(160%);-webkit-backdrop-filter:blur(14px) saturate(160%);overflow:hidden;`;
+        el.style.cssText = `all:initial;position:fixed;${pos}z-index:2147483647;display:inline-flex;align-items:center;gap:9px;background:${GLASS_BG};border:1px solid ${c.border};border-radius:10px;padding:10px 14px;width:auto;max-width:340px;white-space:nowrap;font-family:var(--pks-font),'Share Tech Mono',monospace;font-size:11px;color:#e0e0e0;box-shadow:0 0 18px ${c.border}33,0 4px 14px rgba(0,0,0,0.5);opacity:0;transition:opacity 0.2s,top 0.2s,bottom 0.2s;pointer-events:none;backdrop-filter:${GLASS_FILTER};-webkit-backdrop-filter:${GLASS_FILTER};overflow:hidden;`;
         el.innerHTML = `<div style="width:20px;height:20px;border-radius:50%;border:1.5px solid ${c.accent};display:flex;align-items:center;justify-content:center;color:${c.accent};flex-shrink:0;">${icon}</div><span style="flex:1;line-height:1.3;white-space:normal;max-width:260px;">${message}</span><div style="width:2px;height:28px;border-radius:2px;background:${c.accent};flex-shrink:0;"></div>`;
         document.body.appendChild(el);
         requestAnimationFrame(() => requestAnimationFrame(() => { el.style.opacity = '1'; }));
@@ -962,7 +961,7 @@
                 'bottom-center':'bottom:12px;left:50%;transform:translateX(-50%);','top-center':'top:12px;left:50%;transform:translateX(-50%);',
             };
             const pos = positions[cfg.watermarkPosition] || positions['bottom-left'];
-            wm.style.cssText = `all:initial;position:fixed;${pos}z-index:2147483640;display:flex;align-items:center;gap:0;font-family:var(--pks-font),'Share Tech Mono',monospace;font-weight:600;letter-spacing:0.06em;background:rgba(5,5,8,0.75);backdrop-filter:blur(14px) saturate(160%);-webkit-backdrop-filter:blur(14px) saturate(160%);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:${5*scale}px ${12*scale}px;pointer-events:auto;user-select:none;overflow:hidden;opacity:${op};cursor:grab;`;
+            wm.style.cssText = `all:initial;position:fixed;${pos}z-index:2147483640;display:flex;align-items:center;gap:0;font-family:var(--pks-font),'Share Tech Mono',monospace;font-weight:600;letter-spacing:0.06em;background:${GLASS_BG};backdrop-filter:${GLASS_FILTER};-webkit-backdrop-filter:${GLASS_FILTER};border:1px solid ${GLASS_BORDER_COLOR};box-shadow:${GLASS_SHADOW};border-radius:6px;padding:${5*scale}px ${12*scale}px;pointer-events:auto;user-select:none;overflow:hidden;opacity:${op};cursor:grab;`;
         } else {
             wm.style.left = state.watermark.dragX + 'px'; wm.style.top = state.watermark.dragY + 'px';
             wm.style.opacity = String(op); wm.style.padding = `${5*scale}px ${12*scale}px`;
@@ -1208,7 +1207,7 @@
         const t = getTheme();
         let cssOut = '';
         if (cfg.miscModernGameCards) {
-            cssOut += `[class*="gameCardContainer"]{background:${GLASS_BG}!important;backdrop-filter:blur(14px) saturate(160%)!important;-webkit-backdrop-filter:blur(14px) saturate(160%)!important;border-radius:14px!important;border:1px solid ${t.cardBorder}!important;box-shadow:${t.cardGlow}!important;transition:border-color 0.22s,box-shadow 0.22s,transform 0.18s!important;overflow:hidden!important;}[class*="gameCardContainer"]:hover{border-color:${t.cardHoverBorder}!important;box-shadow:${t.cardHoverGlow}!important;transform:translateY(-3px)!important;z-index:2!important;}[class*="gameCardTitle"]{color:#fff!important;}`;
+            cssOut += `[class*="gameCardContainer"]{background:${GLASS_BG}!important;backdrop-filter:${GLASS_FILTER}!important;-webkit-backdrop-filter:${GLASS_FILTER}!important;border-radius:14px!important;border:1px solid ${t.cardBorder}!important;box-shadow:${t.cardGlow}!important;transition:border-color 0.22s,box-shadow 0.22s,transform 0.18s!important;overflow:hidden!important;}[class*="gameCardContainer"]:hover{border-color:${t.cardHoverBorder}!important;box-shadow:${t.cardHoverGlow}!important;transform:translateY(-3px)!important;z-index:2!important;}[class*="gameCardTitle"]{color:#fff!important;}`;
         }
         if (cfg.miscCatalogItemCards) {
             cssOut += `
@@ -1300,7 +1299,7 @@
             [class*="tradeTypeActions"] select{background:${GLASS_BG}!important;color:#fff!important;border:1px solid rgba(255,255,255,0.14)!important;border-radius:8px!important;padding:4px 8px!important;}
         `;
         css += `
-            [class*="modalWrapper"]{position:fixed!important;top:50%!important;left:50%!important;transform:translate(-50%,-50%)!important;z-index:2147483647!important;margin:0!important;max-width:92vw!important;background:rgba(20,20,30,0.5)!important;backdrop-filter:blur(14px) saturate(160%)!important;-webkit-backdrop-filter:blur(14px) saturate(160%)!important;border:none!important;border-radius:16px!important;box-shadow:0 20px 60px rgba(0,0,0,0.6)!important;color:#fff!important;overflow:hidden!important;}
+            [class*="modalWrapper"]{position:fixed!important;top:50%!important;left:50%!important;transform:translate(-50%,-50%)!important;z-index:2147483647!important;margin:0!important;max-width:92vw!important;background:${GLASS_BG}!important;backdrop-filter:${GLASS_FILTER}!important;-webkit-backdrop-filter:${GLASS_FILTER}!important;border:1px solid ${GLASS_BORDER_COLOR}!important;border-radius:16px!important;box-shadow:${GLASS_SHADOW}!important;color:#fff!important;overflow:hidden!important;}
             [class*="modalWrapper"] [class*="innerSection"]{background:transparent!important;border:none!important;}
             [class*="modalWrapper"] [class*="title-"]{color:#fff!important;font-weight:700!important;}
             [class*="modalWrapper"] p,[class*="modalWrapper"] span{color:#e6e9f5;}
@@ -2076,10 +2075,11 @@
         if (!el) { el = document.createElement('style'); el.id = 'pks-avatar-editor-glass-style'; document.head.appendChild(el); }
         el.textContent = (cfg.avatarEditorGlass && isAvatarPage())
             ? `[class*="contentContainer"],[class*="subSectionContainer"]{${GLASS_CSS}border-radius:16px!important;padding:16px!important;}
-[class*="buttonCol-"]{${GLASS_CSS}border-radius:12px 12px 0 0!important;}
-[class*="vTabLabel-"]{background:transparent!important;background-color:transparent!important;color:#fff!important;}
-p[class*="vTabUnselected-"]{box-shadow:none!important;}
-[class*="buttonCol-"] + div:not(:empty),[class*="buttonCol-"] ~ div .section-content{${GLASS_CSS}border-radius:0 0 12px 12px!important;}`
+[class*="buttonCol-"],[class*="submenuContainer-"][class~="section-content"]{${GLASS_CSS}}
+[class*="buttonCol-"]{border-radius:12px 12px 0 0!important;border-bottom:0!important;}
+[class*="submenuContainer-"][class~="section-content"]{border-radius:0 0 12px 12px!important;border-top:0!important;margin-top:0!important;}
+[class*="buttonCol-"] [class*="vTab-"],[class*="buttonCol-"] [class*="vTabLabel-"],[class*="buttonCol-"] [class*="vTabUnselected-"]{background:transparent!important;background-color:transparent!important;}
+p[class*="vTabUnselected-"]{box-shadow:none!important;}`
             : '';
     };
 
@@ -2116,7 +2116,7 @@ p[class*="vTabUnselected-"]{box-shadow:none!important;}
         if (!anchor || !anchor.parentElement) return;
         const card = document.createElement('div');
         card.id = 'pks-avatar-tools';
-        card.style.cssText = `margin-top:14px;padding:14px;border-radius:14px;background:rgba(10,10,16,0.55);backdrop-filter:blur(14px) saturate(160%);-webkit-backdrop-filter:blur(14px) saturate(160%);border:1px solid #ffffff40;box-shadow:0 8px 30px rgba(0,0,0,0.45);font-family:var(--pks-font),'Share Tech Mono',monospace;color:#d0d0e0;position:relative;z-index:2;`;
+        card.style.cssText = `margin-top:14px;padding:14px;border-radius:14px;background:${GLASS_BG};backdrop-filter:${GLASS_FILTER};-webkit-backdrop-filter:${GLASS_FILTER};border:1px solid ${GLASS_BORDER_COLOR};box-shadow:${GLASS_SHADOW};font-family:var(--pks-font),'Share Tech Mono',monospace;color:#d0d0e0;position:relative;z-index:2;`;
         card.innerHTML = `
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
                 <span style="font-size:12px;font-weight:700;letter-spacing:0.12em;color:#fff;text-transform:uppercase;">Background</span>

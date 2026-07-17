@@ -15,10 +15,10 @@
 
     if (window.InteriumCore) return; // never double-init
 
-    const VERSION = '2.19.0';
+    const VERSION = '2.20.0';
 
     // ── Unified glass recipe (single source of truth) ──
-    const GLASS_BG = 'rgba(255,255,255,0.05)';
+    const GLASS_BG = 'rgba(30,30,34,0.78)';
     const GLASS_FILTER = 'blur(14px) saturate(160%)';
     const GLASS_BORDER_COLOR = 'rgba(255,255,255,0.12)';
     const GLASS_SHADOW = '0 8px 28px rgba(0,0,0,0.28)';
