@@ -565,11 +565,11 @@ else window.addEventListener('DOMContentLoaded', init);
     if (!/^\/internal\/collectibles/i.test(location.pathname)) return;
     console.info('[Interium] Collectibles suite: page detected, starting.');
     try {
-        const _pcsCfg = JSON.parse(GM_getValue('pcs_cfg_v1', 'null') || 'null');
+        // Stale legacy flag check (pcs_cfg_v1 was written by older builds via GM_setValue;
+        // now we read it directly from localStorage with the same prefix the polyfill used).
+        const _pcsRaw = localStorage.getItem('interium_local_pcs_cfg_v1');
+        const _pcsCfg = _pcsRaw ? JSON.parse(_pcsRaw) : null;
         if (_pcsCfg && _pcsCfg.collectiblesSuite === false) {
-            // This build keeps every feature always on. Older Interium builds could
-            // leave a stale "disabled" flag behind in this script's storage, which
-            // silently killed the collectibles page. Ignore it (and log it).
             console.warn('[Interium] Ignoring stale saved setting that disabled the collectibles suite.');
         }
     } catch (_) {}

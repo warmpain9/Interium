@@ -17,16 +17,10 @@
     // ── Local / standalone fallback ───────────────────────────────────
     // Under Tampermonkey the GM_* storage APIs exist and are used as-is.
     // When the script runs WITHOUT a userscript manager (e.g. pasted into the
-    // DevTools console or a Snippet for local testing), polyfill the GM_*
-    // storage APIs on top of localStorage so the panel still works. JSON
-    // encoding preserves value types (booleans, the config string, etc.).
-    if (typeof GM_getValue !== 'function') {
-        const _LS = window.localStorage;
-        window.GM_getValue = (k, d) => { try { const s = _LS.getItem('interium_local_' + k); return s === null ? d : JSON.parse(s); } catch { return d; } };
-        window.GM_setValue = (k, v) => { try { _LS.setItem('interium_local_' + k, JSON.stringify(v)); } catch {} };
-        window.GM_deleteValue = (k) => { try { _LS.removeItem('interium_local_' + k); } catch {} };
-        console.info('[Interium] Local mode: GM_* storage backed by localStorage (no Tampermonkey detected).');
-    }
+    // Settings are stored directly in localStorage (no GM storage needed).
+    const _LS = window.localStorage;
+    const _lsGet = (k, d) => { try { const s = _LS.getItem('interium_cfg_' + k); return s === null ? d : JSON.parse(s); } catch { return d; } };
+    const _lsSet = (k, v) => { try { _LS.setItem('interium_cfg_' + k, JSON.stringify(v)); } catch {} };
 
     const PANEL_HIDDEN_KEY  = 'pks_panel_hidden';
     const THEMES = {
@@ -235,11 +229,11 @@
 
     const loadCfg = () => {
         try {
-            const s = GM_getValue('interium_ui_cfg_v1', null);
+            const s = _lsGet('interium_ui_cfg_v1', null);
             return s ? Object.assign({}, DEFAULTS, JSON.parse(s)) : Object.assign({}, DEFAULTS);
         } catch { return Object.assign({}, DEFAULTS); }
     };
-    const saveCfg = (c) => { try { GM_setValue('interium_ui_cfg_v1', JSON.stringify(c)); } catch {} };
+    const saveCfg = (c) => { try { _lsSet('interium_ui_cfg_v1', JSON.stringify(c)); } catch {} };
     let cfg = loadCfg();
 
     const hexToRgbObj = (h) => {
@@ -1550,12 +1544,12 @@
                 e.preventDefault();
                 const panel = document.getElementById('pks-panel');
                 if (!panel) {
-                    try { GM_setValue(PANEL_HIDDEN_KEY, false); } catch {}
+                    try { _lsSet(PANEL_HIDDEN_KEY, false); } catch {}
                     buildPanel(state.authInfo || {});
                 } else {
                     const willHide = panel.style.display !== 'none';
                     panel.style.display = willHide ? 'none' : '';
-                    try { GM_setValue(PANEL_HIDDEN_KEY, willHide); } catch {}
+                    try { _lsSet(PANEL_HIDDEN_KEY, willHide); } catch {}
                 }
             }
         });
@@ -2584,7 +2578,7 @@ p[class*="vTabUnselected-"]{box-shadow:none!important;}`
             state.authInfo = authInfo || {};
             buildPanel(authInfo);
             try {
-                if (GM_getValue(PANEL_HIDDEN_KEY, false)) {
+                if (_lsGet(PANEL_HIDDEN_KEY, false)) {
                     const p = document.getElementById('pks-panel');
                     if (p) p.style.display = 'none';
                 }
