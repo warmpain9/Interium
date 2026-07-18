@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Interium Loader
 // @namespace    https://github.com/warmpain9/Interium
-// @version      2.44.0
+// @version      2.46.0
 // @description  CSP-safe loader: Tampermonkey attaches the Interium trading + UI runtimes from GitHub (via jsDelivr) using @require.
 // @author       Interium contributors
 // @license      MIT
@@ -11,13 +11,9 @@
 // @noframes
 // @grant        GM_setValue
 // @grant        GM_getValue
-// @grant        GM_xmlhttpRequest
-// @connect      pekora.zip
-// @connect      www.pekora.zip
-// @connect      www.koromons.net
 // @require      https://cdn.jsdelivr.net/gh/warmpain9/Interium@main/src/core/core.js
-// @require      https://cdn.jsdelivr.net/gh/warmpain9/Interium@main/src/trading/interium-trading-6.js
-// @require      https://cdn.jsdelivr.net/gh/warmpain9/Interium@main/src/ui/interium-ui-37.js
+// @require      https://cdn.jsdelivr.net/gh/warmpain9/Interium@main/src/trading/interium-trading-7.js
+// @require      https://cdn.jsdelivr.net/gh/warmpain9/Interium@main/src/ui/interium-ui-38.js
 // @updateURL    https://cdn.jsdelivr.net/gh/warmpain9/Interium@main/loader/interium-loader.user.js
 // @downloadURL  https://cdn.jsdelivr.net/gh/warmpain9/Interium@main/loader/interium-loader.user.js
 // @homepageURL  https://github.com/warmpain9/Interium

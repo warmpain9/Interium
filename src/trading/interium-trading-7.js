@@ -345,7 +345,7 @@ const applyTradeWindowStats = () => {
 	/* ---------------------------------------------- Koromon’s Value badges */
 	/* Public read-only item values. No RAP fallback: large limiteds are judged */
 	/* by Value, and missing Koromon’s entries simply receive no badge.          */
-	const KOROMONS_VALUES_URL = 'https://www.koromons.net/items.json';
+	const KOROMONS_VALUES_URL = 'https://www.koromons.net/api/items';
 	const KOROMONS_VALUES_CACHE_KEY = 'pcs_koromons_values_v1';
 	const KOROMONS_VALUES_TTL = 1000 * 60 * 60 * 6;
 	const koromonsValueCache = new Map();
@@ -382,17 +382,20 @@ const applyTradeWindowStats = () => {
 			return { hit:true, fresh:age >= 0 && age <= KOROMONS_VALUES_TTL };
 		} catch (_) { return { hit:false, fresh:false }; }
 	};
-	const requestKoromonsValues = () => new Promise((resolve,reject) => {
-		try {
-			GM_xmlhttpRequest({
-				method:'GET', url:KOROMONS_VALUES_URL,
-				headers:{accept:'application/json','Cache-Control':'no-cache'},
-				responseType:'json', timeout:10000,
-				onload:r=>{ try { const d=typeof r.response==='string'?JSON.parse(r.response):(r.response||JSON.parse(r.responseText||'[]')); if(!Array.isArray(d)) throw new Error('Invalid Koromon’s response'); resolve(d); } catch(e){ reject(e); } },
-				onerror:()=>reject(new Error('Koromon’s request failed')),
-				ontimeout:()=>reject(new Error('Koromon’s request timed out')),
-			});
-		} catch(e){ reject(e); }
+	/* HTTP helper: plain page-context fetch. koromons.net serves open CORS headers (verified:
+	   fetch from the page returns 200 without any extension), so no GM_xmlhttpRequest privilege
+	   is needed and console/local mode gets live data too. */
+	const pgGetJson = (url, timeoutMs = 10000) => new Promise((resolve, reject) => {
+		const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+		const timer = setTimeout(() => { try { if (ctl) ctl.abort(); } catch(_) {} reject(new Error('Koromon’s request timed out')); }, timeoutMs);
+		fetch(url, { headers:{accept:'application/json'}, signal: ctl ? ctl.signal : undefined })
+			.then(r => { if (!r.ok) throw new Error('Koromon’s request failed: HTTP ' + r.status); return r.json(); })
+			.then(d => { clearTimeout(timer); resolve(d); })
+			.catch(e => { clearTimeout(timer); reject(e); });
+	});
+	const requestKoromonsValues = () => pgGetJson(KOROMONS_VALUES_URL, 10000).then(d => {
+		if (!Array.isArray(d)) throw new Error('Invalid Koromon’s response');
+		return d;
 	});
 	const loadKoromonsValues = (force=false) => {
 		if (koromonsValuesPromise && !force) return koromonsValuesPromise;
@@ -426,17 +429,10 @@ const applyTradeWindowStats = () => {
 			return { hit:true, fresh:age >= 0 && age <= KOROMONS_LB_TTL };
 		} catch(e){ return { hit:false, fresh:false }; }
 	};
-	const requestKoromonsLb = () => new Promise((resolve,reject) => {
-		try {
-			GM_xmlhttpRequest({
-				method:'GET', url:KOROMONS_LB_URL,
-				headers:{accept:'application/json','Cache-Control':'no-cache'},
-				responseType:'json', timeout:15000,
-				onload:r=>{ try { const d=typeof r.response==='string'?JSON.parse(r.response):(r.response||JSON.parse(r.responseText||'null')); const rows=d&&Array.isArray(d.players)?d.players:(Array.isArray(d)?d:null); if(!rows) throw new Error('Invalid Koromon’s leaderboard response'); resolve(rows); } catch(e){ reject(e); } },
-				onerror:()=>reject(new Error('Koromon’s leaderboard request failed')),
-				ontimeout:()=>reject(new Error('Koromon’s leaderboard request timed out')),
-			});
-		} catch(e){ reject(e); }
+	const requestKoromonsLb = () => pgGetJson(KOROMONS_LB_URL, 15000).then(d => {
+		const rows = d && Array.isArray(d.players) ? d.players : (Array.isArray(d) ? d : null);
+		if (!rows) throw new Error('Invalid Koromon’s leaderboard response');
+		return rows;
 	});
 	const loadKoromonsLb = (force=false) => {
 		if (koromonsLbPromise && !force) return koromonsLbPromise;
@@ -497,12 +493,12 @@ const applyTradeWindowStats = () => {
 				if (hit){
 					box.innerHTML=head
 						+koroStatHtml('Value:', koroValueHtml(hit.value))
-						+koroStatHtml('RAP:', '<span style="color:#02b757 !important;">'+hit.rap.toLocaleString()+'</span>')
+						+koroStatHtml('RAP:', '<span class="pg-rap-amt" style="color:#02b757;">'+hit.rap.toLocaleString()+'</span>')
 						+koroStatHtml('Rank:', '#'+hit.rank+' <span style="color:#9aa0a6;font-weight:600;font-size:12px;">/ '+hit.total.toLocaleString()+'</span>');
 				} else if (est && est.count>0){
 					box.innerHTML=head
 						+koroStatHtml('Value:', '\u2248 '+koroValueHtml(est.value))
-						+koroStatHtml('RAP:', '<span style="color:#02b757 !important;">'+est.rap.toLocaleString()+'</span>')
+						+koroStatHtml('RAP:', '<span class="pg-rap-amt" style="color:#02b757;">'+est.rap.toLocaleString()+'</span>')
 						+'<span style="color:#9aa0a6;font-size:11px;">not on leaderboard \u00b7 estimated from public inventory</span>';
 				} else {
 					box.innerHTML=head+'<span style="color:#9aa0a6;font-size:12px;">no data \u2014 inventory is private and player is not on the Koromon’s leaderboard</span>';
@@ -699,20 +695,10 @@ else window.addEventListener('DOMContentLoaded', init);
     }
 
     function gmGetJson(url) {
-        return new Promise((resolve, reject) => {
-            GM_xmlhttpRequest({
-                method: 'GET',
-                url,
-                headers: { Accept: 'application/json' },
-                responseType: 'json',
-                onload: (r) => {
-                    try {
-                        resolve(typeof r.response === 'string' ? JSON.parse(r.response) : (r.response || JSON.parse(r.responseText || '{}')));
-                    } catch (e) { reject(e); }
-                },
-                onerror: reject
-            });
-        });
+        // Plain page-context fetch: koromons.net serves open CORS headers, so no GM privilege
+        // is needed and console/local mode works too. (Name kept for call-site compatibility.)
+        return fetch(url, { headers: { Accept: 'application/json' } })
+            .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
     }
 
     function numFromAny(v) {

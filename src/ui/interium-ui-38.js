@@ -14,9 +14,18 @@
 (function () {
     'use strict';
 
+    // ── Local / standalone fallback ───────────────────────────────────
+    // Under Tampermonkey the GM_* storage APIs exist and are used as-is.
+    // When the script runs WITHOUT a userscript manager (e.g. pasted into the
+    // DevTools console or a Snippet for local testing), polyfill the GM_*
+    // storage APIs on top of localStorage so the panel still works. JSON
+    // encoding preserves value types (booleans, the config string, etc.).
     if (typeof GM_getValue !== 'function') {
-        console.warn('[Interium] Not running in a Tampermonkey context — aborting.');
-        return;
+        const _LS = window.localStorage;
+        window.GM_getValue = (k, d) => { try { const s = _LS.getItem('interium_local_' + k); return s === null ? d : JSON.parse(s); } catch { return d; } };
+        window.GM_setValue = (k, v) => { try { _LS.setItem('interium_local_' + k, JSON.stringify(v)); } catch {} };
+        window.GM_deleteValue = (k) => { try { _LS.removeItem('interium_local_' + k); } catch {} };
+        console.info('[Interium] Local mode: GM_* storage backed by localStorage (no Tampermonkey detected).');
     }
 
     const PANEL_HIDDEN_KEY  = 'pks_panel_hidden';
@@ -185,6 +194,10 @@
         tradesGlassCards:           false,
         tradesMetric:               'value',
         tradesPillOpacity:          5,
+        robuxIcon:                  'off',
+        tradesGlassify:             true,
+        sendTradeGlassify:          true,
+        tradesDropdownGlass:        true,
         watermarkEnabled:       true,
         watermarkPosition:      'bottom-center',
         watermarkShowPing:      true,
@@ -311,7 +324,7 @@
         applyGuiFont(cfg.miscGuiFont || 'Share Tech Mono');
     };
 
-    // ── Unified glass recipe ────────────�����������������������────────────���────────────────
+    // ── Unified glass recipe ────────────���������������������────────────���────────────────
     // Every blur / glassify surface (navbar, sidebar, cards, frames,
     // dropdowns, chips) uses these EXACT values so the glass effect looks
     // identical everywhere. Tweak here to retune all glass at once.
@@ -355,13 +368,15 @@
             if (cfg.navbarMode === 'transparent') {
                 css += `.navbar-0-2-49,nav.navbar.navbar-0-2-49,.navbar-wrapper-main .navbar{background:transparent!important;border-bottom:1px solid rgba(255,255,255,0.06)!important;box-shadow:none!important;}`;
             } else if (cfg.navbarMode === 'blur') {
-                // NOTE: glass goes on a ::before layer, NOT the navbar element itself.
-                // backdrop-filter on the navbar makes it a "backdrop root", which kills
-                // the blur of the nested account dropdown (Settings/Help/Logout) -> it
-                // renders as just transparent. Do not add isolation/filter/opacity to the
-                // navbar here or it becomes a backdrop root again and the bug returns.
+                // Glass goes on a ::before layer, NOT the navbar element itself, so the
+                // navbar is not a "backdrop root" and the nested account dropdown
+                // (Settings/Help/Logout) keeps its own blur instead of going transparent.
+                // transform:translateZ(0) re-creates the stacking context + containing
+                // block that the old backdrop-filter gave the navbar; that layer isolation
+                // is what keeps the dropdown from being clipped into a scroll box. transform
+                // is NOT a backdrop-root trigger, so the dropdown blur still works.
                 const NAV = '.navbar-0-2-49,nav.navbar.navbar-0-2-49,.navbar-wrapper-main .navbar';
-                css += `${NAV}{background:transparent!important;border:none!important;border-bottom:1px solid ${GLASS_BORDER_COLOR}!important;box-shadow:${GLASS_SHADOW}!important;position:relative!important;}`;
+                css += `${NAV}{background:transparent!important;border:none!important;border-bottom:1px solid ${GLASS_BORDER_COLOR}!important;box-shadow:${GLASS_SHADOW}!important;transform:translateZ(0)!important;}`;
                 css += `${NAV}::before{content:''!important;position:absolute!important;inset:0!important;z-index:-1!important;pointer-events:none!important;background:${GLASS_BG}!important;backdrop-filter:${GLASS_FILTER}!important;-webkit-backdrop-filter:${GLASS_FILTER}!important;}`;
             } else if (cfg.navbarMode === 'colour') {
                 const col = cfg.navbarColour || '#0d0d14';
@@ -1306,6 +1321,177 @@
             [class*="tradeTypeActions"] a{color:${t.accent}!important;}
             [class*="tradeTypeActions"] select{${GLASS_CSS}color:#fff!important;border-radius:8px!important;padding:4px 8px!important;}
         `;
+        // ── Modern /trades page glassify (sender/user column + traded items + verdict bar) ──
+        // The WHOLE trade-list panel (tradeList-) is ONE glass surface; individual rows
+        // (tradeRow-) stay transparent — natively background:transparent — with only a subtle
+        // divider + hover, so users are NOT each wrapped in their own separate box.
+        // Item cards reuse the catalog listing-card recipe: glass wrapper + rounded + overflow
+        // hidden + padding, and the inner thumbnail (itemThumb-) gets a faint translucent fill
+        // instead of the site's opaque --white-color-hover, so the cards no longer look crooked.
+        // .pg-mt-verdict = the RAP/Value summary bar the trading runtime injects (was #121212).
+        // Toggleable via the GUI "/trades" section (cfg.tradesGlassify).
+        if (cfg.tradesGlassify) {
+        css += `
+            [class*="tradeList-"]{${GLASS_CSS}border-radius:14px!important;overflow-x:hidden!important;}
+            [class*="tradeList-"] [class*="tradeRow-"]{background:transparent!important;border:0!important;border-bottom:1px solid rgba(255,255,255,0.08)!important;transition:background 0.15s ease!important;}
+            [class*="tradeList-"] [class*="tradeRow-"]:hover{background:rgba(255,255,255,0.06)!important;}
+            [class*="tradeList-"] [class*="tradeRowSelected"]{background:rgba(255,255,255,0.12)!important;}
+            /* Normalise card + thumb geometry across every /trades layout (the site mixes a
+               fixed 126px thumb with width:100% + aspect-ratio) — one explicit size for all.
+               NOTE: we are inside a CSS template literal — only CSS comments are valid here;
+               JS // lines would be parsed as broken selectors and drop the next rule. */
+            [class*="itemCard-"]{${GLASS_CSS}box-sizing:border-box!important;align-self:stretch!important;height:auto!important;justify-content:flex-start!important;align-content:flex-start!important;width:140px!important;max-width:calc(50% - 8px)!important;border-radius:12px!important;padding:8px!important;overflow:hidden!important;transition:transform 0.16s ease,box-shadow 0.16s ease,border-color 0.16s ease!important;}
+            [class*="itemCard-"]:hover{transform:translateY(-3px)!important;box-shadow:0 12px 32px rgba(0,0,0,0.4)!important;border-color:${t.accent}77!important;}
+            [class*="itemCard-"] [class*="thumbWrap-"]{position:relative!important;width:100%!important;height:auto!important;aspect-ratio:1/1!important;}
+            [class*="itemCard-"] [class*="itemThumb-"]{width:100%!important;height:100%!important;background:rgba(255,255,255,0.035)!important;border-radius:10px!important;overflow:hidden!important;border:none!important;box-shadow:none!important;}
+            [class*="itemCard-"] [class*="itemThumb-"] img{background:transparent!important;border-radius:10px!important;object-fit:contain!important;}
+            /* Pekora leaves a hole between short names and the price rows (the name/price area
+               gets sized against the tallest card in the row). Kill every source of that gap:
+               the name hugs its own lines, nothing flex-grows, and the value rows keep a small
+               fixed top margin instead of being pushed toward the card bottom. */
+            [class*="itemCard-"] [class*="itemName-"]{color:#fff!important;font-weight:600!important;display:-webkit-box!important;-webkit-box-orient:vertical!important;-webkit-line-clamp:3!important;line-clamp:3!important;overflow:hidden!important;height:auto!important;min-height:0!important;flex:0 0 auto!important;margin:6px 0 0!important;line-height:1.13!important;}
+            [class*="itemCard-"] [class*="itemValue-"]{margin-top:3px!important;flex:0 0 auto!important;}
+            [class*="itemCard-"] .pg-mt-rap{margin-top:3px!important;}
+            .pg-mt-verdict{${GLASS_CSS}border-radius:10px!important;}
+        `;
+        }
+        // ── Custom Robux icon preset (assets/icons/robux_2021.svg served via jsDelivr) ──
+        // cfg.robuxIcon: 'off' | 'trades' | 'all'.
+        // 'trades' = only /trades, classic trade window /My/Trades.aspx and send-trade /users/<id>/trade;
+        //            the NAVBAR icon stays native there (its counter is natively white, so the
+        //            --robux-color override below does not visibly affect it).
+        // 'all'    = everywhere: catalog, item pages, navbar, trades, send-trade, etc.
+        // While the preset is active, robux amounts render WHITE instead of pekora's native green:
+        // native green comes from --robux-color / .text-robux; Interium runtime RAP spans use .pg-rap-amt.
+        // NOTE: keep JS comments OUTSIDE the template literals below — `//` inside CSS silently eats the next rule.
+        const rbxPath = location.pathname.toLowerCase();
+        const rbxOnTradePage = /^\/trades\/?$/.test(rbxPath) || rbxPath.indexOf('/my/trades.aspx') === 0 || /^\/users\/\d+\/trade\/?$/.test(rbxPath);
+        if (cfg.robuxIcon === 'all' || (cfg.robuxIcon === 'trades' && rbxOnTradePage)) {
+            const RBX_ICON_URL = 'https://cdn.jsdelivr.net/gh/warmpain9/Interium@main/assets/icons/robux_2021.svg';
+            const RBX_ICON_SWAP = `background-image:url("${RBX_ICON_URL}")!important;background-position:center!important;background-repeat:no-repeat!important;background-size:contain!important;`;
+            css += `
+                .icon-robux,.icon-robux-12x12,.icon-robux-16x16,.icon-robux-20x20{${RBX_ICON_SWAP}}
+                .icon-robux-gray,.icon-robux-gray-12x12,.icon-robux-gray-16x16,.icon-robux-gray-20x20{${RBX_ICON_SWAP}opacity:.55!important;}
+                img[src*="img-robux"]{content:url("${RBX_ICON_URL}")!important;}
+                :root{--robux-color:#fff!important;}
+                .text-robux{color:#fff!important;}
+                .pg-rap-amt{color:#fff!important;}
+            `;
+            if (cfg.robuxIcon === 'all') {
+                css += `
+                    .icon-nav-robux{${RBX_ICON_SWAP}}
+                `;
+            }
+        }
+        // ── Send-trade page (/users/<id>/trade) glassify: inventory cards + Your Offer / Your Request panels ──
+        // Classes there: itemGrid- (CSS grid) > itemButton- (card) > itemThumb-/itemImage-/itemName-/itemValue-;
+        // offerPanel- = the two <section>s with "Your Offer" / "Your Request" (titles are inside them);
+        // the Make Offer button lives OUTSIDE offerPanel-, so it is untouched by design.
+        // Cards are equalised per grid row via align-self:stretch (pekora natively leaves them uneven);
+        // itemButton is a <button>, and buttons vertically centre their content when stretched, so we
+        // pin content to the top with a flex column, and drop pekora's min-height:42px on itemName so
+        // the robux line hugs short names (free space goes to the card bottom instead).
+        // Category selects (select- inside inventoryHeader-): glass on the closed control everywhere;
+        // in Chromium with customizable-select support (@supports selector(::picker(select))) the OPEN
+        // dropdown is page-rendered via appearance:base-select, so it gets the real avatar-style glass
+        // (blur + rounded corners + accent hover); older browsers keep the dark-options fallback.
+        // NOTE: keep JS comments OUTSIDE the template literal below — `//` inside CSS silently eats the next rule.
+        // Toggleable via the GUI "/trades" section (cfg.sendTradeGlassify / cfg.tradesDropdownGlass).
+        const rbxOnSendTrade = /^\/users\/\d+\/trade\/?$/.test(rbxPath);
+        const rbxOnTradesList = /^\/trades\/?$/.test(rbxPath);
+        if (rbxOnSendTrade && cfg.sendTradeGlassify) {
+            css += `
+                [class*="itemGrid-"]{align-items:stretch!important;}
+                [class*="itemGrid-"] [class*="itemButton-"]{${GLASS_CSS}box-sizing:border-box!important;align-self:stretch!important;height:auto!important;display:flex!important;flex-direction:column!important;justify-content:flex-start!important;align-items:stretch!important;border-radius:12px!important;padding:8px!important;overflow:hidden!important;transition:transform 0.16s ease,box-shadow 0.16s ease,border-color 0.16s ease!important;}
+                [class*="itemGrid-"] [class*="itemButton-"]:hover{transform:translateY(-3px)!important;box-shadow:0 12px 32px rgba(0,0,0,0.4)!important;border-color:${t.accent}77!important;}
+                [class*="itemGrid-"] [class*="itemThumb-"]{background:rgba(255,255,255,0.035)!important;border:none!important;border-radius:10px!important;overflow:hidden!important;flex:0 0 auto!important;}
+                [class*="itemGrid-"] [class*="itemImage-"]{background:transparent!important;border-radius:10px!important;object-fit:contain!important;}
+                [class*="itemGrid-"] [class*="itemName-"]{min-height:0!important;flex:0 0 auto!important;}
+                [class*="itemGrid-"] [class*="itemValue-"]{flex:0 0 auto!important;}
+                [class*="offerPanel-"]{${GLASS_CSS}border-radius:14px!important;padding:16px!important;}
+                [class*="offerPanel-"] [class*="slot-"]{border-radius:10px!important;}
+            `;
+        }
+        // ── Trade pages: glassy <select> + its open picker (shared recipe) ──
+        // Chromium customizable select (appearance:base-select + ::picker(select)) lets the OPEN
+        // list get real glass too; older browsers keep the dark-options fallback. Select + picker
+        // read as ONE merged card: rounded outer corners, sharp seam at the join (mirrored via
+        // .pks-drop-up when the picker flips above the select). Applied to the send-trade category
+        // select and the /trades trade-type select; toggleable via cfg.tradesDropdownGlass.
+        const pksGlassSelectCss = (S) => `
+            ${S}{${GLASS_CSS}border-radius:8px!important;color:#fff!important;padding:6px 10px!important;cursor:pointer!important;transition:border-color 0.15s ease!important;}
+            ${S}:hover,${S}:focus{border-color:${t.accent}77!important;outline:none!important;}
+            ${S} option{background:#16161f!important;color:#fff!important;}
+            @supports selector(::picker(select)){
+                ${S},${S}::picker(select){appearance:base-select!important;}
+                ${S}:open{border-radius:8px 8px 0 0!important;border-bottom:0!important;}
+                ${S}::picker(select){${GLASS_CSS}border-radius:0 0 8px 8px!important;border-top:0!important;margin-top:var(--pks-drop-shift,0px)!important;padding:5px!important;}
+                ${S}.pks-drop-up:open{border-radius:0 0 8px 8px!important;border-top:0!important;border-bottom:1px solid ${GLASS_BORDER_COLOR}!important;}
+                ${S}.pks-drop-up::picker(select){border-radius:8px 8px 0 0!important;border-top:1px solid ${GLASS_BORDER_COLOR}!important;border-bottom:0!important;margin-bottom:0!important;max-height:var(--pks-drop-max,60vh)!important;overflow-y:auto!important;}
+                ${S} option{background:transparent!important;color:#fff!important;padding:7px 10px!important;border-radius:0!important;cursor:pointer!important;}
+                ${S} option:hover,${S} option:focus{background:${t.accent}2e!important;}
+                ${S} option:checked{background:${t.accent}22!important;}
+            }
+        `;
+        if (cfg.tradesDropdownGlass && rbxOnSendTrade) css += pksGlassSelectCss('[class*="inventoryHeader-"] select');
+        if (cfg.tradesDropdownGlass && rbxOnTradesList) css += pksGlassSelectCss('select[aria-label="Trade type"]');
+        if (cfg.tradesDropdownGlass && (rbxOnSendTrade || rbxOnTradesList)) {
+            // Flip-detection for the merged-card dropdown: when the picker runs out of room below,
+            // the browser anchors it ABOVE the select, and pure CSS has no "picker flipped" selector.
+            // With appearance:base-select the <option>s are real page DOM rendered inside the picker,
+            // so while the select is :open we compare the first option's rect against the select's rect
+            // each animation frame (scroll can re-flip a live picker) and toggle .pks-drop-up, which
+            // mirrors the border-radius pairing above. The rAF loop only runs while the picker is open.
+            // The picker is a top-layer popover, so the navbar can never paint over it; instead, when
+            // flipped up we clamp its height (--pks-drop-max, read by the CSS above) so it stops at the
+            // navbar's bottom edge and scrolls inside rather than covering the navbar.
+            // In the normal downward direction the opposite can happen: with the picker open, scrolling
+            // the page can drag the anchoring select up BEHIND the navbar, so the picker's top (anchored
+            // to the select's bottom edge) ends up inside the navbar zone. For that case we push the
+            // picker down with a dynamic margin-top (--pks-drop-shift) so its top edge stays at the
+            // navbar's bottom edge (the merged seam is hidden behind the navbar then anyway).
+            if (!window.__pksTradeDropWatch) {
+                window.__pksTradeDropWatch = true;
+                const pksWatchDropSel = (sel) => {
+                    if (sel.__pksDropWatched) return;
+                    sel.__pksDropWatched = true;
+                    let raf = 0;
+                    const tick = () => {
+                        let open = false;
+                        try { open = sel.matches(':open'); } catch (e) { open = false; }
+                        if (!open) { sel.classList.remove('pks-drop-up'); sel.style.removeProperty('--pks-drop-max'); sel.style.removeProperty('--pks-drop-shift'); raf = 0; return; }
+                        const opt = sel.options && sel.options[0];
+                        if (opt) {
+                            const or = opt.getBoundingClientRect();
+                            const sr = sel.getBoundingClientRect();
+                            if (or.height > 0) {
+                                const up = or.top < sr.top;
+                                sel.classList.toggle('pks-drop-up', up);
+                                const nav = document.querySelector('nav.navbar, [class*="navbar-0-2"], .navbar');
+                                const navBottom = nav ? Math.max(0, nav.getBoundingClientRect().bottom) : 0;
+                                if (up) {
+                                    sel.style.setProperty('--pks-drop-max', Math.max(80, Math.floor(sr.top - navBottom)) + 'px');
+                                    sel.style.removeProperty('--pks-drop-shift');
+                                } else {
+                                    sel.style.removeProperty('--pks-drop-max');
+                                    const shift = Math.ceil(navBottom - sr.bottom);
+                                    if (shift > 0) sel.style.setProperty('--pks-drop-shift', shift + 'px');
+                                    else sel.style.removeProperty('--pks-drop-shift');
+                                }
+                            }
+                        }
+                        raf = requestAnimationFrame(tick);
+                    };
+                    const kick = () => { if (!raf) raf = requestAnimationFrame(tick); };
+                    sel.addEventListener('click', kick);
+                    sel.addEventListener('keydown', kick);
+                    sel.addEventListener('focus', kick);
+                };
+                const pksScanDropSels = () => document.querySelectorAll('[class*="inventoryHeader-"] select, select[aria-label="Trade type"]').forEach(pksWatchDropSel);
+                pksScanDropSels();
+                try { new MutationObserver(pksScanDropSels).observe(document.documentElement, { childList: true, subtree: true }); } catch (e) {}
+            }
+        }
         css += `
             [class*="modalWrapper"]{position:fixed!important;top:50%!important;left:50%!important;transform:translate(-50%,-50%)!important;z-index:2147483647!important;margin:0!important;max-width:92vw!important;${GLASS_CSS}border-radius:16px!important;color:#fff!important;overflow:hidden!important;}
             [class*="modalWrapper"] [class*="innerSection"]{background:transparent!important;border:none!important;}
@@ -1508,6 +1694,7 @@
                     <div class="pks-row"><label>Speed</label><div class="pks-row-right"><input type="number" id="cfg-effectSpeed" min="10" max="100" step="5" style="width:55px;"><span class="pks-unit-label">%</span></div></div>
                     <div class="pks-row"><label>Colour (blank = auto)</label><div class="pks-row-right"><input type="color" id="cfg-effectColor"><button id="cfg-effectColorClear" style="all:unset;padding:3px 8px;border:1px solid #252535;border-radius:4px;font-size:9px;color:#555;cursor:pointer;background:#16161f;">CLR</button></div></div>
                     <div class="pks-section-title">Other</div>
+                    <div class="pks-row"><label>Robux icon (2021)</label><select id="cfg-robuxIcon" style="width:130px;"><option value="off">Off</option><option value="trades">Trades only</option><option value="all">Everywhere</option></select></div>
                     <div class="pks-row"><label>Hide ads</label><input type="checkbox" id="cfg-miscHideAds"></div>
                     <div class="pks-row"><label>Remove alert banner</label><input type="checkbox" id="cfg-miscHideAlert"></div>
                     <div class="pks-row"><label>Hide nav bar entirely</label><input type="checkbox" id="cfg-miscHideNavbar"></div>
@@ -1526,6 +1713,10 @@
                     <div class="pks-row"><label>Hero backdrop (blurred thumb)</label><input type="checkbox" id="cfg-miscGamesHeroBackdrop"></div>
                     <div class="pks-row"><label>Hide comments</label><input type="checkbox" id="cfg-miscGamesHideComments"></div>
                     <div class="pks-row"><label>Hide recommended games</label><input type="checkbox" id="cfg-miscGamesHideRecommended"></div>
+                    <div style="margin:14px 0 4px;"><span class="pks-page-badge">/trades \u2014 trade pages</span></div>
+                    <div class="pks-row"><label>Glassify trades list</label><input type="checkbox" id="cfg-tradesGlassify"></div>
+                    <div class="pks-row"><label>Glassify send-trade page</label><input type="checkbox" id="cfg-sendTradeGlassify"></div>
+                    <div class="pks-row"><label>Glassy dropdowns</label><input type="checkbox" id="cfg-tradesDropdownGlass"></div>
                     <div style="margin:14px 0 4px;"><span class="pks-page-badge">/Catalog.aspx</span></div>
                     <div class="pks-row"><label>Transparent main frame</label><input type="checkbox" id="cfg-miscCatalogFrameTransparent"></div>
                     <div class="pks-row"><label>Hide sidebar</label><input type="checkbox" id="cfg-miscCatalogHideSidebar"></div>
@@ -1702,7 +1893,7 @@
             'cfg-miscAvatarBlurDropdown':'miscAvatarBlurDropdown',
             'cfg-avatarBgEnabled':'avatarBgEnabled','cfg-avatarBgBlur':'avatarBgBlur',
             'cfg-tradesBgColor':'tradesBgColor','cfg-tradesOpacity':'tradesOpacity','cfg-tradesBlur':'tradesBlur','cfg-tradesAccent':'tradesAccent',
-            'cfg-profileBannerEnabled':'profileBannerEnabled','cfg-profileBannerImage':'profileBannerImage','cfg-profileBannerBlur':'profileBannerBlur','cfg-profileBannerTint':'profileBannerTint','cfg-profileBannerTintOpacity':'profileBannerTintOpacity','cfg-profileBannerBrightness':'profileBannerBrightness','cfg-hideHexBadge':'hideHexBadge','cfg-profileBannerTintGradient':'profileBannerTintGradient','cfg-profileBannerTint2':'profileBannerTint2','cfg-profileBannerTintAngle':'profileBannerTintAngle','cfg-tradesGlassCards':'tradesGlassCards','cfg-tradesMetric':'tradesMetric','cfg-tradesPillOpacity':'tradesPillOpacity',
+            'cfg-profileBannerEnabled':'profileBannerEnabled','cfg-profileBannerImage':'profileBannerImage','cfg-profileBannerBlur':'profileBannerBlur','cfg-profileBannerTint':'profileBannerTint','cfg-profileBannerTintOpacity':'profileBannerTintOpacity','cfg-profileBannerBrightness':'profileBannerBrightness','cfg-hideHexBadge':'hideHexBadge','cfg-profileBannerTintGradient':'profileBannerTintGradient','cfg-profileBannerTint2':'profileBannerTint2','cfg-profileBannerTintAngle':'profileBannerTintAngle','cfg-tradesGlassCards':'tradesGlassCards','cfg-tradesMetric':'tradesMetric','cfg-tradesPillOpacity':'tradesPillOpacity','cfg-robuxIcon':'robuxIcon','cfg-tradesGlassify':'tradesGlassify','cfg-sendTradeGlassify':'sendTradeGlassify','cfg-tradesDropdownGlass':'tradesDropdownGlass',
             'cfg-watermarkEnabled':'watermarkEnabled','cfg-watermarkPosition':'watermarkPosition',
             'cfg-watermarkAccentColor':'watermarkAccentColor','cfg-watermarkScale':'watermarkScale','cfg-watermarkOpacity':'watermarkOpacity',
             'cfg-watermarkShowTime':'watermarkShowTime','cfg-watermarkShowPing':'watermarkShowPing','cfg-watermarkShowUser':'watermarkShowUser',
