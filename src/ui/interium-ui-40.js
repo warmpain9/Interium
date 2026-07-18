@@ -162,6 +162,9 @@
         miscCatalogFrameTransparent:false,
         miscCatalogHideSidebar:     false,
         miscCatalogItemCards:       true,
+        miscCatalogDropdownGlass:   true,
+        miscItemPageGlass:          true,
+        miscGroupsGlassify:         true,
         miscProfileFrameTransparent:false,
         miscProfileNameAnimate:     false,
         miscProfileNameColor1:      '#5100e8',
@@ -501,6 +504,102 @@
         }
     };
 
+    // Friend-request cards: the avatar/name card has no stable class we know,
+    // so CSS guessing failed twice. Find it deterministically in the live DOM:
+    // the element right above each manageRequestCard- strip (its previous
+    // sibling, or the sibling of its friendCardWrapper-). Give it sharp BOTTOM
+    // corners + zero seam gap via inline !important styles. Always on.
+    const applyRequestCardMergeDirect = () => {
+        document.querySelectorAll('[class*="manageRequestCard-"]').forEach(mc => {
+            const wrap = mc.closest('[class*="friendCardWrapper-"]');
+            const top = mc.previousElementSibling || (wrap ? wrap.previousElementSibling : null);
+            if (!(top instanceof HTMLElement)) return;
+            const set = (el, p, v) => el.style.setProperty(p, v, 'important');
+            set(top, 'border-radius', '10px 10px 0 0');
+            set(top, 'border-bottom', 'none');
+            set(top, 'margin-bottom', '0');
+            set(top, 'box-shadow', 'none');
+            set(mc, 'margin-top', '0');
+            if (wrap) { set(wrap, 'margin-top', '0'); set(wrap, 'padding-top', '0'); }
+        });
+    };
+
+    // "Currently Wearing" glass: the section has no stable class hooks, so we
+    // find it by its header text and glass the panels below it via inline
+    // styles (same recipe as the friends glass). Gated by "Glassify profile".
+    let lastWearingLogCount = -1;
+    const applyWearingGlassDirect = () => {
+        if (!cfg.miscProfileFrameTransparent) {
+            document.querySelectorAll('[data-interium-wearing]').forEach(el => {
+                FRIENDS_INLINE_PROPS.forEach(p => el.style.removeProperty(p));
+                el.removeAttribute('data-interium-wearing');
+            });
+            return;
+        }
+        const glassPanel = (p, radius) => {
+            p.setAttribute('data-interium-wearing', '1');
+            p.style.setProperty('background', GLASS_BG, 'important');
+            p.style.setProperty('backdrop-filter', GLASS_FILTER, 'important');
+            p.style.setProperty('-webkit-backdrop-filter', GLASS_FILTER, 'important');
+            p.style.setProperty('border', `1px solid ${GLASS_BORDER_COLOR}`, 'important');
+            p.style.setProperty('border-radius', radius || '16px', 'important');
+            p.style.setProperty('box-shadow', GLASS_SHADOW, 'important');
+        };
+        // The section container/card must NOT paint its own glass under the
+        // panels - stacked layers read brighter than every other glass surface.
+        const clearHost = (el) => {
+            el.setAttribute('data-interium-wearing', '1');
+            el.style.setProperty('background', 'transparent', 'important');
+            el.style.setProperty('background-color', 'transparent', 'important');
+            el.style.setProperty('backdrop-filter', 'none', 'important');
+            el.style.setProperty('-webkit-backdrop-filter', 'none', 'important');
+            el.style.setProperty('border', 'none', 'important');
+            el.style.setProperty('box-shadow', 'none', 'important');
+        };
+        const isMatch = el => /currently\s+wearing/i.test(el.textContent || '');
+        // Tag-agnostic header lookup: the DEEPEST elements whose (short) text
+        // is the section title - works whatever tag/class the site uses.
+        const headers = [...document.querySelectorAll('body *')].filter(el => el instanceof HTMLElement && (el.textContent || '').length < 80 && isMatch(el) && ![...el.children].some(isMatch));
+        let panelCount = 0;
+        headers.forEach(h => {
+            // Exact Pekora profile DOM (from a live dump): the H3 header sits in
+            // <div class="col-12">, and its siblings inside <div class="flex
+            // marginStuff"> are the two panels <div class="col-12 col-lg-6">
+            // (3D viewer | wearing items).
+            const headCol = h.closest('[class*="col-12"]') || h;
+            const wrap = headCol.parentElement;
+            if (!wrap) return;
+            const panels = [...wrap.children].filter(c => c instanceof HTMLElement && c !== headCol && !c.contains(h) && c.offsetHeight >= 120);
+            panels.forEach((p, i) => {
+                // ONE-card effect: only the outer corners are rounded; the
+                // inner meeting edges stay sharp on both sides.
+                glassPanel(p, panels.length < 2 ? '16px' : (i === 0 ? '16px 0 0 16px' : (i === panels.length - 1 ? '0 16px 16px 0' : '0')));
+                // No border on the inner meeting edges - two adjacent 1px
+                // borders otherwise render as a bright seam line.
+                if (panels.length > 1 && i < panels.length - 1) p.style.setProperty('border-right', 'none', 'important');
+                if (panels.length > 1 && i > 0) p.style.setProperty('border-left', 'none', 'important');
+                // No drop shadow on merged panels: each panel's soft glass
+                // shadow paints over its neighbour at the seam and ruins the
+                // one-card look. Inline !important beats every stylesheet.
+                if (panels.length > 1) p.style.setProperty('box-shadow', 'none', 'important');
+                // If the panel's own paint lives on a full-size inner wrapper,
+                // clear it so it neither covers nor stacks over the glass.
+                [...p.children].forEach(inner => {
+                    if (inner instanceof HTMLElement && inner.offsetHeight >= p.offsetHeight - 24) clearHost(inner);
+                });
+                panelCount += 1;
+            });
+            if (!panels.length) return;
+            clearHost(wrap);
+            const host = wrap.closest('.card,[class*="card-0-2-"],.section-content');
+            if (host && host !== wrap && host.contains(h)) clearHost(host);
+        });
+        if (panelCount !== lastWearingLogCount) {
+            lastWearingLogCount = panelCount;
+            console.info('[Interium] Wearing glass: ' + panelCount + ' panels on ' + location.pathname);
+        }
+    };
+
     const applyPageFrameTransparency = () => {
         let el = document.getElementById('pks-frame-style');
         if (!el) { el = document.createElement('style'); el.id = 'pks-frame-style'; document.head.appendChild(el); }
@@ -510,16 +609,22 @@
         css += `[class*="dropdownWrapper"]{position:relative!important;z-index:1500!important;}[class*="dropdownNew"],[class*="dropdownClass"]{z-index:1500!important;}`;
         css += `[class*="userStatus"],[class*="statHeader"],[class*="statText"]{font-weight:700!important;}`;
         const FRAME_CSS = `background:transparent!important;backdrop-filter:blur(0px)!important;border-color:rgba(255,255,255,0.06)!important;box-shadow:none!important;`;
-        if (cfg.miscHomeFramesTransparent) {
+        /* PAGE-GATED (leak audit): each block below only builds its CSS on
+           the page it belongs to. Generic JSS names (buttonCol-, card-0-2-,
+           thumbnailWrapper, favoriteButton, containerHeader...) exist on many
+           pages, so ungated rules leaked across pages (e.g. profile glass
+           restyled the avatar category strip). applyPageFrameTransparency is
+           re-run on every SPA navigation, so the gates stay in sync. */
+        if (cfg.miscHomeFramesTransparent && isHomePage()) {
             css += `[class*="myFeedContainer-"],[class*="blogNewsContainer-"],[class*="homeGamesContainer-"]{${FRAME_CSS}}`;
             css += `[class*="friendSection"] .section-content,[class*="friendSection"]{background:transparent!important;}[class*="thumbnailWrapper"]{box-shadow:none!important;}`;
         }
-        if (cfg.miscCatalogFrameTransparent) {
+        if (cfg.miscCatalogFrameTransparent && /^\/catalog(\/|$)/i.test(location.pathname)) {
             // Catalog listing page + item detail page (hash-proof wildcards).
             css += `[class*="catalogPage-"],[class*="catalogContainer-"],[class*="searchResultsContainer-"],[class*="resultsWrapper-"],[class*="searchOptionsContainer-"]{${FRAME_CSS}}`;
             css += `[class*="itemDetailsContainer-"],[class*="itemDetails-"],[class*="itemThumbContainer-"]{${FRAME_CSS}}`;
         }
-        if (cfg.miscProfileFrameTransparent) {
+        if (cfg.miscProfileFrameTransparent && isProfilePage()) {
             // :has() may be unsupported in older engines - feature-detect so
             // the glass never breaks (we only lose the sidebar exclusion).
             let NOHOME = '';
@@ -564,11 +669,16 @@
                 [class*="popover"] {
                     z-index: 2000 !important;
                 }
+                /* About / Creations tab bar -> ONE merged glass bar: rounded TOP
+                   corners only, sharp bottom so the accent underline sits flush */
+                [class*="buttonCol"]{${GLASS_CSS}border-radius:12px 12px 0 0!important;border-bottom:none!important;overflow:hidden!important;gap:0!important;}
+                [class*="buttonCol"] [class*="vTab-"]{background:transparent!important;background-color:transparent!important;border:none!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;border-radius:0!important;margin:0!important;}
+                [class*="buttonCol"] [class*="vTabLabel"],[class*="buttonCol"] [class*="vTabUnselected"]{background:transparent!important;background-color:transparent!important;}
             `;
         } else {
             document.getElementById('pks-profile-glass-style')?.remove();
         }
-        if (cfg.miscFriendsFrameTransparent) {
+        if (cfg.miscFriendsFrameTransparent && isFriendsPage()) {
             // Friends sections get the SAME glass as "Transparent page frames".
             css += `.section-content:has([class*="friendEntry"],[class*="listItemFriend-"]){${GLASS_CSS}border-radius:14px!important;}`;
             css += `[class*="friendCard-"],[class*="manageRequestCard-"]{${GLASS_CSS}border-radius:10px!important;}`;
@@ -576,8 +686,31 @@
             css += `[class*="friendEntry"],[class*="friendWrapper"],[class*="thumbnailWrapper"],[class*="listItemFriend-"],[class*="sideRow-"]{background:transparent!important;background-color:transparent!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;}`;
             css += `[class*="listItemFriend-"] [class*="playerName-"],[class*="friendCard-"] [class*="username-"],[class*="manageRequestCard-"] [class*="username-"]{color:#fff!important;}`;
         }
+        /* Friends page (live DOM dump): tab bar is card-0-2-* > row-0-2-* >
+           .col > p.entry-0-2-*; request cards are friendCardWrapper-* >
+           friendCard-* (avatar/name) + manageRequestCard-* (white strip with
+           p.buttonShared- Ignore/Accept). Always-on restyle: */
+        /* 1. Tab bar: sharp BOTTOM corners (matches the profile tab bar). */
+        /* Page-gated: card-0-2-/row-0-2-/entry-0-2- are generic JSS names. */
+        if (isFriendsPage()) {
+        css += `[class*="card-0-2-"]:has(> [class*="row-0-2-"] > .col > [class*="entry-0-2-"]){border-radius:12px 12px 0 0!important;}`;
+        /* 2. Merge avatar card + buttons strip into ONE glass card: rounded
+           outer corners, no borders/shadow at the seam (profile lesson). */
+        /* The avatar/name card's class is unknown - target it structurally:
+           the direct child of the wrapper that sits right BEFORE the buttons
+           strip. Zero out the vertical gap and both seam borders/shadows. */
+        css += `[class*="friendCardWrapper-"] > *:has(+ [class*="manageRequestCard-"]){${GLASS_CSS}border-radius:10px 10px 0 0!important;border-bottom:0!important;margin-bottom:0!important;box-shadow:none!important;}`;
+        css += `[class*="friendCardWrapper-"] [class*="manageRequestCard-"]{${GLASS_CSS}border-radius:0 0 10px 10px!important;border-top:0!important;margin-top:0!important;box-shadow:none!important;padding:8px 10px 10px!important;}`;
+        css += `[class*="manageRequestCard-"] [class*="buttonShared-"]{border-radius:8px!important;margin:0!important;font-weight:700!important;cursor:pointer!important;transition:filter 0.15s ease,border-color 0.15s ease!important;}`;
+        css += `[class*="manageRequestCard-"] [class*="ignoreButton-"]{background-color:${GLASS_BG}!important;border:1px solid ${GLASS_BORDER_COLOR}!important;color:#fff!important;margin-right:4px!important;}`;
+        css += `[class*="manageRequestCard-"] [class*="ignoreButton-"]:hover{border-color:${t.accent}77!important;}`;
+        css += `[class*="manageRequestCard-"] [class*="acceptButton-"]{background:linear-gradient(135deg,${t.accent},${darkenHex(t.accent,0.6)})!important;border:none!important;color:#050508!important;margin-left:4px!important;}`;
+        css += `[class*="manageRequestCard-"] [class*="acceptButton-"]:hover{filter:brightness(1.12)!important;}`;
+        }
         applyFriendsTransparencyDirect();
-        if (cfg.miscAvatarFrameTransparent) css += `[class*="avatarCardContainer-"]{${FRAME_CSS}}[class*="pillToggle-"]{background:${GLASS_BG}!important;border-color:rgba(255,255,255,0.1)!important;}`;
+        applyRequestCardMergeDirect();
+        applyWearingGlassDirect();
+        if (cfg.miscAvatarFrameTransparent && isAvatarPage()) css += `[class*="avatarCardContainer-"]{${FRAME_CSS}}[class*="pillToggle-"]{background:${GLASS_BG}!important;border-color:rgba(255,255,255,0.1)!important;}`;
         if (cfg.miscAvatarBlurDropdown && isAvatarPage()) { // buttonCol- also exists on profile pages
             // Exact Pekora Avatar DOM (from Avatar runtime): buttonCol-* is the category strip;
             // submenuContainer-* section-content is the hover dropdown rendered directly below it.
@@ -596,7 +729,8 @@
             css += `[class*="buttonCol-"] p[class*="vTabUnselected-"]{box-shadow:none!important;}`;
         }
         if (cfg.miscFooterTransparent) css += `[class*="footerContainer"],footer[class*="footerContainer"]{background:transparent!important;border-top:1px solid rgba(255,255,255,0.06)!important;box-shadow:none!important;backdrop-filter:none!important;}`;
-        if (cfg.miscGamesGlassify && !isAvatarPage()) {
+        const onGamesPage = /^\/games(\/|$)/i.test(location.pathname);
+        if (cfg.miscGamesGlassify && onGamesPage) {
             const accentDark = darkenHex(t.accent, 0.62);
             const GLASS = `${GLASS_CSS}border-radius:16px!important;`;
             css += `
@@ -627,22 +761,16 @@
                 [class*="favoriteButton"],[class*="followButton"]{display:flex!important;align-items:center!important;justify-content:center!important;gap:6px!important;${GLASS_CSS}border-radius:14px!important;padding:8px 14px!important;transition:background 0.15s ease,border-color 0.15s ease,transform 0.15s ease!important;}
                 [class*="favoriteButton"]:hover,[class*="followButton"]:hover{background:rgba(255,255,255,0.11)!important;border-color:${t.accent}99!important;transform:translateY(-1px)!important;}
                 [class*="favoriteLabel"],[class*="followLabel"]{color:#fff!important;font-weight:600!important;}
-                /* About / Store / Servers tabs → modern glass segmented control */
-                [class*="buttonCol"]{display:flex!important;gap:8px!important;flex-wrap:wrap!important;}
-                [class*="vTab-"]{${GLASS_CSS}border-radius:12px!important;overflow:hidden!important;transition:border-color 0.15s ease,transform 0.12s ease,background 0.15s ease!important;}
-                [class*="vTab-"]:hover{border-color:${t.accent}66!important;transform:translateY(-1px)!important;}
-                [class*="vTabLabel"]{color:#cfd3e6!important;font-weight:600!important;margin:0!important;padding:9px 16px!important;text-align:center!important;cursor:pointer!important;}
-                [class*="vTabLabel"]:not([class*="vTabUnselected"]){color:#fff!important;background:linear-gradient(135deg,${t.accent}33,${t.accent}11)!important;box-shadow:inset 0 -2px 0 ${t.accent}!important;}
-                [class*="vTabUnselected"]{color:#8a90ad!important;}
             `;
         }
         // Only strip native frames when a feature that draws its own (glass / hero backdrop) is enabled.
         if (cfg.miscGamesGlassify || cfg.miscGamesHeroBackdrop) css += `[class*="gameContainer"] [class*="background-"],[class*="gameContainer"] [class*="thumbContainer"],[class*="gameContainer"] [class*="carouselGameDetails"],[class*="gameContainer"] [class*="descriptionContainer"]{background:transparent!important;background-color:transparent!important;border:none!important;box-shadow:none!important;}`;
-        if (cfg.miscGamesHideRecommended) css += `[class*="recommendedGamesContainer"]{display:none!important;}`;
-        if (cfg.miscGamesHideComments) css += `[class*="commentsContainer"]{display:none!important;}[class*="containerHeader"]:has(+[class*="commentsContainer"]){display:none!important;}`;
+        if (cfg.miscGamesHideRecommended && onGamesPage) css += `[class*="recommendedGamesContainer"]{display:none!important;}`;
+        if (cfg.miscGamesHideComments && onGamesPage) css += `[class*="commentsContainer"]{display:none!important;}[class*="containerHeader"]:has(+[class*="commentsContainer"]){display:none!important;}`;
         el.textContent = css;
         applyGamesHeroBackdrop();
         applyMessagesGlass();
+        applyGroupsGlass();
     };
 
     const applyMessagesGlass = () => {
@@ -680,6 +808,23 @@
             ${M} button:disabled{opacity:0.4!important;}
             /* checkboxes */
             ${M} input[type="checkbox"]{accent-color:${t.accent}!important;cursor:pointer!important;}
+        `;
+    };
+
+    const isGroupsPage = () => /^\/(my\/)?groups(\.aspx)?(\/|$)/i.test(location.pathname);
+    // Glassify the /groups page: no stable page-specific JSS hook is known
+    // for this page, so generic panel selectors are used. That is safe ONLY
+    // because the whole block is path-gated to /groups (leak-audit rule) and
+    // rebuilt on SPA navigation via applyPageFrameTransparency.
+    const applyGroupsGlass = () => {
+        let el = document.getElementById('pks-groups-glass-style');
+        if (!cfg.miscGroupsGlassify || !isGroupsPage()) { el?.remove(); return; }
+        if (!el) { el = document.createElement('style'); el.id = 'pks-groups-glass-style'; document.head.appendChild(el); }
+        el.textContent = `
+            /* Top-level panels: groups list, search strip, main group card, Controls. */
+            .card,.section-content,[class*="card-0-2-"],[class*="groupContainer-"],[class*="groupsContainer-"]{${GLASS_CSS}border-radius:14px!important;}
+            /* Nested panels stay transparent so glass never stacks twice. */
+            .card .card,.card .section-content,.section-content .card,.section-content .section-content,.card .card-body,[class*="card-0-2-"] [class*="card-0-2-"],[class*="card-0-2-"] .card-body,[class*="card-0-2-"] .section-content,.section-content [class*="card-0-2-"]{background-color:transparent!important;border:none!important;box-shadow:none!important;backdrop-filter:blur(0px)!important;-webkit-backdrop-filter:blur(0px)!important;}
         `;
     };
 
@@ -1220,7 +1365,7 @@
     const applyCardStyle = () => {
         let cs = document.getElementById('pks-card-style');
         if (!cs) { cs = document.createElement('style'); cs.id = 'pks-card-style'; document.head.appendChild(cs); }
-        if (!cfg.miscModernGameCards && !cfg.miscCatalogItemCards) { cs.textContent = ''; return; }
+        if (!cfg.miscModernGameCards && !cfg.miscCatalogItemCards && !cfg.miscItemPageGlass) { cs.textContent = ''; return; }
         const t = getTheme();
         let cssOut = '';
         if (cfg.miscModernGameCards) {
@@ -1236,13 +1381,15 @@
                 [class*="resultsContainer-"] [class*="cardWrapper-"] a{background:transparent!important;text-decoration:none!important;}
                 [class*="resultsContainer-"] [class*="cardEquipped-"]{border:none!important;box-shadow:none!important;background:transparent!important;}
                 [class*="resultsContainer-"] [class*="cardWrapper-"]:has([class*="cardEquipped-"]){outline:2px solid rgba(2,183,87,0.85)!important;outline-offset:3px!important;}
-                [class*="resultsContainer-"] [class*="cardImage-"],[class*="resultsContainer-"] div[class*="imageBig"],[class*="resultsContainer-"] div[class*="image-"],[class*="resultsContainer-"] div[class*="thumb"]{background:rgba(255,255,255,0.035)!important;border-radius:10px!important;overflow:hidden!important;border:none!important;box-shadow:none!important;}
-                [class*="resultsContainer-"] [class*="cardImage-"] img{border:none!important;border-radius:10px!important;background:transparent!important;}
+                /* background-COLOR only: the background shorthand also wiped
+                   background-image, blanking the placeholder preview on items
+                   not yet approved by moderation */
+                [class*="resultsContainer-"] [class*="cardImage-"],[class*="resultsContainer-"] div[class*="imageBig"],[class*="resultsContainer-"] div[class*="image-"],[class*="resultsContainer-"] div[class*="thumb"]{background-color:rgba(255,255,255,0.035)!important;border-radius:10px!important;overflow:hidden!important;border:none!important;box-shadow:none!important;}
+                [class*="resultsContainer-"] [class*="cardImage-"] img{border:none!important;border-radius:10px!important;background-color:transparent!important;}
                 [class*="resultsContainer-"] [class*="cardItemLink-"] span{color:#fff!important;font-weight:700!important;}
                 [class*="resultsContainer-"] [class*="salesCounter-"]{color:#9aa0c0!important;}
                 [class*="resultsContainer-"] [class*="salesCounterValue-"]{color:#fff!important;}
                 [class*="resultsContainer-"] [class*="itemStatusSaleBadge-"]{border-radius:6px!important;}
-                [class*="catalogPage-"] [class*="selectorClosed-"]{${GLASS_CSS}border-radius:8px!important;color:#fff!important;}
                 [class*="breadcrumbsContainer-"],[class*="breadcrumbsContainer-"] span{color:#dfe3f0!important;}
             `;
             const catDark = darkenHex(t.accent, 0.6);
@@ -1255,8 +1402,54 @@
                 [class*="searchOptionsContainer-"] a{color:#dfe3f0!important;}
                 [class*="searchOptionsContainer-"] a:hover{color:${t.accent}!important;}
                 [class*="searchOptionsContainer-"] h1,[class*="searchOptionsContainer-"] h2,[class*="searchOptionsContainer-"] h3{color:#fff!important;}
-                [class*="catalogContainer"] input[type="text"],[class*="catalogContainer"] select{${GLASS_CSS}border-radius:8px!important;color:#fff!important;padding:5px 9px!important;}
+                [class*="catalogContainer"] input[type="text"]{${GLASS_CSS}border-radius:8px!important;color:#fff!important;padding:5px 9px!important;}
+            `;
+            // Flat select fallback only while "Glassy dropdowns" is off - when
+            // it is on, the merged-card recipe (pksGlassSelectCss) owns selects.
+            if (!cfg.miscCatalogDropdownGlass) cssOut += `
+                [class*="catalogContainer"] select{${GLASS_CSS}border-radius:8px!important;color:#fff!important;padding:5px 9px!important;}
                 [class*="catalogContainer"] select option{background:#16161f!important;color:#fff!important;}
+            `;
+            // Catalog dropdowns are a custom component (from a live DOM dump):
+            //   selectorWrapper-* > selectorClosed-* (which GAINS the class
+            //   selectorOpen-* while open) + sibling selectorMenuOpen-* with
+            //   p.selectOption-* rows.
+            // Merged-card glass like the trades dropdowns: while open, the
+            // closed control keeps rounded TOP corners with a sharp bottom, and
+            // the menu below gets a sharp top with rounded BOTTOM corners.
+            if (cfg.miscCatalogDropdownGlass) cssOut += `
+                /* Anchor the wrapper so the absolute menu below sizes/aligns
+                   to IT (not to the page - that made the menu full-width). */
+                /* display:flex kills the inline baseline gap under the control
+                   (a 1-2px dark seam between the open control and the menu). */
+                [class*="selectorWrapper-"]{position:relative!important;padding:0!important;display:flex!important;border:none!important;background-color:transparent!important;}
+                [class*="selectorWrapper-"] > [class*="selectorClosed-"]{flex:1 1 auto!important;}
+                [class*="selectorClosed-"]{${GLASS_CSS}border-radius:8px!important;color:#fff!important;cursor:pointer!important;margin:0!important;box-sizing:border-box!important;transition:border-color 0.15s ease!important;}
+                [class*="selectorClosed-"]:hover{border-color:${t.accent}77!important;}
+                [class*="selectorClosed-"][class*="selectorOpen-"]{border-radius:8px 8px 0 0!important;border-bottom:0!important;}
+                [class*="selectorMenuOpen-"]{${GLASS_CSS}border-radius:0 0 8px 8px!important;border-top:0!important;overflow:hidden!important;z-index:1600!important;padding:5px!important;position:absolute!important;top:100%!important;left:0!important;right:auto!important;margin:0!important;width:100%!important;box-sizing:border-box!important;}
+                [class*="selectorMenuOpen-"] [class*="selectOption-"]{background:transparent!important;color:#fff!important;margin:0!important;padding:7px 10px!important;border-radius:0!important;cursor:pointer!important;}
+                [class*="selectorMenuOpen-"] [class*="selectOption-"]:hover{background:${t.accent}2e!important;}
+                [class*="selectorCaret-"]{background:transparent!important;border:none!important;color:#fff!important;}
+                /* Header search row: merge [input | category dropdown | search
+                   icon] into ONE card - rounded outer corners, sharp seams,
+                   single 1px divider between segments. The standalone sort
+                   dropdown (Relevance) is NOT inside catalogHeader- and keeps
+                   the generic rounded style above. */
+                [class*="catalogHeader-"] [class*="search-0-2"],[class*="catalogHeader-"] [class*="sdfaafasfafsaf-"]{gap:0!important;}
+                [class*="catalogHeader-"] input[type="text"]{border-radius:8px 0 0 8px!important;border-right:0!important;margin:0!important;}
+                [class*="catalogHeader-"] [class*="selectorWrapper-"]{margin:0!important;}
+                [class*="catalogHeader-"] [class*="selectorClosed-"]{border-radius:0!important;}
+                /* NOTE: no GLASS_CSS / background shorthand here - the search
+                   icon is likely a background-image and a shorthand would wipe
+                   it (same bug that blanked unmoderated item previews). */
+                [class*="catalogHeader-"] [class*="selectorWrapper-"] + *{background-color:${GLASS_BG}!important;backdrop-filter:${GLASS_FILTER}!important;-webkit-backdrop-filter:${GLASS_FILTER}!important;border:1px solid ${GLASS_BORDER_COLOR}!important;box-shadow:${GLASS_SHADOW}!important;border-radius:0 8px 8px 0!important;border-left:0!important;margin:0!important;color:#fff!important;display:flex;align-items:center;justify-content:center;cursor:pointer!important;}
+                [class*="catalogHeader-"] [class*="selectorWrapper-"] + * *{background-color:transparent!important;border:none!important;color:#fff!important;box-shadow:none!important;}
+                /* Same overlap bug as trades: keep the fixed navbar above open
+                   dropdown menus (menus are z-index 1600, popovers stay 2000). */
+                nav.navbar,[class*="navbar-0-2"],.navbar{z-index:1700!important;}
+            `;
+            cssOut += `
                 [class*="catalogContainer"] [class*="caret-0-2"]{background:transparent!important;border:none!important;color:#fff!important;}
                 [class*="catalogContainer"] .buttons_legacyButton__vUgL2,[class*="catalogContainer"] [class*="button-0-2"]{background:linear-gradient(135deg,${t.accent},${catDark})!important;border:none!important;color:#050508!important;border-radius:8px!important;font-weight:700!important;transition:filter 0.15s ease!important;}
                 [class*="catalogContainer"] .buttons_legacyButton__vUgL2:hover,[class*="catalogContainer"] [class*="button-0-2"]:hover{filter:brightness(1.12)!important;color:#050508!important;}
@@ -1265,6 +1458,55 @@
                 [class*="catalogContainer"] [class*="separator-0-2"]{border-color:rgba(255,255,255,0.1)!important;background:rgba(255,255,255,0.1)!important;}
                 [class*="catalogContainer"] [class*="divider-right"]{border-color:rgba(255,255,255,0.1)!important;}
                 [class*="catalogContainer"] [class*="wrapper-0-2"]{${GLASS_CSS}border-radius:12px!important;padding:10px!important;}
+            `;
+        }
+        if (cfg.miscItemPageGlass && isCatalogItemPage()) {
+            // Item detail page (/catalog/:id). One recipe covers all three
+            // variants from the Korone dump (limited w/ resellers + price
+            // chart, owned w/ Edit Avatar, not-owned w/ Buy) - they share the
+            // same itemContainer- skeleton; limited-only sections (resellers
+            // list, chart/stats) are .section-content SIBLINGS of it.
+            const itemDark = darkenHex(t.accent, 0.6);
+            cssOut += `
+                /* main card + limited-only sections. Resellers AND Owners
+                   share the resellersWrapper- component; the Price Chart is
+                   body-0-2-* (identified via its legend, since "body-" alone
+                   is too generic). They are NOT siblings of itemContainer-
+                   (nested in a classless div), so they are matched directly. */
+                .section-content[class*="itemContainer-"],.section-content[class*="resellersWrapper-"],.section-content[class*="body-0-2-"]:has([class*="legendItem-"]){${GLASS_CSS}border-radius:14px!important;}
+                /* Price Chart "180 Days" dropdown (white in stock theme);
+                   scoped to topRow- so the header dots-menu is untouched */
+                [class*="topRow-"] [class*="dropdownButton-"]{background:${GLASS_BG}!important;border:1px solid ${GLASS_BORDER_COLOR}!important;color:#fff!important;border-radius:8px!important;transition:border-color 0.15s ease!important;}
+                [class*="topRow-"] [class*="dropdownButton-"]:hover{border-color:${t.accent}77!important;}
+                [class*="topRow-"] [class*="dropdownButtonOpen-"]{background:${t.accent}2e!important;border-color:${t.accent}aa!important;color:#fff!important;border-radius:8px 8px 0 0!important;}
+                /* stock list sits at top:calc(100% + 2px) - pin it flush to
+                   the button and drop the seam border */
+                [class*="topRow-"] [class*="dropdownList-"]{${GLASS_CSS}border-radius:0 0 8px 8px!important;border-top:0!important;top:100%!important;margin-top:0!important;overflow:hidden!important;padding:4px!important;z-index:1600!important;}
+                [class*="topRow-"] [class*="dropdownOption-"]{color:#fff!important;background-color:transparent!important;border-radius:6px!important;}
+                [class*="topRow-"] [class*="dropdownOption-"]:hover{background-color:${t.accent}2e!important;}
+                /* light divider line between chart and stats */
+                [class*="body-0-2-"] [class*="divider-0-2-"]{background:rgba(255,255,255,0.12)!important;}
+                /* inner panels stay clear - no glass-on-glass stacking;
+                   background-COLOR only (shorthand wipes preview images) */
+                [class*="itemThumbContainer-"],[class*="itemThumb-"],[class*="itemDetailsContainer-"],[class*="itemDetails-"],[class*="itemHeaderContainer-"],[class*="itemHeaderInfo-"],[class*="itemInteractionContainer-"],[class*="favBtnContainer-"],[class*="favoriteContainer-"],[class*="itemStatusContainer-"]{background-color:transparent!important;box-shadow:none!important;}
+                /* light-theme seam lines */
+                [class*="itemContainer-"] hr,[class*="attrContainer-"],[class*="restrictionsContainer-"]{border-color:rgba(255,255,255,0.08)!important;}
+                [class*="resellerContainer-"]{border-top:1px solid ${GLASS_BORDER_COLOR}!important;}
+                /* green Buy -> accent gradient; white buttons (Edit Avatar,
+                   reseller Buy) -> outlined glass */
+                [class*="newBuyButton-"]{background:linear-gradient(135deg,${t.accent},${itemDark})!important;border:none!important;color:#050508!important;border-radius:8px!important;font-weight:700!important;transition:filter 0.15s ease!important;}
+                [class*="newBuyButton-"]:hover{filter:brightness(1.12)!important;color:#050508!important;}
+                [class*="newCancelButton-"]{background:${GLASS_BG}!important;border:1px solid ${GLASS_BORDER_COLOR}!important;color:#fff!important;border-radius:8px!important;transition:border-color 0.15s ease!important;}
+                [class*="newCancelButton-"]:hover{border-color:${t.accent}77!important;color:#fff!important;}
+                /* the favorites star exists 3x in the DOM; the real one sits
+                   bottom-left under the thumb (directly in itemContainer-).
+                   The copies inside itemDetailsContainer- (one showed up
+                   below Description) are hidden. */
+                [class*="itemDetailsContainer-"] [class*="favBtnContainer-"]{display:none!important;}
+                /* recommended items -> same glass cards as the catalog grid */
+                .section-content[class*="recomCardContainer-"]{${GLASS_CSS}border-radius:12px!important;overflow:hidden!important;transition:transform 0.16s ease,border-color 0.16s ease,box-shadow 0.16s ease!important;}
+                .section-content[class*="recomCardContainer-"]:hover{transform:translateY(-3px)!important;border-color:${t.accent}77!important;box-shadow:0 14px 38px rgba(0,0,0,0.45)!important;}
+                [class*="recomCardContainer-"] [class*="thumbContainer-"]{background-color:transparent!important;}
             `;
         }
         cs.textContent = cssOut;
@@ -1429,7 +1671,9 @@
         `;
         if (cfg.tradesDropdownGlass && rbxOnSendTrade) css += pksGlassSelectCss('[class*="inventoryHeader-"] select');
         if (cfg.tradesDropdownGlass && rbxOnTradesList) css += pksGlassSelectCss('select[aria-label="Trade type"]');
-        if (cfg.tradesDropdownGlass && (rbxOnSendTrade || rbxOnTradesList)) {
+        const rbxOnCatalog = /^\/catalog(\/|$)/i.test(rbxPath);
+        if (cfg.miscCatalogDropdownGlass && rbxOnCatalog) css += pksGlassSelectCss('[class*="catalogContainer"] select');
+        if ((cfg.tradesDropdownGlass && (rbxOnSendTrade || rbxOnTradesList)) || (cfg.miscCatalogDropdownGlass && rbxOnCatalog)) {
             // Flip-detection for the merged-card dropdown: when the picker runs out of room below,
             // the browser anchors it ABOVE the select, and pure CSS has no "picker flipped" selector.
             // With appearance:base-select the <option>s are real page DOM rendered inside the picker,
@@ -1481,7 +1725,7 @@
                     sel.addEventListener('keydown', kick);
                     sel.addEventListener('focus', kick);
                 };
-                const pksScanDropSels = () => document.querySelectorAll('[class*="inventoryHeader-"] select, select[aria-label="Trade type"]').forEach(pksWatchDropSel);
+                const pksScanDropSels = () => document.querySelectorAll('[class*="inventoryHeader-"] select, select[aria-label="Trade type"], [class*="catalogContainer"] select').forEach(pksWatchDropSel);
                 pksScanDropSels();
                 try { new MutationObserver(pksScanDropSels).observe(document.documentElement, { childList: true, subtree: true }); } catch (e) {}
             }
@@ -1506,9 +1750,6 @@
             /* Remove the (disabled) Chat button entirely */
             [class*="actionContainer"] [class*="newDisabledCancelButton"]{display:none!important;}
             [class*="actionContainer"] [class*="buttonContainer"]:has([class*="newDisabledCancelButton"]){display:none!important;}
-            /* About / Creations tab bar → transparent frame (scoped to profile, beats glassify) */
-            [class*="buttonCol"]{background:transparent!important;border:none!important;box-shadow:none!important;}
-            [class*="buttonCol"] [class*="vTab-"]{background:transparent!important;border:none!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;}
             /* Auto-remove the OBC flair icon everywhere */
             .icon-obc,[class*="icon-obc"]{display:none!important;}
         `;
@@ -1715,8 +1956,12 @@
                     <div class="pks-row"><label>Transparent main frame</label><input type="checkbox" id="cfg-miscCatalogFrameTransparent"></div>
                     <div class="pks-row"><label>Hide sidebar</label><input type="checkbox" id="cfg-miscCatalogHideSidebar"></div>
                     <div class="pks-row"><label>Glassify item cards</label><input type="checkbox" id="cfg-miscCatalogItemCards"></div>
+                    <div class="pks-row"><label>Glassy dropdowns</label><input type="checkbox" id="cfg-miscCatalogDropdownGlass"></div>
+                    <div class="pks-row"><label>Glassify item page</label><input type="checkbox" id="cfg-miscItemPageGlass"></div>
+                    <div style="margin:14px 0 4px;"><span class="pks-page-badge">/groups</span></div>
+                    <div class="pks-row"><label>Glassify groups page</label><input type="checkbox" id="cfg-miscGroupsGlassify"></div>
                     <div style="margin:14px 0 4px;"><span class="pks-page-badge">/profile</span></div>
-                    <div class="pks-row"><label>Transparent frames</label><input type="checkbox" id="cfg-miscProfileFrameTransparent"></div>
+                    <div class="pks-row"><label>Glassify profile</label><input type="checkbox" id="cfg-miscProfileFrameTransparent"></div>
                     <div class="pks-row"><label>Animated username colour</label><input type="checkbox" id="cfg-miscProfileNameAnimate"></div>
                     <div class="pks-row"><label style="font-size:10px;color:#555;padding-left:10px;">\u21b3 Colour 1</label><input type="color" id="cfg-miscProfileNameColor1"></div>
                     <div class="pks-row"><label style="font-size:10px;color:#555;padding-left:10px;">\u21b3 Colour 2</label><input type="color" id="cfg-miscProfileNameColor2"></div>
@@ -1878,7 +2123,7 @@
             'cfg-miscGamesGlassify':'miscGamesGlassify','cfg-miscGamesHeroBackdrop':'miscGamesHeroBackdrop',
             'cfg-miscGamesHideComments':'miscGamesHideComments','cfg-miscGamesHideRecommended':'miscGamesHideRecommended',
             'cfg-miscCatalogFrameTransparent':'miscCatalogFrameTransparent',
-            'cfg-miscCatalogHideSidebar':'miscCatalogHideSidebar','cfg-miscCatalogItemCards':'miscCatalogItemCards',
+            'cfg-miscCatalogHideSidebar':'miscCatalogHideSidebar','cfg-miscCatalogItemCards':'miscCatalogItemCards','cfg-miscCatalogDropdownGlass':'miscCatalogDropdownGlass','cfg-miscItemPageGlass':'miscItemPageGlass','cfg-miscGroupsGlassify':'miscGroupsGlassify',
             'cfg-miscProfileFrameTransparent':'miscProfileFrameTransparent',
             'cfg-miscProfileNameAnimate':'miscProfileNameAnimate',
             'cfg-miscProfileNameColor1':'miscProfileNameColor1','cfg-miscProfileNameColor2':'miscProfileNameColor2',
@@ -2214,15 +2459,20 @@
         if (!el) { el = document.createElement('style'); el.id = 'pks-avatar-bg-style'; document.head.appendChild(el); }
         const vid = document.getElementById('pks-avatar-bg-video');
         const raw = (cfg.avatarBgImage || '').trim().replace(/\.gifv(\?.*)?$/i, '.mp4'); // imgur .gifv -> direct .mp4
-        if (!cfg.avatarBgEnabled || !raw) { el.textContent = ''; vid?.remove(); return; }
+        if (!cfg.avatarBgEnabled || !raw) { el.textContent = ''; vid?.remove(); applyAvatarControls(); return; }
         const url  = raw.replace(/'/g, "\\'");
         const blur = Math.max(0, cfg.avatarBgBlur ?? 0);
         const isVideo = /\.(mp4|webm|mov)(\?.*)?$/i.test(raw);
         if (isVideo) {
+            /* Do NOT touch the frame's children: forcing position:relative on
+               them yanked the site's absolutely-positioned 3D button into the
+               flow (it drifted to the top-left). Instead the bg sits on a
+               NEGATIVE z-index layer; isolation:isolate makes the frame a
+               stacking context so z-index:-1 stays above the frame's own
+               background but below ALL of its content. */
             el.textContent = `
-            [class*="avatarThumbContainer"]{position:relative!important;overflow:hidden!important;}
-            [class*="avatarThumbContainer"] > *:not(#pks-avatar-bg-video){position:relative;z-index:1;}
-            #pks-avatar-bg-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none;${blur ? `filter:blur(${blur}px);transform:scale(1.12);` : ''}}
+            [class*="avatarThumbContainer"]{position:relative!important;overflow:hidden!important;isolation:isolate!important;}
+            #pks-avatar-bg-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:-1;pointer-events:none;${blur ? `filter:blur(${blur}px);transform:scale(1.12);` : ''}}
         `;
             const frame = document.querySelector('[class*="avatarThumbContainer"]');
             if (frame) {
@@ -2234,7 +2484,7 @@
                 }
                 // Inline styles: the video must never participate in layout,
                 // even if the injected stylesheet loses a specificity fight.
-                v.style.cssText = `position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none;${blur ? `filter:blur(${blur}px);transform:scale(1.12);` : ''}`;
+                v.style.cssText = `position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:-1;pointer-events:none;${blur ? `filter:blur(${blur}px);transform:scale(1.12);` : ''}`;
                 if (v.getAttribute('src') !== raw) v.setAttribute('src', raw);
                 // append as LAST child (not prepend): the site styles the avatar
                 // renderer via structural selectors like :first-child, and a
@@ -2245,12 +2495,19 @@
             }
         } else {
             vid?.remove();
+            /* Same as the video branch: children stay UNTOUCHED (the old
+               "> *{position:relative;z-index:1}" lift hijacked the site's
+               absolutely-positioned 3D button into the flow -> it drifted to
+               the top-left whenever a bg was applied). The ::before bg lives
+               on z-index:-1 under an isolated stacking context instead. */
             el.textContent = `
-            [class*="avatarThumbContainer"]{position:relative!important;overflow:hidden!important;}
-            [class*="avatarThumbContainer"]::before{content:'';position:absolute;inset:0;background-image:url('${url}');background-size:cover;background-position:center;background-repeat:no-repeat;${blur ? `filter:blur(${blur}px);transform:scale(1.12);` : ''}z-index:0;pointer-events:none;}
-            [class*="avatarThumbContainer"] > *{position:relative;z-index:1;}
+            [class*="avatarThumbContainer"]{position:relative!important;overflow:hidden!important;isolation:isolate!important;}
+            [class*="avatarThumbContainer"]::before{content:'';position:absolute;inset:0;background-image:url('${url}');background-size:cover;background-position:center;background-repeat:no-repeat;${blur ? `filter:blur(${blur}px);transform:scale(1.12);` : ''}z-index:-1;pointer-events:none;}
         `;
         }
+        // Keep the frame's position/isolation anchor fresh right after a
+        // background is applied (no pill pinning happens anymore).
+        applyAvatarControls();
     };
 
     const applyAvatarGlass = () => {
@@ -2286,18 +2543,16 @@ p[class*="vTabUnselected-"]{box-shadow:none!important;}`
             st.textContent = '';
             document.head.appendChild(st);
         }
-        const frame = document.querySelector('[class*="avatarThumbContainer"]');
-        if (!frame) return;
+        // Pinning the site's 2D/3D pill into the preview frame (Hexium look)
+        // kept breaking on React re-renders when a custom image/gif was
+        // applied (the pill drifted up-left). Per user request the pill now
+        // stays exactly where the site renders it: no re-parenting and no
+        // inline pinning at all. The frame only keeps position:relative as
+        // the anchor for the background image/video overlay.
+        const frames = [...document.querySelectorAll('[class*="avatarThumbContainer"]')];
+        if (!frames.length) return;
+        const frame = frames.find(f => f.getClientRects().length > 0 && f.offsetWidth > 80) || frames[0];
         frame.style.setProperty('position', 'relative', 'important');
-        const pill = [...document.querySelectorAll('[class*="pillToggle"]')].find(p => p.querySelector('input[name="avatarType"]'));
-        if (pill && pill.parentElement !== frame) {
-            pill.style.setProperty('position', 'absolute', 'important');
-            pill.style.setProperty('top', '8px', 'important');
-            pill.style.setProperty('right', '8px', 'important');
-            pill.style.setProperty('z-index', '30', 'important');
-            pill.style.setProperty('margin', '0', 'important');
-            frame.appendChild(pill);
-        }
     };
 
     // Hexium-style avatar Background card: glass panel under the preview
@@ -2514,6 +2769,8 @@ p[class*="vTabUnselected-"]{box-shadow:none!important;}`
                 debounce = null;
                 if (cfg.sidebarEnabled) applySidebarDirect();
                 if (cfg.miscFriendsFrameTransparent) applyFriendsTransparencyDirect();
+                applyRequestCardMergeDirect();
+                if (cfg.miscProfileFrameTransparent) applyWearingGlassDirect();
                 injectSidebarLinks();
                 applyAgeOverride();
                 ensureTradesOverlay();
@@ -2554,6 +2811,7 @@ p[class*="vTabUnselected-"]{box-shadow:none!important;}`
             if (/\/My\/Trades\.aspx/i.test(location.pathname)) ensureTradesOverlay();
             setTimeout(() => {
                 applyPageFrameTransparency();
+                applyCardStyle(); /* page-gated blocks (item page glass) must rebuild on SPA nav */
                 applySidebarNavStyle();
                 applySidebarDirect();
                 if (isTradePage()) applyTradeStyle();
