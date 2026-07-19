@@ -137,7 +137,7 @@ const pgMtAnnotateSection = (sec, offer) => {
 		t.appendChild(l); t.appendChild(v);
 		let t2=sec.querySelector('.pg-mt-total2');
 		if(!t2){ t2=document.createElement('div'); t2.className='pg-mt-total2'; t.parentNode.insertBefore(t2,t.nextSibling); }
-		t2.style.cssText=t.style.cssText; t2.textContent='';
+		t2.style.cssText=t.style.cssText; t2.style.justifyContent='flex-end'; t2.textContent='';
 		const v2=document.createElement('span'); v2.style.cssText='display:inline-flex;flex-direction:column;align-items:flex-end;gap:2px;';
 		v2.innerHTML='<span style="display:inline-flex;align-items:center;gap:6px;font-weight:700;color:#0084dd !important;">'+PG_KOROMONS_SVG+'<span style="color:#0084dd !important;">'+(valKnown>0?mixedTotal.toLocaleString():rapTotal.toLocaleString())+'</span></span><span style="color:#0084dd !important;font-weight:500;font-size:11px;opacity:.85;">(+ unvalued)</span>';
 		t2.appendChild(v2);
@@ -372,7 +372,7 @@ const applyTradeWindowStats = () => {
 			let vt2=panel.querySelector('.pg-tw-total-value2');
 			if(!vt2){
 				vt2=document.createElement('div'); vt2.className='pg-tw-total-value2';
-				vt2.style.cssText='display:flex;justify-content:space-between;align-items:center;gap:16px;margin-top:4px;font-size:16px;font-weight:500;';
+				vt2.style.cssText='display:flex;justify-content:flex-end;align-items:center;gap:16px;margin-top:4px;font-size:16px;font-weight:500;';
 				vt.parentNode.insertBefore(vt2, vt.nextSibling);
 			}
 			if(vt2.getAttribute('data-pg-mix')!==mixTxt){
