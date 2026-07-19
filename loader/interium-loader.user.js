@@ -39,4 +39,4 @@
  * Tampermonkey auto-updates the loader from @updateURL and re-downloads the
  * @require'd runtime along with it - users never reinstall anything.
  */
-console.info("[Interium] Loader v2.51.0") - core + trading + UI runtimes attached via @require (CSP-safe).');
+console.info('[Interium] Loader v2.51.0 - core + trading + UI runtimes attached via @require (CSP-safe).');
