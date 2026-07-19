@@ -11,7 +11,7 @@
 // @noframes
 // @grant        none
 // @require      https://cdn.jsdelivr.net/gh/warmpain9/Interium@main/src/core/core.js
-// @require      https://cdn.jsdelivr.net/gh/warmpain9/Interium@main/src/trading/interium-trading-8.js
+// @require      https://cdn.jsdelivr.net/gh/warmpain9/Interium@main/src/trading/interium-trading-9.js
 // @require      https://cdn.jsdelivr.net/gh/warmpain9/Interium@main/src/ui/interium-ui-41.js
 // @updateURL    https://cdn.jsdelivr.net/gh/warmpain9/Interium@main/loader/interium-loader.user.js
 // @downloadURL  https://cdn.jsdelivr.net/gh/warmpain9/Interium@main/loader/interium-loader.user.js
@@ -39,4 +39,4 @@
  * Tampermonkey auto-updates the loader from @updateURL and re-downloads the
  * @require'd runtime along with it - users never reinstall anything.
  */
-console.info('[Interium Loader] v2.50.0 - core + trading + UI runtimes attached via @require (CSP-safe).');
+console.info("[Interium] Loader v2.51.0") - core + trading + UI runtimes attached via @require (CSP-safe).');

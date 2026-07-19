@@ -53,7 +53,7 @@ return items;
 const _pgMt = { listType:'', listAt:0, listRows:[], details:new Map(), inflight:'', lastSig:'' };
 const PG_KOROMONS_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1094 1466.2" width="13" height="17" style="flex:none;display:inline-block;vertical-align:-2px;"><path fill="#0084dd" d="M1094 521.6 0 0v469.5l141-67.4 250 119.2L0 707.8v369.7l815.6 388.7L315 893l779-371.4z"/></svg>';
 const pgMtClear = () => {
-	document.querySelectorAll('.pg-mt-rap,.pg-mt-total,.pg-mt-verdict,.pg-mt-tag').forEach(n=>n.remove());
+	document.querySelectorAll('.pg-mt-rap,.pg-mt-total,.pg-mt-total2,.pg-mt-verdict,.pg-mt-tag').forEach(n=>n.remove());
 	document.querySelectorAll('[class*="totalRow-"] > span').forEach(sp=>{ if(/^\s*total rap:?\s*$/i.test(sp.textContent||'')) sp.textContent='Total Value:'; });
 };
 const pgMtItems = (o) => Array.isArray(o?.userAssets) ? o.userAssets : (Array.isArray(o?.items) ? o.items : []);
@@ -77,7 +77,7 @@ const pgMtAnnotateSection = (sec, offer) => {
 	const byName=new Map();
 	items.forEach(it=>{ const k=pgMtNameOf(it).toLowerCase(); if(!byName.has(k)) byName.set(k,[]); byName.get(k).push(it); });
 	const cards=Array.from(sec.querySelectorAll('[class*="itemCard-"]'));
-	let rapTotal=0, valTotal=0, valKnown=0;
+	let rapTotal=0, valTotal=0, valKnown=0, rapOfValued=0;
 	cards.forEach((card,i)=>{
 		const nameEl=card.querySelector('[class*="itemName-"]');
 		const k=String((nameEl&&nameEl.textContent)||'').trim().toLowerCase();
@@ -86,7 +86,15 @@ const pgMtAnnotateSection = (sec, offer) => {
 		const rap=it?pgMtRapOf(it):0;
 		const aid=it?pgMtAssetIdOf(it):null;
 		const val=aid!=null?Number(koromonsValueCache.get(String(aid))||0):0;
-		rapTotal+=rap; if(val>0){ valTotal+=val; valKnown++; }
+		rapTotal+=rap; if(val>0){ valTotal+=val; valKnown++; rapOfValued+=rap; }
+		if(aid!=null && card.getAttribute('data-pg-aid')!==String(aid)){
+			card.setAttribute('data-pg-aid',String(aid));
+			card.style.cursor='pointer';
+			card.addEventListener('click',(e)=>{
+				if(e.target.closest('a,button,.pg-mt-tag,.pg-mt-rap')) return;
+				window.open('/catalog/'+String(aid)+'/--','_blank');
+			});
+		}
 		let line=card.querySelector('.pg-mt-rap');
 		if(val>0){
 			if(!line){ line=document.createElement('div'); line.className='pg-mt-rap'; card.appendChild(line); }
@@ -121,12 +129,21 @@ const pgMtAnnotateSection = (sec, offer) => {
 		if(!t){ t=document.createElement('div'); t.className='pg-mt-total'; totalRow.parentNode.insertBefore(t,totalRow.nextSibling); }
 		t.style.cssText='display:flex;justify-content:space-between;align-items:center;gap:16px;max-width:565px;margin-top:8px;font-size:18px;font-weight:500;color:var(--text-color-primary,#fff);';
 		t.textContent='';
-		const l=document.createElement('span'); l.textContent='Total Value:';
+		const rapUnvalued=rapTotal-rapOfValued;
+		const mixedTotal=valTotal+rapUnvalued;
+		const l=document.createElement('span'); l.textContent='Koro Value:';
 		const v=document.createElement('span'); v.style.cssText='display:inline-flex;align-items:center;gap:6px;font-weight:700;color:#0084dd !important;';
 		v.innerHTML=PG_KOROMONS_SVG+'<span style="color:#0084dd !important;">'+(valKnown>0?valTotal.toLocaleString():'\u2014')+'</span>';
 		t.appendChild(l); t.appendChild(v);
+		let t2=sec.querySelector('.pg-mt-total2');
+		if(!t2){ t2=document.createElement('div'); t2.className='pg-mt-total2'; t.parentNode.insertBefore(t2,t.nextSibling); }
+		t2.style.cssText=t.style.cssText; t2.textContent='';
+		const l2=document.createElement('span'); l2.textContent='With RAP:';
+		const v2=document.createElement('span'); v2.style.cssText='display:inline-flex;align-items:center;gap:6px;font-weight:700;color:rgb(32,215,66) !important;';
+		v2.innerHTML='<span style="color:rgb(32,215,66) !important;">'+(valKnown>0?mixedTotal.toLocaleString():rapTotal.toLocaleString())+'</span>';
+		t2.appendChild(l2); t2.appendChild(v2);
 	}
-	return { rapTotal, valTotal, valKnown, count:cards.length, robux };
+	return { rapTotal, valTotal, valKnown, rapOfValued, count:cards.length, robux };
 };
 const applyModernTradeStats = () => {
 	const onPage=/^\/trades\/?$/i.test(location.pathname);
@@ -161,6 +178,17 @@ const applyModernTradeStats = () => {
 			if(!offers.length) return;
 			const mine=offers.find(o=>String((o&&o.user&&o.user.id)??(o&&o.userId))===String(myId))||offers[0];
 			const theirs=offers.find(o=>o!==mine)||null;
+				const _theirUid=theirs?(String((theirs.user&&theirs.user.id)||theirs.userId||'')):null;
+				if(_theirUid&&titleEl&&!titleEl.querySelector('.pg-mt-partner-link')){
+					const _pName=String(titleEl.textContent||'').replace(/^Trade with\s*/i,'').trim();
+					const _pa=document.createElement('a');
+					_pa.className='pg-mt-partner-link';
+					_pa.href='/internal/collectibles?userId='+encodeURIComponent(_theirUid);
+					_pa.style.cssText='color:inherit;text-decoration:underline dotted;cursor:pointer;';
+					_pa.textContent=_pName;
+					titleEl.innerHTML='Trade with ';
+					titleEl.appendChild(_pa);
+				}
 			const secs=Array.from(main.querySelectorAll('section'));
 			const secTitle=(s)=>String((s.querySelector('[class*="sectionTitle-"]')||{}).textContent||'');
 			const secGive=secs.find(s=>/you will give/i.test(secTitle(s)));
@@ -248,8 +276,8 @@ const pgTwDecorate = (thumbEl, anchorEl, it, mode, nameEl) => {
 const applyTradeWindowStats = () => {
 	const onPage = /^\/users\/\d+\/trade\/?$/i.test(location.pathname);
 	if(!onPage){
-		if(document.querySelector('.pg-tw-koroval,.pg-tw-tag,.pg-tw-total-value')){
-			document.querySelectorAll('.pg-tw-koroval,.pg-tw-tag,.pg-tw-total-value').forEach(n=>n.remove());
+		if(document.querySelector('.pg-tw-koroval,.pg-tw-tag,.pg-tw-total-value,.pg-tw-total-value2')){
+			document.querySelectorAll('.pg-tw-koroval,.pg-tw-tag,.pg-tw-total-value,.pg-tw-total-value2').forEach(n=>n.remove());
 			document.querySelectorAll('[class*="offerPanel-"] [class*="totalRow-"] > span[data-pg-tw-renamed]').forEach(sp=>{ sp.textContent='Total Value:'; sp.removeAttribute('data-pg-tw-renamed'); });
 		}
 		pgTwState.myItems=null; pgTwState.theirItems=null; pgTwState.partnerId=null; pgTwState.loading=false;
@@ -301,7 +329,7 @@ const applyTradeWindowStats = () => {
 		const panelIsMine=panelTitle?panelTitle.indexOf('offer')>=0:i===0;
 		const idx=pgTwIndex(panelIsMine?pgTwState.myItems:pgTwState.theirItems);
 		const slots=panel.querySelectorAll('[class*="slotFilled-"]');
-		let rapSum=0, valSum=0, valKnown=0, total=0;
+		let rapSum=0, valSum=0, valKnown=0, total=0, rapOfValued2=0;
 		slots.forEach(slot=>{
 			const nameEl=slot.querySelector('[class*="slotName-"]'); if(!nameEl) return;
 			const name=nameEl.textContent.trim();
@@ -311,7 +339,7 @@ const applyTradeWindowStats = () => {
 			const thumbWrap=slot.querySelector('[class*="slotImageWrap-"]');
 			const res=pgTwDecorate(thumbWrap,valEl||nameEl,it,'child',nameEl);
 			total++; rapSum+=rap;
-			if(res.val>0){ valSum+=res.val; valKnown++; }
+			if(res.val>0){ valSum+=res.val; valKnown++; rapOfValued2+=rap; }
 		});
 		const totalRow=panel.querySelector('[class*="totalRow-"]');
 		if(totalRow){
@@ -334,10 +362,23 @@ const applyTradeWindowStats = () => {
 				vt.style.cssText='display:flex;justify-content:space-between;align-items:center;gap:16px;margin-top:6px;font-size:16px;font-weight:500;color:var(--text-color-primary,inherit);';
 				totalRow.parentNode.insertBefore(vt, totalRow.nextSibling);
 			}
+			const rapUnvalued2=rapSum-rapOfValued2;
+			const mixedTotal2=valSum+rapUnvalued2;
 			const valTxt=valKnown>0?valSum.toLocaleString():(total>0?'\u2014':'0');
+			const mixTxt=valKnown>0?mixedTotal2.toLocaleString():rapSum.toLocaleString();
 			if(vt.getAttribute('data-pg-val')!==valTxt){
 				vt.setAttribute('data-pg-val', valTxt);
-				vt.innerHTML='<span>Total Value:</span><span style="display:inline-flex;align-items:center;gap:6px;font-weight:700;color:#0084dd !important;">'+PG_KOROMONS_SVG+'<span style="color:#0084dd !important;">'+valTxt+'</span></span>';
+				vt.innerHTML='<span>Koro Value:</span><span style="display:inline-flex;align-items:center;gap:6px;font-weight:700;color:#0084dd !important;">'+PG_KOROMONS_SVG+'<span style="color:#0084dd !important;">'+valTxt+'</span></span>';
+			}
+			let vt2=panel.querySelector('.pg-tw-total-value2');
+			if(!vt2){
+				vt2=document.createElement('div'); vt2.className='pg-tw-total-value2';
+				vt2.style.cssText='display:flex;justify-content:space-between;align-items:center;gap:16px;margin-top:4px;font-size:16px;font-weight:500;';
+				vt.parentNode.insertBefore(vt2, vt.nextSibling);
+			}
+			if(vt2.getAttribute('data-pg-mix')!==mixTxt){
+				vt2.setAttribute('data-pg-mix', mixTxt);
+				vt2.innerHTML='<span>With RAP:</span><span style="display:inline-flex;align-items:center;gap:6px;font-weight:700;color:rgb(32,215,66) !important;"><span style="color:rgb(32,215,66) !important;">'+mixTxt+'</span></span>';
 			}
 		}
 	});
@@ -536,7 +577,30 @@ const applyTradeWindowStats = () => {
 	const clearBadges = () => document.querySelectorAll('.pcs-value,.pcs-rap').forEach(e => e.remove());
 	const primeFromUrl = () => { if(cfg.tradeValues) loadKoromonsValues().then(annotateThumbs); };
 
-const applyPageModules = () => { applyKoromonsProfileBlock(); applyModernTradeStats(); applyTradeWindowStats(); };
+const applyCatalogKoromonsLink = () => {
+	const m=location.pathname.match(/\/catalog\/(\d+)(?:\/|$)/i);
+	if(!m){ const el=document.querySelector('.pg-cat-koro-link'); if(el) el.remove(); return; }
+	const aid=m[1];
+	if(!koromonsValuesLoaded){ loadKoromonsValues().then(()=>{ try{ applyCatalogKoromonsLink(); }catch(_){} }); return; }
+	if(!koromonsValueCache.has(String(aid))){ const el=document.querySelector('.pg-cat-koro-link'); if(el) el.remove(); return; }
+	let link=document.querySelector('.pg-cat-koro-link');
+	if(link&&link.getAttribute('data-aid')===aid) return;
+	if(link) link.remove();
+	const anchor=document.querySelector('[class*="desktopInteractionContainer"],[class*="favBtnContainer-"],[class*="itemInteractionContainer-"]');
+	if(!anchor) return;
+	link=document.createElement('a');
+	link.className='pg-cat-koro-link';
+	link.setAttribute('data-aid',aid);
+	link.href='https://www.koromons.net/item?id='+aid;
+	link.target='_blank';
+	link.rel='noopener noreferrer';
+	link.style.cssText='display:inline-flex;align-items:center;gap:6px;margin-top:10px;padding:8px 14px;border-radius:6px;background:rgba(0,132,221,0.12);border:1px solid rgba(0,132,221,0.4);color:#0084dd !important;font-size:14px;font-weight:700;text-decoration:none;cursor:pointer;white-space:nowrap;';
+	link.innerHTML=PG_KOROMONS_SVG+'<span style="color:#0084dd !important;">View on Koromon2019s</span>';
+	link.onmouseenter=()=>{ link.style.background='rgba(0,132,221,0.22)'; };
+	link.onmouseleave=()=>{ link.style.background='rgba(0,132,221,0.12)'; };
+	anchor.parentNode.insertBefore(link,anchor.nextSibling);
+};
+const applyPageModules = () => { applyKoromonsProfileBlock(); applyModernTradeStats(); applyTradeWindowStats(); applyCatalogKoromonsLink(); };
 const init = () => {
 	applyPageModules();
 	primeFromUrl();
