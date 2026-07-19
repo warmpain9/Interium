@@ -170,6 +170,9 @@
         miscProfileNameColor1:      '#5100e8',
         miscProfileNameColor2:      '#f238f8',
         miscFriendsFrameTransparent:false,
+        miscFriendRequestMerge:     true,
+        miscMessagesGlassify:       true,
+        miscInventoryGlassify:      true,
         miscAvatarFrameTransparent: false,
         miscAvatarBlurDropdown:     false,
         miscHomeFramesTransparent:  false,
@@ -321,7 +324,7 @@
         applyGuiFont(cfg.miscGuiFont || 'Share Tech Mono');
     };
 
-    // ── Unified glass recipe ────────────���������������������────────────���────────────────
+    // ── Unified glass recipe ────────────���������������������──────���─────���────────────────
     // Every blur / glassify surface (navbar, sidebar, cards, frames,
     // dropdowns, chips) uses these EXACT values so the glass effect looks
     // identical everywhere. Tweak here to retune all glass at once.
@@ -508,12 +511,22 @@
     // so CSS guessing failed twice. Find it deterministically in the live DOM:
     // the element right above each manageRequestCard- strip (its previous
     // sibling, or the sibling of its friendCardWrapper-). Give it sharp BOTTOM
-    // corners + zero seam gap via inline !important styles. Always on.
+    // corners + zero seam gap via inline !important styles. GUI-gated:
+    // "Merge friend request cards" (miscFriendRequestMerge); toggle-off
+    // path removes exactly the inline props the merge sets.
     const applyRequestCardMergeDirect = () => {
+        const on = !!cfg.miscFriendRequestMerge;
         document.querySelectorAll('[class*="manageRequestCard-"]').forEach(mc => {
             const wrap = mc.closest('[class*="friendCardWrapper-"]');
             const top = mc.previousElementSibling || (wrap ? wrap.previousElementSibling : null);
             if (!(top instanceof HTMLElement)) return;
+            if (!on) {
+                /* Toggle off: undo exactly the inline props the merge sets. */
+                ['border-radius','border-bottom','margin-bottom','box-shadow'].forEach(p => top.style.removeProperty(p));
+                mc.style.removeProperty('margin-top');
+                if (wrap) { wrap.style.removeProperty('margin-top'); wrap.style.removeProperty('padding-top'); }
+                return;
+            }
             const set = (el, p, v) => el.style.setProperty(p, v, 'important');
             set(top, 'border-radius', '10px 10px 0 0');
             set(top, 'border-bottom', 'none');
@@ -669,11 +682,21 @@
                 [class*="popover"] {
                     z-index: 2000 !important;
                 }
-                /* About / Creations tab bar -> ONE merged glass bar: rounded TOP
-                   corners only, sharp bottom so the accent underline sits flush */
-                [class*="buttonCol"]{${GLASS_CSS}border-radius:12px 12px 0 0!important;border-bottom:none!important;overflow:hidden!important;gap:0!important;}
+                /* About / Creations tab bar -> ONE merged glass bar: FULLY rounded
+                   (14px, matches the unified tab-bar block); overflow:hidden clips
+                   the accent underline inside the rounded corners */
+                [class*="buttonCol"]{${GLASS_CSS}border-radius:14px!important;border-bottom:none!important;overflow:hidden!important;gap:0!important;}
                 [class*="buttonCol"] [class*="vTab-"]{background:transparent!important;background-color:transparent!important;border:none!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;border-radius:0!important;margin:0!important;}
                 [class*="buttonCol"] [class*="vTabLabel"],[class*="buttonCol"] [class*="vTabUnselected"]{background:transparent!important;background-color:transparent!important;}
+                /* Favorite Games cards on the profile page — same flat glass as
+                   the game page recommended cards; nested inside .card so no
+                   stacked blur (flat rgba bg + border, no backdrop-filter) */
+                [class*="gameCardContainer"]{background:rgba(255,255,255,0.045)!important;border:1px solid rgba(255,255,255,0.12)!important;border-radius:14px!important;box-shadow:none!important;overflow:hidden!important;transition:border-color 0.15s ease,transform 0.14s ease!important;}
+                [class*="gameCardContainer"]:hover{border-color:${t.accent}88!important;transform:translateY(-2px)!important;}
+                [class*="gameCardThumbContainer"],[class*="gameCardThumbContainer"] img{border-radius:14px 14px 0 0!important;background:transparent!important;}
+                [class*="gameCardTitle"]{color:#fff!important;}
+                [class*="gameCardPlaying"]{color:#9aa0c0!important;}
+                [class*="gameCardFooterContainer"]{background:rgba(20,22,34,0.92)!important;border-radius:0 0 14px 14px!important;}
             `;
         } else {
             document.getElementById('pks-profile-glass-style')?.remove();
@@ -690,12 +713,15 @@
            .col > p.entry-0-2-*; request cards are friendCardWrapper-* >
            friendCard-* (avatar/name) + manageRequestCard-* (white strip with
            p.buttonShared- Ignore/Accept). Always-on restyle: */
-        /* 1. Tab bar: sharp BOTTOM corners (matches the profile tab bar). */
+        /* 1. Tab bar: FULLY rounded (14px, matches the unified tab-bar block);
+           overflow:hidden clips the accent underline inside the corners. */
         /* Page-gated: card-0-2-/row-0-2-/entry-0-2- are generic JSS names. */
         if (isFriendsPage()) {
-        css += `[class*="card-0-2-"]:has(> [class*="row-0-2-"] > .col > [class*="entry-0-2-"]){border-radius:12px 12px 0 0!important;}`;
+        css += `[class*="card-0-2-"]:has(> [class*="row-0-2-"] > .col > [class*="entry-0-2-"]){border-radius:14px!important;overflow:hidden!important;}`;
         /* 2. Merge avatar card + buttons strip into ONE glass card: rounded
-           outer corners, no borders/shadow at the seam (profile lesson). */
+           outer corners, no borders/shadow at the seam (profile lesson).
+           GUI-gated: "Merge friend request cards" (miscFriendRequestMerge). */
+        if (cfg.miscFriendRequestMerge) {
         /* The avatar/name card's class is unknown - target it structurally:
            the direct child of the wrapper that sits right BEFORE the buttons
            strip. Zero out the vertical gap and both seam borders/shadows. */
@@ -706,6 +732,7 @@
         css += `[class*="manageRequestCard-"] [class*="ignoreButton-"]:hover{border-color:${t.accent}77!important;}`;
         css += `[class*="manageRequestCard-"] [class*="acceptButton-"]{background:linear-gradient(135deg,${t.accent},${darkenHex(t.accent,0.6)})!important;border:none!important;color:#050508!important;margin-left:4px!important;}`;
         css += `[class*="manageRequestCard-"] [class*="acceptButton-"]:hover{filter:brightness(1.12)!important;}`;
+        }
         }
         applyFriendsTransparencyDirect();
         applyRequestCardMergeDirect();
@@ -735,8 +762,21 @@
             const GLASS = `${GLASS_CSS}border-radius:16px!important;`;
             css += `
                 /* every major frame → glass */
-                [class*="callsToAction"],[class*="recommendedGamesContainer"],[class*="serverContainer"],[class*="subSectionContainer"],[class*="gameDescription"],[class*="contentContainer"]{${GLASS}padding:16px!important;}
-                [class*="callsToAction"]{padding:14px!important;}
+                [class*="recommendedGamesContainer"],[class*="serverContainer"],[class*="subSectionContainer"],[class*="gameDescription"],[class*="contentContainer"]:not([class*="badgeContentContainer"]){${GLASS}padding:16px!important;}
+                /* hero → ONE unified glass frame: div.background wraps BOTH thumbContainer
+                   (the game preview carousel) and callsToAction (name / creator / play / votes),
+                   so the frame sits on the wrapper; callsToAction stays paint-free (stacking rule).
+                   Native children are floats with hard-coded widths (640px / calc(100% - 640px)),
+                   and the wrapper itself has a hard-coded height:384px (sized for the native
+                   12px padding + 360px carousel) — with our 16px padding that fixed height
+                   squeezes the image against the bottom edge (big gap on top, none below).
+                   Rebuild it as a symmetric flex row with height:auto: even 16px padding all around. */
+                [class*="gameContainer"] [class*="background-"]{${GLASS}padding:16px!important;height:auto!important;min-height:0!important;display:flex!important;align-items:stretch!important;flex-wrap:wrap!important;gap:18px!important;}
+                [class*="gameContainer"] [class*="background-"]>[class*="thumbContainer"]{float:none!important;flex:0 1 640px!important;min-width:0!important;display:flex!important;align-items:center!important;justify-content:center!important;}
+                [class*="carouselGameDetails"]{max-width:100%!important;}
+                [class*="gameContainer"] [class*="background-"]>[class*="callsToAction"]{float:none!important;flex:1 1 240px!important;width:auto!important;min-width:0!important;height:auto!important;padding:0!important;}
+                [class*="callsToAction"]{background:transparent!important;border:none!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;}
+                [class*="serverContainer"] [class*="callsToAction"]{border-right:1px solid rgba(255,255,255,0.12)!important;}
                 [class*="carouselGameDetails"],[class*="thumbContainer"],[class*="innerCarousel"],[class*="carouselItem"]{border-radius:16px!important;overflow:hidden!important;}
                 [class*="gameName"],[class*="containerHeader"] h3{color:#fff!important;}
                 [class*="creatorName"]{color:${t.accent}!important;}
@@ -749,32 +789,274 @@
                 [class*="gameStatLabel"]{color:#9aa0c0!important;}
                 [class*="gameStatStat"]{color:#fff!important;font-weight:700!important;}
                 [class*="reportAbuseContainer"] a,[class*="abuseLink"]{color:${t.accent}!important;}
-                /* comments → glass */
-                [class*="commentContainer"]{${GLASS_CSS}border-radius:12px!important;padding:10px!important;margin-bottom:8px!important;}
-                [class*="createCommentContainer"],[class*="commentBox"]{${GLASS_CSS}border-radius:12px!important;}
-                [class*="commentBox"] input,[class*="createCommentContainer"] input{background:transparent!important;color:#fff!important;border:none!important;}
+                /* about/store/servers tabs → styled by the unified tab-bar block below */
+                /* comments → glass cards */
+                [class*="commentContainer"]{${GLASS_CSS}border-radius:14px!important;padding:12px 14px!important;margin-bottom:10px!important;}
+                [class*="commentEntryDiv"]{background:transparent!important;border:none!important;box-shadow:none!important;height:auto!important;}
+                [class*="commentText"]{color:#e8ebf7!important;}
+                [class*="commentCreatedAt"]{color:#8b93b8!important;}
+                [class*="noCommentFound"]{color:#9aa0c0!important;}
+                /* comment composer → one glass row: input grows, button sits right,
+                   character counter drops to its own full-width line below */
+                [class*="createCommentContainer"]{${GLASS_CSS}border-radius:14px!important;padding:16px!important;margin-bottom:12px!important;display:flex!important;flex-wrap:wrap!important;align-items:center!important;}
+                [class*="createCommentContainer"] [class*="commentBox"]{flex:1 1 auto!important;width:auto!important;background:transparent!important;border:none!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;}
+                [class*="createCommentContainer"] [class*="btnDiv"]{flex:0 0 auto!important;margin:0 0 0 12px!important;}
+                [class*="createCommentContainer"] input{background:rgba(255,255,255,0.06)!important;border:1px solid rgba(255,255,255,0.14)!important;border-radius:12px!important;color:#fff!important;height:44px!important;padding:5px 14px!important;}
+                [class*="createCommentContainer"] input:focus{border-color:${t.accent}!important;background:rgba(255,255,255,0.09)!important;outline:none!important;}
+                [class*="createCommentContainer"] input::placeholder{color:rgba(255,255,255,0.42)!important;}
+                [class*="createCommentContainer"] [class*="continueButton"]{height:44px!important;padding:8px 16px!important;border-radius:12px!important;border:none!important;background:linear-gradient(135deg,${t.accent},${accentDark})!important;color:#fff!important;font-weight:700!important;box-shadow:0 6px 20px ${t.accent}44!important;cursor:pointer!important;transition:transform 0.15s ease,box-shadow 0.15s ease,filter 0.15s ease!important;}
+                [class*="createCommentContainer"] [class*="continueButton"]:hover{transform:translateY(-1px)!important;filter:brightness(1.08)!important;box-shadow:0 8px 24px ${t.accent}77!important;}
+                [class*="createCommentContainer"] [class*="continueButton"]:disabled{opacity:0.55!important;}
+                [class*="createCommentContainer"] [class*="commentMsg"]{flex:0 0 100%!important;position:static!important;width:100%!important;min-height:0!important;margin:10px 0 0!important;text-align:right!important;font-size:12px!important;display:block!important;}
+                [class*="characterCount"]{position:static!important;display:inline-block!important;color:#8b93b8!important;font-size:12px!important;}
+                /* badges → flat translucent cards (inside glassed panels — stacking rule) */
+                [class*="descriptionHeaderContainer"] h3{color:#fff!important;}
+                [class*="badgeList"]{gap:10px!important;}
+                [class*="badgeContainer"]{background:rgba(255,255,255,0.045)!important;border:1px solid rgba(255,255,255,0.10)!important;border-radius:14px!important;padding:14px!important;transition:border-color 0.15s ease,transform 0.12s ease!important;}
+                [class*="badgeContainer"]:hover{border-color:${t.accent}66!important;transform:translateY(-1px)!important;}
+                [class*="badgeContentContainer"]{background:transparent!important;border:none!important;box-shadow:none!important;padding:0 12px!important;}
+                [class*="badgeImageContainer"] img{filter:drop-shadow(0 4px 10px rgba(0,0,0,0.35))!important;}
+                [class*="badgeDetailsContainer"] a{color:${t.accent}!important;}
+                [class*="badgeStatField"]{color:#9aa0c0!important;}
+                [class*="badgeStatValue"]{color:#fff!important;font-weight:700!important;}
+                [class*="seeMoreButton"],[class*="loadMoreBtn"]{background:rgba(255,255,255,0.05)!important;border:1px solid rgba(255,255,255,0.12)!important;border-radius:12px!important;color:#fff!important;font-weight:600!important;cursor:pointer!important;transition:background 0.15s ease,border-color 0.15s ease!important;}
+                [class*="seeMoreButton"]:hover,[class*="loadMoreBtn"]:hover{background:rgba(255,255,255,0.10)!important;border-color:${t.accent}99!important;}
+                [class*="loadMore"]{color:${t.accent}!important;font-weight:600!important;}
+                /* recommended games → hover cards. Real component (2901 shared chunk):
+                   gameCardContainer paints the native card (var(--white-color) + grey shadow,
+                   3px radius). Flat translucent inside the glassed panel (stacking rule).
+                   SCOPED under recommendedGamesContainer: this glassify block is gated to
+                   /games as a whole, so unscoped gameCard* rules also hit the /games
+                   LISTING and (winning the cascade by document order) turned its cards
+                   back into a bare 4.5% white film -- the listing is owned by the unified
+                   "Modern game cards" setting (applyCardStyle) instead. */
+                [class*="recommendedGamesContainer"] [class*="gameCardsContainer"]{gap:10px!important;}
+                [class*="recommendedGamesContainer"] [class*="gameCardContainer"]{background:rgba(255,255,255,0.045)!important;border:1px solid rgba(255,255,255,0.10)!important;border-radius:14px!important;overflow:hidden!important;box-shadow:none!important;transition:border-color 0.15s ease,transform 0.14s ease,box-shadow 0.15s ease!important;}
+                [class*="recommendedGamesContainer"] [class*="gameCardContainer"]:hover{border-color:${t.accent}88!important;transform:translateY(-2px)!important;box-shadow:0 10px 26px rgba(0,0,0,0.35)!important;}
+                [class*="recommendedGamesContainer"] [class*="gameCardThumbContainer"],[class*="recommendedGamesContainer"] [class*="gameCardThumbContainer"] img{border-radius:14px 14px 0 0!important;}
+                [class*="recommendedGamesContainer"] [class*="gameCardTitle"]{color:#fff!important;}
+                [class*="recommendedGamesContainer"] [class*="gameCardPlaying"]{color:#9aa0c0!important;}
+                [class*="recommendedGamesContainer"] [class*="gameCardFooterContainer"]{background:rgba(20,22,34,0.92)!important;box-shadow:0 10px 26px rgba(0,0,0,0.45)!important;border-radius:0 0 14px 14px!important;}
+                [class*="recommendedGamesContainer"] [class*="gameCardFooter-"]{border-top:1px solid rgba(255,255,255,0.12)!important;}
+                /* recommended games → ONE scrollable row instead of wrapping. Native layout is
+                   ul > li.listItem (width:16.66%, float:left), which wraps to extra rows. Scoped
+                   to the recommended panel so other card grids keep their native layout. The
+                   hover footer strip is hidden here: a horizontal scroll container clips
+                   anything hanging below the cards, so it would render cut in half. */
+                [class*="recommendedGamesContainer"] [class*="gameCardsContainer"]{display:flex!important;flex-wrap:nowrap!important;overflow-x:auto!important;padding:6px 2px 12px!important;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.22) transparent;}
+                [class*="recommendedGamesContainer"] [class*="gameCardsContainer"]>li{float:none!important;flex:0 0 auto!important;width:16.6667%!important;min-width:150px!important;margin-bottom:0!important;}
+                [class*="recommendedGamesContainer"] [class*="gameCardsContainer"]::-webkit-scrollbar{height:8px;}
+                [class*="recommendedGamesContainer"] [class*="gameCardsContainer"]::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.18);border-radius:8px;}
+                [class*="recommendedGamesContainer"] [class*="gameCardsContainer"]::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.32);}
+                [class*="recommendedGamesContainer"] [class*="gameCardsContainer"]::-webkit-scrollbar-track{background:transparent;}
+                [class*="recommendedGamesContainer"] [class*="gameCardFooterContainer"]{display:none!important;}
+                /* store tab game passes → cards. Flat translucent (NO backdrop-filter): they sit
+                   inside the already-glassed tabPane panel (stacking rule). Native passCard is a
+                   white 3px-radius box with a hard caption divider and grey Buy buttons. */
+                [class*="passCard"]{background:rgba(255,255,255,0.045)!important;border:1px solid rgba(255,255,255,0.10)!important;border-radius:14px!important;overflow:hidden!important;transition:border-color 0.15s ease,transform 0.12s ease!important;}
+                [class*="passCard"]:hover{border-color:${t.accent}66!important;transform:translateY(-1px)!important;}
+                [class*="passPicture"] img{border-radius:14px 14px 0 0!important;}
+                [class*="passCaption"]{border-top:1px solid rgba(255,255,255,0.12)!important;padding:4px 10px 10px!important;}
+                [class*="passName"]{color:#fff!important;}
+                [class*="passCard"] [class*="buyBtn"]{background:rgba(255,255,255,0.05)!important;border:1px solid rgba(255,255,255,0.14)!important;border-radius:10px!important;color:#fff!important;transition:background 0.15s ease,border-color 0.15s ease,color 0.15s ease!important;}
+                [class*="passCard"] [class*="buyBtn"]:hover{background:#3fc679!important;border-color:#3fc679!important;color:#fff!important;}
+                /* ...but the LIVE game page renders passes with a different component:
+                   gPassWrapper > "section-content hoverShadow" gPassContainer > gPassImg +
+                   gPassDetails (hard #b8b8b8 divider, gPassName / price / gPassBuyButton).
+                   section-content paints the native white card — override it here. */
+                [class*="gPassContainer"]{background:rgba(255,255,255,0.045)!important;border:1px solid rgba(255,255,255,0.10)!important;border-radius:14px!important;overflow:hidden!important;box-shadow:none!important;transition:border-color 0.15s ease,transform 0.12s ease!important;}
+                [class*="gPassContainer"]:hover{border-color:${t.accent}66!important;transform:translateY(-1px)!important;box-shadow:none!important;}
+                [class*="gPassImg"]{border-radius:14px 14px 0 0!important;}
+                [class*="gPassDetails"]{border-top:1px solid rgba(255,255,255,0.12)!important;padding:4px 10px 10px!important;background:transparent!important;}
+                [class*="gPassName"]{color:#fff!important;}
+                [class*="gPassBuyButton"]{background:rgba(255,255,255,0.05)!important;border:1px solid rgba(255,255,255,0.14)!important;border-radius:10px!important;color:#fff!important;transition:background 0.15s ease,border-color 0.15s ease,color 0.15s ease!important;}
+                [class*="gPassBuyButton"]:hover{background:#3fc679!important;border-color:#3fc679!important;color:#fff!important;}
+                [class*="gPassOwnedButton"]{color:#9aa0c0!important;}
+                /* creator's "Add Pass" tile */
+                [class*="addPassText"]{color:#c8cde0!important;}
+                [class*="addPassIcon"]{filter:invert(1) opacity(0.75)!important;}
+                /* recommended games and comments both live in a row.recommendedGamesContainer
+                   glass panel back-to-back — add breathing room so they read as separate blocks */
+                [class*="recommendedGamesContainer"]{margin-bottom:18px!important;}
                 /* modern, sleek buttons */
                 [class*="actionButtonsContainer"]{gap:8px!important;}
                 [class*="playButtonContainer"] button,[class*="buttonWrapper"] button{background:linear-gradient(135deg,${t.accent},${accentDark})!important;border:none!important;border-radius:14px!important;box-shadow:0 6px 22px ${t.accent}55!important;transition:transform 0.16s ease,box-shadow 0.16s ease,filter 0.16s ease!important;}
                 [class*="playButtonContainer"] button:hover,[class*="buttonWrapper"] button:hover{transform:translateY(-2px) scale(1.02)!important;filter:brightness(1.08)!important;box-shadow:0 12px 30px ${t.accent}88!important;}
                 [class*="playButtonContainer"] button [class*="iconPlay"]{filter:drop-shadow(0 1px 2px rgba(0,0,0,0.4))!important;}
-                [class*="favoriteButton"],[class*="followButton"]{display:flex!important;align-items:center!important;justify-content:center!important;gap:6px!important;${GLASS_CSS}border-radius:14px!important;padding:8px 14px!important;transition:background 0.15s ease,border-color 0.15s ease,transform 0.15s ease!important;}
-                [class*="favoriteButton"]:hover,[class*="followButton"]:hover{background:rgba(255,255,255,0.11)!important;border-color:${t.accent}99!important;transform:translateY(-1px)!important;}
-                [class*="favoriteLabel"],[class*="followLabel"]{color:#fff!important;font-weight:600!important;}
+
             `;
+            // /games LISTING cards are owned by the unified "Modern game
+            // cards" setting (miscModernGameCards in applyCardStyle), shared
+            // with the home page. The flat translucent card rules above only
+            // matter on the game DETAIL page (nested inside glassed panels).
         }
         // Only strip native frames when a feature that draws its own (glass / hero backdrop) is enabled.
-        if (cfg.miscGamesGlassify || cfg.miscGamesHeroBackdrop) css += `[class*="gameContainer"] [class*="background-"],[class*="gameContainer"] [class*="thumbContainer"],[class*="gameContainer"] [class*="carouselGameDetails"],[class*="gameContainer"] [class*="descriptionContainer"]{background:transparent!important;background-color:transparent!important;border:none!important;box-shadow:none!important;}`;
+        // Inner hosts (thumb, carousel, description) are always cleared; the background- hero
+        // wrapper is cleared ONLY when it does not itself carry the unified hero glass above
+        // (i.e. glassify off or not on a /games/<id> page).
+        if (cfg.miscGamesGlassify || cfg.miscGamesHeroBackdrop) css += `[class*="gameContainer"] [class*="thumbContainer"],[class*="gameContainer"] [class*="carouselGameDetails"],[class*="gameContainer"] [class*="descriptionContainer"]{background:transparent!important;background-color:transparent!important;border:none!important;box-shadow:none!important;}`;
+        if ((cfg.miscGamesGlassify || cfg.miscGamesHeroBackdrop) && !(cfg.miscGamesGlassify && onGamesPage)) css += `[class*="gameContainer"] [class*="background-"]{background:transparent!important;background-color:transparent!important;border:none!important;box-shadow:none!important;}`;
         if (cfg.miscGamesHideRecommended && onGamesPage) css += `[class*="recommendedGamesContainer"]{display:none!important;}`;
         if (cfg.miscGamesHideComments && onGamesPage) css += `[class*="commentsContainer"]{display:none!important;}[class*="containerHeader"]:has(+[class*="commentsContainer"]){display:none!important;}`;
+        // ── Tab bars: unified glass (REWRITTEN) ──
+        // There are TWO different native tab components, not one:
+        //  1) vTab component — game page (About/Store/Servers, wrapped in
+        //     horizontalTabs) and profile page (About/Creations, no wrapper):
+        //     div[buttonCol-] > div[vTab-] > p[vTabLabel-]; unselected labels also
+        //     carry vTabUnselected- with a native paddingTop:7px that misaligns the
+        //     text, and the selected tab hides a white btnBottomSeperator strip that
+        //     hangs BELOW the bar (height:5px;margin-bottom:-5px) — display:none it.
+        //  2) friends page (/users/<id>/friends) — a DIFFERENT component entirely:
+        //     div[card-] > div[row-] > .col > p[entry-] (+entryActive-); its native
+        //     underline is an inset box-shadow 0 -4px var(--primary-color).
+        // Both are rebuilt as ONE glass bar: equal flex columns, uniform padding,
+        // accent underline on the active tab, soft hover highlight. Page-gated
+        // because the same generic class names are reused elsewhere (Groups,
+        // Messages keep their native tabs; the avatar page strip styles buttonCol-
+        // itself, but that block is gated to the avatar page).
+        // The underline is an INSET PILL (::after with rounded ends, pulled in from
+        // the sides and lifted off the bottom) so it can never poke past the bar's
+        // rounded glass corners like a full-width inset box-shadow would.
+        const onProfileTabsPage = /\/users\/\d+\/profile/i.test(location.pathname);
+        const onFriendsTabsPage = /\/users\/\d+\/friends/i.test(location.pathname) || /^\/my\/friends/i.test(location.pathname);
+        if (cfg.miscGamesGlassify && (onGamesPage || onProfileTabsPage)) {
+            const t = getTheme();
+            css += `
+                [class*="buttonCol-"]{${GLASS_CSS}border-radius:14px!important;overflow:hidden!important;display:flex!important;align-items:stretch!important;padding:0!important;border-bottom:none!important;}
+                [class*="buttonCol-"] [class*="vTab-"]{flex:1 1 0!important;display:block!important;margin:0!important;border:none!important;background:transparent!important;min-width:0!important;}
+                /* underline: 1:1 the game-page look — full-width inset box-shadow flush
+                   with the tab bottom; the bar's border-radius + overflow:hidden clips it
+                   at the rounded corners so it stays inside the glass */
+                [class*="buttonCol-"] [class*="vTabLabel-"]{background:transparent!important;color:#fff!important;margin:0!important;padding:12px 8px!important;text-align:center!important;font-size:16px!important;font-weight:600!important;box-shadow:inset 0 -3px 0 0 ${t.accent}!important;transition:background 0.15s ease,box-shadow 0.15s ease!important;}
+                [class*="buttonCol-"] [class*="vTabUnselected-"]{box-shadow:none!important;cursor:pointer!important;}
+                [class*="buttonCol-"] [class*="vTabUnselected-"]:hover{background:rgba(255,255,255,0.08)!important;box-shadow:inset 0 -3px 0 0 ${t.accent}55!important;}
+                [class*="btnBottomSeperator-"]{display:none!important;}
+                /* count bubble (e.g. pending requests) inside a tab label */
+                [class*="buttonCol-"] [class*="count-"]{background:rgba(255,255,255,0.08)!important;border:1px solid rgba(255,255,255,0.22)!important;color:#fff!important;border-radius:8px!important;}
+            `;
+        }
+        if (cfg.miscGamesGlassify && onFriendsTabsPage) {
+            const t = getTheme();
+            css += `
+                [class*="friendsContainer-"] [class*="card-"]:has([class*="entryActive-"]){${GLASS_CSS}border-radius:14px!important;overflow:hidden!important;}
+                [class*="friendsContainer-"] [class*="card-"]:has([class*="entryActive-"]) [class*="row-"]{padding:0!important;margin:0!important;}
+                /* underline: 1:1 the game-page look (full-width inset box-shadow); the
+                   card's border-radius + overflow:hidden keeps it inside the glass */
+                [class*="friendsContainer-"] p[class*="entry-"]{background:transparent!important;color:#fff!important;margin:0!important;padding:12px 8px!important;font-size:16px!important;font-weight:600!important;text-align:center!important;cursor:pointer!important;box-shadow:none!important;transition:background 0.15s ease,box-shadow 0.15s ease!important;}
+                [class*="friendsContainer-"] p[class*="entry-"]:not([class*="entryActive-"]):hover{background:rgba(255,255,255,0.08)!important;box-shadow:inset 0 -3px 0 0 ${t.accent}55!important;}
+                [class*="friendsContainer-"] p[class*="entryActive-"]{box-shadow:inset 0 -3px 0 0 ${t.accent}!important;}
+            `;
+        }
         el.textContent = css;
         applyGamesHeroBackdrop();
         applyMessagesGlass();
         applyGroupsGlass();
+        applyInventoryGlass();
+    };
+
+    // ── Inventory page (/users/<id>/inventory) glassify ──
+    // JSS names from Next chunk 6236 (Korone dump): itemCard-, serial-,
+    // itemLabel-, creatorLabel-, creatorUrl-, categoryBgDesktop-,
+    // categoryTitle-, categoryValue-, showingLabel-, selectorOption(Selected)-,
+    // selectorClosed-, selectorMenuOpen-, selectOption-. Site defaults paint
+    // OPAQUE var(--white-color) panels with light seams (itemLabel border-top
+    // #f2f2f2) -- broken look on dark theme + custom bg. Page-gated: these
+    // are generic JSS names that could collide elsewhere.
+    const isInventoryPage = () => /^\/users\/\d+\/inventory(\/|$)/i.test(location.pathname);
+    const applyInventoryGlass = () => {
+        let el = document.getElementById('pks-inventory-glass-style');
+        if (!cfg.miscInventoryGlassify || !isInventoryPage()) { el?.remove(); return; }
+        if (!el) { el = document.createElement('style'); el.id = 'pks-inventory-glass-style'; document.head.appendChild(el); }
+        const t = getTheme();
+        // Card surface: same branching as modern game cards. With a custom
+        // background we need the REAL fake-backdrop blur (absolute pseudo
+        // slice + background-attachment:fixed) because backdrop-filter alone
+        // reads as a flat tint; hover lift therefore uses top, never
+        // transform (transform breaks background-attachment:fixed).
+        let cardCss;
+        const invBgUrl = cfg.miscBgUrl?.trim();
+        if (invBgUrl) {
+            const sliceBlur = (cfg.miscBgBlur ? (cfg.miscBgBlurAmount ?? 8) : 0) + 16;
+            const bgDarkOp = cfg.miscBgDarkOverlay ? ((cfg.miscBgDarkOpacity ?? 50) / 100) : 0;
+            const cardVeil = Math.min(0.8, 0.32 + bgDarkOp * 0.55).toFixed(2);
+            el.dataset.invMode = 'custom-slice';
+            cardCss = `
+            [class*="itemCard-"]{position:relative!important;top:0!important;isolation:isolate!important;background:transparent!important;border:1px solid ${GLASS_BORDER_COLOR}!important;box-shadow:${GLASS_SHADOW}!important;border-radius:12px!important;padding:8px!important;overflow:hidden!important;transition:border-color 0.22s,box-shadow 0.22s,top 0.18s!important;}
+            [class*="itemCard-"]::before{content:'';position:absolute;inset:-${sliceBlur * 2}px;z-index:-2;background:url('${invBgUrl.replace(/'/g, "\\'")}') center/cover no-repeat fixed;filter:blur(${sliceBlur}px) saturate(150%);pointer-events:none;}
+            [class*="itemCard-"]::after{content:'';position:absolute;inset:0;z-index:-1;background:rgba(10,11,16,${cardVeil});pointer-events:none;}
+            [class*="itemCard-"]:hover{border-color:${t.cardHoverBorder}!important;box-shadow:${t.cardHoverGlow}!important;top:-3px!important;z-index:2!important;}
+            `;
+        } else {
+            // No custom background: ONE unified glass recipe -- exactly the
+            // same GLASS_CSS surface as the category sidebar / messages /
+            // groups panels. The graphite tint and site-background slice
+            // experiments both read as solid dark tiles, not glass.
+            el.dataset.invMode = 'glass';
+            cardCss = `
+            [class*="itemCard-"]{${GLASS_CSS}position:relative!important;top:0!important;border-radius:12px!important;padding:8px!important;overflow:hidden!important;transition:border-color 0.22s,box-shadow 0.22s,top 0.18s!important;}
+            [class*="itemCard-"]:hover{border-color:${t.cardHoverBorder}!important;box-shadow:${t.cardHoverGlow}!important;top:-3px!important;z-index:2!important;}
+            `;
+        }
+        el.textContent = `
+            /* category sidebar: one glass panel, accent for the active entry.
+               NOTE: the backdrop-filter must live on a ::before pseudo layer,
+               NOT on the panel element itself. Element-level backdrop-filter
+               makes the panel a backdrop root, and the nested SUBCATEGORY
+               flyout (also a categoryBgDesktop) can then only blur the
+               panel's own content -- outside the panel bounds it saw nothing,
+               so the flyout rendered transparent with no blur. Each pseudo
+               needs a stacking context to keep z-index:-1 contained: the
+               outer panel gets one from the z-index:5 lift below, the flyout
+               from its own zIndex:4. */
+            [class*="categoryBgDesktop-"]{background:transparent!important;border:1px solid ${GLASS_BORDER_COLOR}!important;box-shadow:${GLASS_SHADOW}!important;border-radius:14px!important;}
+            [class*="categoryBgDesktop-"]::before{content:'';position:absolute;inset:0;z-index:-1;border-radius:14px;background:${GLASS_BG};backdrop-filter:${GLASS_FILTER};-webkit-backdrop-filter:${GLASS_FILTER};pointer-events:none;}
+            /* GLASS_CSS backdrop-filter turns the sidebar panel into a
+               stacking context, trapping the SUBCATEGORY flyout's own
+               zIndex:4 inside it -- so the later-painted position:relative
+               item cards covered the flyout (Accessories > Hat/Face/...).
+               Lift the whole panel above the cards (hover cards peak at
+               z-index:2). The flyout is ALSO a categoryBgDesktop clone with
+               childSelector (position:absolute), so exclude it from the
+               position:relative override or its placement breaks. */
+            [class*="categoryBgDesktop-"]:not([class*="childSelector-"]){position:relative!important;z-index:5!important;}
+            [class*="categoryTitle-"]{color:#fff!important;}
+            [class*="selectorOption-"]{color:#c9cde0!important;transition:color 0.15s ease!important;}
+            [class*="selectorOption-"]:hover{color:#fff!important;}
+            [class*="selectorOptionSelected-"]{color:${t.accent}!important;border-right-color:${t.accent}!important;}
+            /* header */
+            [class*="categoryValue-"]{color:#fff!important;}
+            [class*="showingLabel-"]{color:#9aa0c0!important;}
+            /* item cards: surface from the branch above (real blur slice
+               with custom bg, glass + graphite tint otherwise) */
+            ${cardCss}
+            /* Equal-height cards (pekora bug: the serial pill and the limited
+               badge shift geometry per card). Layout normalised to padding +
+               square image + fixed 16px badge row + one name line + one
+               creator line; the serial pill is lifted out of the flow. */
+            [class*="itemCard-"] [class*="serial-"]{position:absolute!important;top:8px!important;right:8px!important;float:none!important;margin:0!important;z-index:3!important;}
+            /* Preview framed EXACTLY like the catalog listing cards
+               (cardImage- recipe): faint translucent fill + 10px radius,
+               plus an explicit glass hairline so the frame reads on any
+               background. The site renders the thumb img at its natural
+               ~110px size (stock cards are narrower); force the img to fill
+               the square frame edge-to-edge like catalog previews do. */
+            [class*="itemCard-"] [class*="itemImage-"]{margin:0 0 6px!important;width:100%!important;aspect-ratio:1/1!important;display:flex!important;align-items:center!important;justify-content:center!important;overflow:hidden!important;background-color:rgba(255,255,255,0.035)!important;border:1px solid ${GLASS_BORDER_COLOR}!important;border-radius:10px!important;box-shadow:none!important;}
+            [class*="itemCard-"] [class*="itemImage-"] img{width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;object-fit:contain!important;border:none!important;border-radius:10px!important;background-color:transparent!important;}
+            [class*="itemCard-"] .icon-limited-label,[class*="itemCard-"] .icon-limited-unique-label,[class*="itemCard-"] [class*="fakeLimitedLabel-"]{display:block!important;height:16px!important;margin:2px 0 0!important;}
+            [class*="itemLabel-"]{color:#fff!important;border-top:1px solid rgba(255,255,255,0.1)!important;padding-top:4px!important;}
+            [class*="creatorLabel-"]{color:#9aa0c0!important;margin-bottom:6px!important;}
+            [class*="creatorUrl-"]{color:${t.accent}!important;}
+            [class*="serial-"]{background:rgba(0,0,0,0.68)!important;border:1px solid rgba(255,255,255,0.14)!important;}
+            /* mobile category selector */
+            [class*="selectorClosed-"]{${GLASS_CSS}border-radius:10px!important;color:#fff!important;}
+            [class*="selectorMenuOpen-"]{${GLASS_CSS}background:rgba(15,15,18,0.92)!important;border-radius:10px!important;overflow:hidden!important;}
+            [class*="selectOption-"]{color:#e6e9f5!important;}
+            [class*="selectOption-"]:hover{background:rgba(255,255,255,0.08)!important;box-shadow:inset 3px 0 0 0 ${t.accent}!important;}
+        `;
     };
 
     const applyMessagesGlass = () => {
-        if (!document.querySelector('div[class*="messagesContainer-"]')) {
+        if (!cfg.miscMessagesGlassify || !document.querySelector('div[class*="messagesContainer-"]')) {
             document.getElementById('pks-messages-glass-style')?.remove();
             return;
         }
@@ -796,7 +1078,21 @@
             /* message rows → individual glass cards */
             ${M} [class*="messageRow-"]{${GLASS}display:flex!important;align-items:center!important;gap:12px!important;padding:12px 14px!important;margin-bottom:8px!important;transition:border-color 0.15s ease,transform 0.12s ease,background 0.15s ease!important;}
             ${M} [class*="messageRow-"]:hover{border-color:${t.accent}66!important;transform:translateY(-1px)!important;background:rgba(255,255,255,0.08)!important;}
-            ${M} [class*="userImage-"] img{border-radius:50%!important;border:1px solid rgba(255,255,255,0.15)!important;}
+            /* The stock row is an inline-block layout with hand-tuned offsets
+               (Messages dump JSS: userImage margin-top:-15px + margin-left:18px,
+               markReadWrapper top:20px, userCheckAndImage width:68px,
+               subjectAndContent width:calc(100% - 73px) + vertical-align:super).
+               Under our flex row those offsets make the avatar and the
+               checkbox sag out of line, so neutralise them all and let
+               flexbox do the centring. */
+            ${M} [class*="userCheckAndImage-"]{width:auto!important;margin:0!important;flex:0 0 auto!important;display:flex!important;align-items:center!important;gap:10px!important;}
+            ${M} [class*="markReadWrapper-"]{position:static!important;top:auto!important;width:auto!important;display:flex!important;align-items:center!important;}
+            /* Fixed 48px avatar: the stock 68px userCheckAndImage column was
+               the only thing capping the avatar; with it neutralised the img
+               rendered at its natural (huge) size. */
+            ${M} [class*="userImage-"]{margin:0!important;flex:0 0 auto!important;width:48px!important;height:48px!important;}
+            ${M} [class*="subjectAndContent-"]{width:auto!important;flex:1 1 auto!important;min-width:0!important;vertical-align:baseline!important;}
+            ${M} [class*="userImage-"] img{display:block!important;width:100%!important;height:100%!important;object-fit:cover!important;border-radius:50%!important;border:1px solid rgba(255,255,255,0.15)!important;}
             ${M} [class*="username-"]{color:#fff!important;font-weight:700!important;}
             ${M} [class*="subjectUnread"]{color:${t.accent}!important;font-weight:700!important;}
             ${M} [class*="subject-0-2"]:not([class*="subjectUnread"]){color:#dfe3f0!important;}
@@ -1123,7 +1419,10 @@
                 'bottom-center':'bottom:12px;left:50%;transform:translateX(-50%);','top-center':'top:12px;left:50%;transform:translateX(-50%);',
             };
             const pos = positions[cfg.watermarkPosition] || positions['bottom-left'];
-            wm.style.cssText = `all:initial;position:fixed;${pos}z-index:2147483640;display:flex;align-items:center;gap:0;font-family:var(--pks-font),'Share Tech Mono',monospace;font-weight:600;letter-spacing:0.06em;background:${GLASS_BG};backdrop-filter:${GLASS_FILTER};-webkit-backdrop-filter:${GLASS_FILTER};border:1px solid ${GLASS_BORDER_COLOR};box-shadow:${GLASS_SHADOW};border-radius:6px;padding:${5*scale}px ${12*scale}px;pointer-events:auto;user-select:none;overflow:hidden;opacity:${op};cursor:grab;`;
+            const wmCss = `all:initial;position:fixed;${pos}z-index:2147483640;display:flex;align-items:center;gap:0;font-family:var(--pks-font),'Share Tech Mono',monospace;font-weight:600;letter-spacing:0.06em;background:${GLASS_BG};backdrop-filter:${GLASS_FILTER};-webkit-backdrop-filter:${GLASS_FILTER};border:1px solid ${GLASS_BORDER_COLOR};box-shadow:${GLASS_SHADOW};border-radius:6px;padding:${5*scale}px ${12*scale}px;pointer-events:auto;user-select:none;overflow:hidden;opacity:${op};cursor:grab;`;
+            /* PERF: identical cssText writes still force style recalc at the
+               1 Hz watermark tick -- only write when it actually changed. */
+            if (wm.__pksCss !== wmCss) { wm.__pksCss = wmCss; wm.style.cssText = wmCss; }
         } else {
             wm.style.left = state.watermark.dragX + 'px'; wm.style.top = state.watermark.dragY + 'px';
             wm.style.opacity = String(op); wm.style.padding = `${5*scale}px ${12*scale}px`;
@@ -1148,9 +1447,9 @@
         });
         document.addEventListener('mouseup', () => { isDragging = false; wm.style.cursor = 'grab'; });
         updateWatermark();
-        setInterval(updateWatermark, 1000);
+        setInterval(() => { if (!document.hidden) updateWatermark(); }, 1000); /* PERF: clock catches up on focus */
         measurePing();
-        state.watermark.pingTimer = setInterval(measurePing, 10000);
+        state.watermark.pingTimer = setInterval(() => { if (!document.hidden) measurePing(); }, 10000); /* PERF: no pings from background tabs */
     };
 
     let _fxCanvas = null, _fxCtx = null, _fxRaf = null, _fxParticles = [], _fxCols = [], _fxResize = null, _fxLast = 0;
@@ -1369,7 +1668,62 @@
         const t = getTheme();
         let cssOut = '';
         if (cfg.miscModernGameCards) {
-            cssOut += `[class*="gameCardContainer"]{${GLASS_CSS}border-radius:14px!important;transition:border-color 0.22s,box-shadow 0.22s,transform 0.18s!important;overflow:hidden!important;}[class*="gameCardContainer"]:hover{border-color:${t.cardHoverBorder}!important;box-shadow:${t.cardHoverGlow}!important;transform:translateY(-3px)!important;z-index:2!important;}[class*="gameCardTitle"]{color:#fff!important;}`;
+            // Unified "Modern game cards": the SINGLE owner of game-card
+            // styling on pages where the cards sit directly on the page
+            // background -- the HOME rows and the /games LISTING. Page-gated:
+            // the game DETAIL page (/games/<id>) and profile favorites style
+            // their own nested cards (flat translucent inside glassed panels).
+            // backdrop-filter proved unreliable on these carousel cards, so
+            // when the custom site background (miscBgUrl) is set, the cards
+            // produce a REAL, guaranteed-visible blur without backdrop-filter:
+            // an ::before inside each card carries the SAME image the bg
+            // feature paints on body, with background-attachment:fixed (the
+            // IMAGE is viewport-aligned, matching the real background pixel-
+            // for-pixel) plus filter:blur. The pseudo itself is position:
+            // ABSOLUTE -- never fixed: overflow:hidden does NOT clip
+            // position:fixed descendants (they escape ancestor clipping
+            // unless the ancestor is their containing block), which painted
+            // full-viewport blur over the whole page. Absolute pseudos are
+            // clipped by the card's overflow:hidden normally. The pseudo is
+            // oversized (negative inset) so the blur's transparent edge fade
+            // is cropped away. isolation:isolate keeps the negative-z pseudos
+            // inside the card (never lift card CHILDREN with position/
+            // z-index -- see the avatar-bg lesson). NOTE: no transform on the
+            // card in this variant: transform breaks background-attachment:
+            // fixed (it degrades to scroll) and would misalign the slice. The
+            // hover lift is done with a relative top offset instead -- it
+            // moves the box without creating a containing block, so the
+            // viewport-anchored slice stays put (exactly how real glass
+            // behaves when the card moves).
+            const onModernCardsPage = isHomePage() || (/^\/games(\/|$)/i.test(location.pathname) && !isGamePage());
+            if (onModernCardsPage) {
+                const cardBgUrl = cfg.miscBgUrl?.trim();
+                if (cardBgUrl) {
+                    const sliceBlur = (cfg.miscBgBlur ? (cfg.miscBgBlurAmount ?? 8) : 0) + 16;
+                    const bgDarkOp = cfg.miscBgDarkOverlay ? ((cfg.miscBgDarkOpacity ?? 50) / 100) : 0;
+                    const cardVeil = Math.min(0.8, 0.32 + bgDarkOp * 0.55).toFixed(2);
+                    cssOut += `
+                [class*="gameCardContainer"]{position:relative!important;top:0!important;isolation:isolate!important;background:transparent!important;border:1px solid ${GLASS_BORDER_COLOR}!important;box-shadow:${GLASS_SHADOW}!important;border-radius:14px!important;overflow:hidden!important;transition:border-color 0.22s,box-shadow 0.22s,top 0.18s!important;}
+                [class*="gameCardContainer"]::before{content:'';position:absolute;inset:-${sliceBlur * 2}px;z-index:-2;background:url('${cardBgUrl.replace(/'/g, "\\'")}') center/cover no-repeat fixed;filter:blur(${sliceBlur}px) saturate(150%);pointer-events:none;}
+                [class*="gameCardContainer"]::after{content:'';position:absolute;inset:0;z-index:-1;background:rgba(10,11,16,${cardVeil});pointer-events:none;}
+                [class*="gameCardContainer"]:hover{border-color:${t.cardHoverBorder}!important;box-shadow:${t.cardHoverGlow}!important;top:-3px!important;z-index:2!important;}
+                    `;
+                } else {
+                    // No custom background set: glass + self-sufficient
+                    // graphite tint (backdrop-filter stays as progressive
+                    // enhancement over the native site theme).
+                    cssOut += `
+                [class*="gameCardContainer"]{${GLASS_CSS}background:rgba(20,20,22,0.55)!important;border-radius:14px!important;transition:border-color 0.22s,box-shadow 0.22s,transform 0.18s!important;overflow:hidden!important;}
+                [class*="gameCardContainer"]:hover{border-color:${t.cardHoverBorder}!important;box-shadow:${t.cardHoverGlow}!important;transform:translateY(-3px)!important;z-index:2!important;}
+                    `;
+                }
+                cssOut += `
+                [class*="gameCardTitle"]{color:#fff!important;}
+                [class*="gameCardPlaying"]{color:#9aa0c0!important;}
+                [class*="gameCardThumbContainer"],[class*="gameCardThumbContainer"] img{border-radius:14px 14px 0 0!important;}
+                [class*="gameCardFooterContainer"]{background:rgba(15,15,16,0.75)!important;border-radius:0 0 14px 14px!important;}
+                `;
+            }
         }
         if (cfg.miscCatalogItemCards) {
             cssOut += `
@@ -1530,6 +1884,57 @@
         return n.toLocaleString();
     };
 
+    // ── Robux JSS icon fix ─────────────────────────────────────────────────────────────────
+    // Group / JSS-styled robux glyphs use dynamically generated class names
+    // (image-0-2-N) whose sprite is set via runtime JSS stylesheets, so static
+    // CSS selectors never match them. Scan same-origin JSS sheets for the
+    // `img-robux` background and repaint those exact selectors with our icon.
+    // NOTE: keep JS comments OUTSIDE the CSS strings — `//` inside CSS silently
+    // eats the next rule.
+    const applyRobuxJssIconFix = () => {
+        const rbxPath = location.pathname.toLowerCase();
+        const onTrade = /^\/trades\/?$/.test(rbxPath) || rbxPath.indexOf('/my/trades.aspx') === 0 || /^\/users\/\d+\/trade\/?$/.test(rbxPath);
+        if (!(cfg.robuxIcon === 'all' || (cfg.robuxIcon === 'trades' && onTrade))) {
+            document.getElementById('pks-robux-jss-style')?.remove();
+            return;
+        }
+        const RBX_ICON_URL = 'https://cdn.jsdelivr.net/gh/warmpain9/Interium@main/assets/icons/robux_2021.svg';
+        const iconSels = [];
+        const amountSels = [];
+        for (const sheet of document.styleSheets) {
+            let node, rules;
+            try { node = sheet.ownerNode; rules = sheet.cssRules; } catch (e) { continue; }
+            if (!node || (node.id && node.id.indexOf('pks-') === 0)) continue;
+            const sheetIconSels = [];
+            const sheetAmtSels = [];
+            for (const rule of rules) {
+                if (!rule.style || !rule.selectorText) continue;
+                const bg = (rule.style.background || '') + (rule.style.backgroundImage || '');
+                if (bg.indexOf('img-robux') !== -1) sheetIconSels.push(rule.selectorText);
+                const colNorm = (rule.style.color || '').replace(/\s+/g, '').toLowerCase();
+                if (colNorm === '#060' || colNorm === '#006600' || colNorm === 'rgb(0,102,0)') sheetAmtSels.push(rule.selectorText);
+            }
+            if (sheetIconSels.length) {
+                iconSels.push(...sheetIconSels);
+                amountSels.push(...sheetAmtSels);
+            }
+        }
+        let css = '';
+        if (iconSels.length) css += `${iconSels.join(',')}{background:url("${RBX_ICON_URL}") center/contain no-repeat!important;}`;
+        if (amountSels.length) css += `${amountSels.join(',')}{color:#fff!important;}`;
+        if (!iconSels.length && !applyRobuxJssIconFix._retried) {
+            applyRobuxJssIconFix._retried = true;
+            setTimeout(applyRobuxJssIconFix, 1200);
+        }
+        let el = document.getElementById('pks-robux-jss-style');
+        if (!el) {
+            el = document.createElement('style');
+            el.id = 'pks-robux-jss-style';
+        }
+        document.head.appendChild(el);
+        el.textContent = css;
+    };
+
     const applyMisc = () => {
         let miscStyle = document.getElementById('pks-misc-style');
         if (!miscStyle) { miscStyle = document.createElement('style'); miscStyle.id = 'pks-misc-style'; document.head.appendChild(miscStyle); }
@@ -1566,7 +1971,12 @@
         // instead of the site's opaque --white-color-hover, so the cards no longer look crooked.
         // .pg-mt-verdict = the RAP/Value summary bar the trading runtime injects (was #121212).
         // Toggleable via the GUI "/trades" section (cfg.tradesGlassify).
-        if (cfg.tradesGlassify) {
+        // PAGE-GATED to /trades: itemCard- is a generic JSS name that ALSO
+        // exists on /users/<id>/inventory (and elsewhere) -- the flat
+        // width:140px card recipe below leaked there and shrank inventory
+        // cards to tiny tiles (cross-page leak, same lesson as the
+        // recommendedGamesContainer scoping fix on /games).
+        if (cfg.tradesGlassify && /^\/trades(\/|$)/i.test(location.pathname)) {
         css += `
             [class*="tradeList-"]{${GLASS_CSS}border-radius:14px!important;overflow-x:hidden!important;}
             [class*="tradeList-"] [class*="tradeRow-"]{background:transparent!important;border:0!important;border-bottom:1px solid rgba(255,255,255,0.08)!important;transition:background 0.15s ease!important;}
@@ -1727,7 +2137,16 @@
                 };
                 const pksScanDropSels = () => document.querySelectorAll('[class*="inventoryHeader-"] select, select[aria-label="Trade type"], [class*="catalogContainer"] select').forEach(pksWatchDropSel);
                 pksScanDropSels();
-                try { new MutationObserver(pksScanDropSels).observe(document.documentElement, { childList: true, subtree: true }); } catch (e) {}
+                /* PERF: this observer used to fire pksScanDropSels on EVERY
+                   mutation batch and was re-registered on each style rebuild.
+                   Coalesce scans into one rAF and register exactly once. */
+                try {
+                    if (!window.__pksDropSelObs) {
+                        window.__pksDropSelObs = true;
+                        let dsRaf = 0;
+                        new MutationObserver(() => { if (dsRaf) return; dsRaf = requestAnimationFrame(() => { dsRaf = 0; pksScanDropSels(); }); }).observe(document.documentElement, { childList: true, subtree: true });
+                    }
+                } catch (e) {}
             }
         }
         css += `
@@ -1772,6 +2191,7 @@
         miscStyle.textContent = css;
         applySidebarNavStyle();
         applyPageFrameTransparency();
+        applyRobuxJssIconFix();
         applyPageFont(cfg.miscPageFont || 'Default (Site Font)');
         applyGuiFont(cfg.miscGuiFont || 'Share Tech Mono');
     };
@@ -1840,6 +2260,10 @@
             .pks-row { display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;gap:8px;padding:1px 0; }
             .pks-row label { color:#b0b0c0;font-size:11px;flex:1; }
             .pks-row .pks-row-right { display:flex;align-items:center;gap:6px;flex-shrink:0; }
+            .pks-glass-master { display:flex;align-items:center;justify-content:space-between;gap:8px;margin:2px 0 10px;padding:7px 10px;border:1px solid rgba(255,255,255,0.12);border-radius:8px;background:linear-gradient(135deg,rgba(255,255,255,0.07),rgba(255,255,255,0.02));box-shadow:0 2px 10px rgba(0,0,0,0.25),inset 0 1px 0 rgba(255,255,255,0.06);transition:border-color 0.18s; }
+            .pks-glass-master:hover { border-color:rgba(255,255,255,0.22); }
+            .pks-glass-master label { color:#dfe3f5!important;font-size:11px;font-weight:600;letter-spacing:0.05em;flex:1;cursor:pointer; }
+            .pks-glass-master .pks-glass-star { color:#8ea2ff;margin-right:2px; }
             .pks-stat { flex:1;background:linear-gradient(160deg,var(--pks-surface),var(--pks-surface-2));border:1px solid var(--pks-line-soft);border-radius:10px;padding:10px 8px;text-align:center;transition:border-color 0.18s,transform 0.18s; }
             .pks-stat:hover { transform:translateY(-1px);border-color:var(--pks-line); }
             .pks-stat-val { color:#00e87a;font-size:21px;font-weight:700;display:block;line-height:1;letter-spacing:-0.02em; }
@@ -1938,34 +2362,48 @@
                     <div class="pks-row"><label>Page font</label><select id="cfg-miscPageFont" style="width:160px;"><option value="Default (Site Font)">Default (Site Font)</option><option value="Share Tech Mono">Share Tech Mono</option><option value="Inter">Inter</option><option value="Rajdhani">Rajdhani</option><option value="Oxanium">Oxanium</option><option value="Orbitron">Orbitron</option><option value="Space Grotesk">Space Grotesk</option><option value="JetBrains Mono">JetBrains Mono</option><option value="Syne">Syne</option><option value="Exo 2">Exo 2</option><option value="Source Sans Pro Light">Source Sans Pro Light</option></select></div>
                     <div class="pks-row"><label>GUI font</label><select id="cfg-miscGuiFont" style="width:160px;"><option value="Share Tech Mono">Share Tech Mono</option><option value="Inter">Inter</option><option value="Rajdhani">Rajdhani</option><option value="Oxanium">Oxanium</option><option value="Orbitron">Orbitron</option><option value="Space Grotesk">Space Grotesk</option><option value="JetBrains Mono">JetBrains Mono</option><option value="Syne">Syne</option><option value="Exo 2">Exo 2</option></select></div>
                     <div style="margin:14px 0 4px;"><span class="pks-page-badge">/home</span></div>
+                    <div class="pks-glass-master"><label for="pks-glassify-home"><span class="pks-glass-star">\u2726</span> Glassify page</label><input type="checkbox" id="pks-glassify-home"></div>
                     <div class="pks-row"><label>Transparent page frames</label><input type="checkbox" id="cfg-miscHomeFramesTransparent"></div>
                     <div class="pks-row"><label>Hide My Feed</label><input type="checkbox" id="cfg-miscHideMyFeed"></div>
                     <div class="pks-row"><label>Hide Blog / News</label><input type="checkbox" id="cfg-miscHideBlogNews"></div>
-                    <div class="pks-row"><label>Modern game cards</label><input type="checkbox" id="cfg-miscModernGameCards"></div>
+                    <div class="pks-row"><label>Modern game cards (home + games)</label><input type="checkbox" id="cfg-miscModernGameCards"></div>
                     <div class="pks-row"><label>Transparent friend cards</label><input type="checkbox" id="cfg-miscFriendsFrameTransparent"></div>
+                    <div class="pks-row"><label>Merge friend request cards</label><input type="checkbox" id="cfg-miscFriendRequestMerge"></div>
                     <div style="margin:14px 0 4px;"><span class="pks-page-badge">/games</span></div>
+                    <div class="pks-glass-master"><label for="pks-glassify-games"><span class="pks-glass-star">\u2726</span> Glassify page</label><input type="checkbox" id="pks-glassify-games"></div>
                     <div class="pks-row"><label>Glassify game page</label><input type="checkbox" id="cfg-miscGamesGlassify"></div>
                     <div class="pks-row"><label>Hero backdrop (blurred thumb)</label><input type="checkbox" id="cfg-miscGamesHeroBackdrop"></div>
                     <div class="pks-row"><label>Hide comments</label><input type="checkbox" id="cfg-miscGamesHideComments"></div>
                     <div class="pks-row"><label>Hide recommended games</label><input type="checkbox" id="cfg-miscGamesHideRecommended"></div>
                     <div style="margin:14px 0 4px;"><span class="pks-page-badge">/trades \u2014 trade pages</span></div>
+                    <div class="pks-glass-master"><label for="pks-glassify-trades"><span class="pks-glass-star">\u2726</span> Glassify page</label><input type="checkbox" id="pks-glassify-trades"></div>
                     <div class="pks-row"><label>Glassify trades list</label><input type="checkbox" id="cfg-tradesGlassify"></div>
                     <div class="pks-row"><label>Glassify send-trade page</label><input type="checkbox" id="cfg-sendTradeGlassify"></div>
                     <div class="pks-row"><label>Glassy dropdowns</label><input type="checkbox" id="cfg-tradesDropdownGlass"></div>
                     <div style="margin:14px 0 4px;"><span class="pks-page-badge">/Catalog.aspx</span></div>
+                    <div class="pks-glass-master"><label for="pks-glassify-catalog"><span class="pks-glass-star">\u2726</span> Glassify page</label><input type="checkbox" id="pks-glassify-catalog"></div>
                     <div class="pks-row"><label>Transparent main frame</label><input type="checkbox" id="cfg-miscCatalogFrameTransparent"></div>
                     <div class="pks-row"><label>Hide sidebar</label><input type="checkbox" id="cfg-miscCatalogHideSidebar"></div>
                     <div class="pks-row"><label>Glassify item cards</label><input type="checkbox" id="cfg-miscCatalogItemCards"></div>
                     <div class="pks-row"><label>Glassy dropdowns</label><input type="checkbox" id="cfg-miscCatalogDropdownGlass"></div>
                     <div class="pks-row"><label>Glassify item page</label><input type="checkbox" id="cfg-miscItemPageGlass"></div>
                     <div style="margin:14px 0 4px;"><span class="pks-page-badge">/groups</span></div>
+                    <div class="pks-glass-master"><label for="pks-glassify-groups"><span class="pks-glass-star">\u2726</span> Glassify page</label><input type="checkbox" id="pks-glassify-groups"></div>
                     <div class="pks-row"><label>Glassify groups page</label><input type="checkbox" id="cfg-miscGroupsGlassify"></div>
+                    <div style="margin:14px 0 4px;"><span class="pks-page-badge">/messages</span></div>
+                    <div class="pks-glass-master"><label for="pks-glassify-messages"><span class="pks-glass-star">\u2726</span> Glassify page</label><input type="checkbox" id="pks-glassify-messages"></div>
+                    <div class="pks-row"><label>Glassify messages page</label><input type="checkbox" id="cfg-miscMessagesGlassify"></div>
+                    <div style="margin:14px 0 4px;"><span class="pks-page-badge">/inventory</span></div>
+                    <div class="pks-glass-master"><label for="pks-glassify-inventory"><span class="pks-glass-star">\u2726</span> Glassify page</label><input type="checkbox" id="pks-glassify-inventory"></div>
+                    <div class="pks-row"><label>Glassify inventory</label><input type="checkbox" id="cfg-miscInventoryGlassify"></div>
                     <div style="margin:14px 0 4px;"><span class="pks-page-badge">/profile</span></div>
+                    <div class="pks-glass-master"><label for="pks-glassify-profile"><span class="pks-glass-star">\u2726</span> Glassify page</label><input type="checkbox" id="pks-glassify-profile"></div>
                     <div class="pks-row"><label>Glassify profile</label><input type="checkbox" id="cfg-miscProfileFrameTransparent"></div>
                     <div class="pks-row"><label>Animated username colour</label><input type="checkbox" id="cfg-miscProfileNameAnimate"></div>
                     <div class="pks-row"><label style="font-size:10px;color:#555;padding-left:10px;">\u21b3 Colour 1</label><input type="color" id="cfg-miscProfileNameColor1"></div>
                     <div class="pks-row"><label style="font-size:10px;color:#555;padding-left:10px;">\u21b3 Colour 2</label><input type="color" id="cfg-miscProfileNameColor2"></div>
                     <div style="margin:14px 0 4px;"><span class="pks-page-badge">/My/Avatar</span></div>
+                    <div class="pks-glass-master"><label for="pks-glassify-avatar"><span class="pks-glass-star">\u2726</span> Glassify page</label><input type="checkbox" id="pks-glassify-avatar"></div>
                     <div class="pks-row"><label>Transparent frames</label><input type="checkbox" id="cfg-miscAvatarFrameTransparent"></div>
                     <div class="pks-row"><label>Blur category dropdown</label><input type="checkbox" id="cfg-miscAvatarBlurDropdown"></div>
                     <div class="pks-row"><label>Glassify item frames</label><input type="checkbox" id="cfg-avatarGlassify"></div>
@@ -2127,7 +2565,7 @@
             'cfg-miscProfileFrameTransparent':'miscProfileFrameTransparent',
             'cfg-miscProfileNameAnimate':'miscProfileNameAnimate',
             'cfg-miscProfileNameColor1':'miscProfileNameColor1','cfg-miscProfileNameColor2':'miscProfileNameColor2',
-            'cfg-miscFriendsFrameTransparent':'miscFriendsFrameTransparent',
+            'cfg-miscFriendsFrameTransparent':'miscFriendsFrameTransparent','cfg-miscFriendRequestMerge':'miscFriendRequestMerge','cfg-miscMessagesGlassify':'miscMessagesGlassify','cfg-miscInventoryGlassify':'miscInventoryGlassify',
             'cfg-miscAvatarFrameTransparent':'miscAvatarFrameTransparent','cfg-avatarGlassify':'avatarGlassify','cfg-avatarEditorGlass':'avatarEditorGlass',
             'cfg-miscAvatarBlurDropdown':'miscAvatarBlurDropdown',
             'cfg-avatarBgEnabled':'avatarBgEnabled','cfg-avatarBgBlur':'avatarBgBlur',
@@ -2194,6 +2632,52 @@
             if (id === 'cfg-guiScale') applyGuiScale();
             if (id === 'cfg-miscPageFont') applyPageFont(el.value);
             if (id === 'cfg-miscGuiFont')  applyGuiFont(el.value);
+        });
+
+        // \u2500\u2500 Per-page "Glassify page" master switches \u2500\u2500
+        // One switch per page badge that flips EVERY glassify / glass-surface
+        // key of that page at once. Masters are not cfg keys themselves:
+        // their state is derived from the group (checked = all on,
+        // indeterminate = mixed), and the granular checkboxes stay in sync
+        // in both directions.
+        const GLASSIFY_PAGE_GROUPS = {
+            home:      { label: '/home',      keys: ['miscHomeFramesTransparent', 'miscModernGameCards', 'miscFriendsFrameTransparent'] },
+            games:     { label: '/games',     keys: ['miscGamesGlassify', 'miscGamesHeroBackdrop', 'miscModernGameCards'] },
+            trades:    { label: '/trades',    keys: ['tradesGlassify', 'sendTradeGlassify', 'tradesDropdownGlass', 'tradesGlassCards'] },
+            catalog:   { label: '/catalog',   keys: ['miscCatalogFrameTransparent', 'miscCatalogItemCards', 'miscCatalogDropdownGlass', 'miscItemPageGlass'] },
+            groups:    { label: '/groups',    keys: ['miscGroupsGlassify'] },
+            messages:  { label: '/messages',  keys: ['miscMessagesGlassify'] },
+            inventory: { label: '/inventory', keys: ['miscInventoryGlassify'] },
+            profile:   { label: '/profile',   keys: ['miscProfileFrameTransparent'] },
+            avatar:    { label: '/my/avatar', keys: ['miscAvatarFrameTransparent', 'miscAvatarBlurDropdown', 'avatarGlassify', 'avatarEditorGlass'] },
+        };
+        const syncGlassMasters = () => {
+            for (const [pid, group] of Object.entries(GLASSIFY_PAGE_GROUPS)) {
+                const box = document.getElementById('pks-glassify-' + pid); if (!box) continue;
+                const on = group.keys.filter(k => !!cfg[k]).length;
+                box.checked = on === group.keys.length;
+                box.indeterminate = on > 0 && on < group.keys.length;
+            }
+        };
+        syncGlassMasters();
+        for (const [pid, group] of Object.entries(GLASSIFY_PAGE_GROUPS)) {
+            document.getElementById('pks-glassify-' + pid)?.addEventListener('change', (e) => {
+                const on = e.target.checked;
+                e.target.indeterminate = false;
+                for (const k of group.keys) {
+                    cfg[k] = on;
+                    const box = document.getElementById('cfg-' + k);
+                    if (box && box.type === 'checkbox') box.checked = on;
+                }
+                saveCfg(cfg); reapplyAll(); syncGlassMasters();
+                notify((on ? 'Glassified ' : 'Un-glassified ') + group.label, 'info');
+            });
+        }
+        // Keep master states honest when any granular toggle changes. This
+        // listener is registered AFTER the generic fieldMap handler above,
+        // so cfg is already updated when it runs.
+        panel.addEventListener('change', (e) => {
+            if (e.target?.id && fieldMap[e.target.id]) syncGlassMasters();
         });
 
         const bgUrlInput = document.getElementById('cfg-miscBgUrl');
@@ -2436,7 +2920,7 @@
         applyGuiFont(cfg.miscGuiFont || 'Share Tech Mono');
         if (isTradePage()) applyTradeStyle();
         fetchProfile().then(trySetAvatar);
-        setInterval(() => fetchProfile().then(trySetAvatar), 30000);
+        setInterval(() => { if (!document.hidden) fetchProfile().then(trySetAvatar); }, 30000); /* PERF: no profile polling from background tabs */
         panelLog('Panel ready. Configure intervals and press START.', 'info');
     };
 
@@ -2763,25 +3247,35 @@ p[class*="vTabUnselected-"]{box-shadow:none!important;}`
     const monitorDOM = () => {
         if (state.dom.observer) state.dom.observer.disconnect();
         let debounce = null;
+        const runDomPass = () => {
+            if (cfg.sidebarEnabled) applySidebarDirect();
+            if (cfg.miscFriendsFrameTransparent) applyFriendsTransparencyDirect();
+            applyRequestCardMergeDirect();
+            if (cfg.miscProfileFrameTransparent) applyWearingGlassDirect();
+            injectSidebarLinks();
+            applyAgeOverride();
+            ensureTradesOverlay();
+            removeNagAlerts();
+            injectProfileTradeButton();
+            applyAvatarControls(); injectAvatarBgStrip(); applyAvatarGlass(); applyAvatarEditorGlass(); if (cfg.avatarBgEnabled) applyAvatarBg();
+            applyBadges();
+            applyProfileBannerForPage();
+        };
+        state.dom.runPass = runDomPass;
         state.dom.observer = new MutationObserver(() => {
             if (debounce) return;
-            debounce = setTimeout(() => {
-                debounce = null;
-                if (cfg.sidebarEnabled) applySidebarDirect();
-                if (cfg.miscFriendsFrameTransparent) applyFriendsTransparencyDirect();
-                applyRequestCardMergeDirect();
-                if (cfg.miscProfileFrameTransparent) applyWearingGlassDirect();
-                injectSidebarLinks();
-                applyAgeOverride();
-                ensureTradesOverlay();
-                removeNagAlerts();
-                injectProfileTradeButton();
-                applyAvatarControls(); injectAvatarBgStrip(); applyAvatarGlass(); applyAvatarEditorGlass(); if (cfg.avatarBgEnabled) applyAvatarBg();
-                applyBadges();
-                applyProfileBannerForPage();
-            }, 60);
+            /* PERF: the restyle pass is visual-only work -- skip it entirely
+               in background tabs and run ONE catch-up pass on refocus. */
+            if (document.hidden) { state.dom.hiddenSkip = true; return; }
+            debounce = setTimeout(() => { debounce = null; runDomPass(); }, 60);
         });
         state.dom.observer.observe(document.body, { childList:true, subtree:true });
+        if (!state.dom.visWired) {
+            state.dom.visWired = true;
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden && state.dom.hiddenSkip) { state.dom.hiddenSkip = false; state.dom.runPass?.(); }
+            });
+        }
         applyAgeOverride();
         removeNagAlerts();
         injectProfileTradeButton();
@@ -2811,6 +3305,7 @@ p[class*="vTabUnselected-"]{box-shadow:none!important;}`
             if (/\/My\/Trades\.aspx/i.test(location.pathname)) ensureTradesOverlay();
             setTimeout(() => {
                 applyPageFrameTransparency();
+                applyRobuxJssIconFix(); /* JSS sheets (group robux glyphs) mount after nav */
                 applyCardStyle(); /* page-gated blocks (item page glass) must rebuild on SPA nav */
                 applySidebarNavStyle();
                 applySidebarDirect();
@@ -2865,4 +3360,3 @@ p[class*="vTabUnselected-"]{box-shadow:none!important;}`
 
     init();
 })();
-
