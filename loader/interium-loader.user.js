@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Interium Loader
 // @namespace    https://github.com/warmpain9/Interium
-// @version      2.59.0
-// @description  CSP-safe loader: Tampermonkey attaches the Interium trading + UI runtimes from GitHub (via jsDelivr) using @require.
+// @version      2.64.0
+// @description  CSP-safe loader: Tampermonkey attaches the Interium trading + UI runtimes from GitHub (via GitHub raw) using @require.
 // @author       Interium contributors
 // @license      MIT
 // @match        https://www.pekora.zip/*
@@ -10,11 +10,11 @@
 // @run-at       document-start
 // @noframes
 // @grant        none
-// @require      https://cdn.jsdelivr.net/gh/warmpain9/Interium@main/src/core/core.js
-// @require      https://cdn.jsdelivr.net/gh/warmpain9/Interium@main/src/trading/interium-trading-14.js
-// @require      https://cdn.jsdelivr.net/gh/warmpain9/Interium@main/src/ui/interium-ui-45.js
-// @updateURL    https://cdn.jsdelivr.net/gh/warmpain9/Interium@main/loader/interium-loader.user.js
-// @downloadURL  https://cdn.jsdelivr.net/gh/warmpain9/Interium@main/loader/interium-loader.user.js
+// @require      https://raw.githubusercontent.com/warmpain9/Interium/main/src/core/core.js
+// @require      https://raw.githubusercontent.com/warmpain9/Interium/main/src/trading/interium-trading-17.js
+// @require      https://raw.githubusercontent.com/warmpain9/Interium/main/src/ui/interium-ui-46.js
+// @updateURL    https://raw.githubusercontent.com/warmpain9/Interium/main/loader/interium-loader.user.js
+// @downloadURL  https://raw.githubusercontent.com/warmpain9/Interium/main/loader/interium-loader.user.js
 // @homepageURL  https://github.com/warmpain9/Interium
 // @supportURL   https://github.com/warmpain9/Interium/issues
 // ==/UserScript==
@@ -32,11 +32,11 @@
  *      - trading (rank, collectibles, koromons values) -> src/trading/interium-trading-<n>.js
  *      - UI (panel, themes, watermark, styling)        -> src/ui/interium-ui-<n>.js
  *    IMPORTANT: RENAME the file, bumping <n> (ui-28 -> ui-29 -> ui-30 ...).
- *    A new filename is a new URL, so neither jsDelivr nor Tampermonkey can
+ *    A new filename is a new URL, so neither GitHub raw nor Tampermonkey can
  *    ever serve a stale cached copy of the runtime.
  * 2. Point the @require above at the new filename, bump @version in THIS
  *    file and commit it too.
  * Tampermonkey auto-updates the loader from @updateURL and re-downloads the
  * @require'd runtime along with it - users never reinstall anything.
  */
-console.info('[Interium] Loader v2.59.0 - core + trading + UI runtimes attached via @require (CSP-safe).');
+console.info('[Interium] Loader v2.64.0 - core + trading + UI runtimes attached via @require (CSP-safe).');

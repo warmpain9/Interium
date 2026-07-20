@@ -8,7 +8,7 @@ Interium is an **unofficial, open-source community userscript for Pekora**. It i
 2. Open `loader/interium-loader.user.js` in GitHub and choose **Raw**.
 3. Confirm the installation in Tampermonkey.
 
-The loader attaches the current runtimes (`src/core/core.js`, `src/trading/`, `src/ui/`) from this repository through jsDelivr using Tampermonkey `@require`, so every loader update ships the newest code without reinstalling.
+The loader attaches the current runtimes (`src/core/core.js`, `src/trading/`, `src/ui/`) from this repository through GitHub raw using Tampermonkey `@require`, so every loader update ships the newest code without reinstalling.
 
 ## Why a loader?
 
@@ -28,7 +28,7 @@ All network behavior is visible in source:
 
 | Destination | Purpose | Credentials |
 | --- | --- | --- |
-| `cdn.jsdelivr.net` | Download current Interium runtimes (Tampermonkey `@require`) | None |
+| `raw.githubusercontent.com` | Download current Interium runtimes (Tampermonkey `@require`) | None |
 | `pekora.zip` / `www.pekora.zip` | Read Pekora pages and same-origin inventory/trade data used by Trading Interium; the Mass Trader reads inventory/asset owners/thumbnails and **sends** trade offers via `/apisite/trades/v1/trades/send` (recipient must manually accept) | Existing browser session, sent only to Pekora |
 | `www.koromons.net` | Public item values, demand, and leaderboard data used by Trading Interium | None |
 

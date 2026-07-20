@@ -1,6 +1,6 @@
 // Optional dev build: concatenates the three live runtimes into a single
 // dist/interium-main.js for local testing. The loader does NOT use dist/ -
-// it @require's the src/ files directly from jsDelivr, so shipping never
+// it @require's the src/ files directly from GitHub raw, so shipping never
 // depends on this script. Update the ui filename below on every rename.
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 
@@ -11,8 +11,8 @@ const banner = `/* Interium main runtime | MIT | Unofficial, not affiliated with
 
 const [core, trading, ui] = await Promise.all([
     read('src/core/core.js'),
-    read('src/trading/interium-trading-14.js'),
-    read('src/ui/interium-ui-45.js'),
+    read('src/trading/interium-trading-17.js'),
+    read('src/ui/interium-ui-46.js'),
 ]);
 
 await mkdir(new URL('../dist/', import.meta.url), { recursive: true });

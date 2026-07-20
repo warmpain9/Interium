@@ -508,9 +508,20 @@ const applyTradeWindowStats = () => {
 			.then(d => { clearTimeout(timer); resolve(d); })
 			.catch(e => { clearTimeout(timer); reject(e); });
 	});
+	const INTERIUM_VALUES_FALLBACK_URL = 'https://raw.githubusercontent.com/unitedbygrief/koronevalues/refs/heads/main/valu.json';
+	const asItemArray = (d) => Array.isArray(d) ? d : (Array.isArray(d?.items) ? d.items : (Array.isArray(d?.data) ? d.data : null));
 	const requestKoromonsValues = () => pgGetJson(KOROMONS_VALUES_URL, 10000).then(d => {
-		if (!Array.isArray(d)) throw new Error('Invalid Koromon’s response');
-		return d;
+		const rows = asItemArray(d);
+		if (rows && rows.length) return rows;
+		throw new Error('Koromon’s api/items returned no items');
+	}).catch((e) => {
+		// api/items unavailable -> fall back to the GitHub valu.json snapshot so values still render.
+		console.warn('[Interium] Koromon’s api/items unavailable, using valu.json fallback:', (e && e.message) || e);
+		return pgGetJson(INTERIUM_VALUES_FALLBACK_URL, 10000).then(d => {
+			const rows = asItemArray(d);
+			if (!rows) throw new Error('valu.json fallback invalid');
+			return rows;
+		});
 	});
 	const loadKoromonsValues = (force=false) => {
 		if (koromonsValuesPromise && !force) return koromonsValuesPromise;
@@ -839,6 +850,24 @@ else window.addEventListener('DOMContentLoaded', init);
             .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
     }
 
+    const INTERIUM_VALUES_FALLBACK_URL = 'https://raw.githubusercontent.com/unitedbygrief/koronevalues/refs/heads/main/valu.json';
+    // Fetch an item array from the primary Koromon's endpoint; if that is down or returns
+    // nothing, transparently fall back to the GitHub valu.json snapshot so the collectibles
+    // page keeps showing values/demand while koromons.net is unavailable.
+    async function gmGetItemsWithFallback(primaryUrl) {
+        const toRows = (d) => Array.isArray(d) ? d : (Array.isArray(d?.items) ? d.items : (Array.isArray(d?.data) ? d.data : null));
+        try {
+            const rows = toRows(await gmGetJson(primaryUrl));
+            if (rows && rows.length) return rows;
+            throw new Error('primary returned no items');
+        } catch (e) {
+            console.warn('[Interium] api/items unavailable, using valu.json fallback:', (e && e.message) || e);
+            const rows = toRows(await gmGetJson(INTERIUM_VALUES_FALLBACK_URL));
+            if (!rows) throw new Error('valu.json fallback invalid');
+            return rows;
+        }
+    }
+
     function numFromAny(v) {
         if (v === undefined || v === null || v === '') return 0;
         if (typeof v === 'number' && Number.isFinite(v)) return Math.round(v);
@@ -1035,9 +1064,8 @@ else window.addEventListener('DOMContentLoaded', init);
 
     async function refreshValues() {
         try {
-            const data = await gmGetJson(VALUES_JSON_URL);
-            const rows = Array.isArray(data) ? data : (Array.isArray(data?.items) ? data.items : (Array.isArray(data?.data) ? data.data : null));
-            if (!Array.isArray(rows)) throw new Error('Koromon’s response is not an item array.');
+            const rows = await gmGetItemsWithFallback(VALUES_JSON_URL);
+            if (!Array.isArray(rows) || !rows.length) throw new Error('No item array from Koromon’s api/items or valu.json fallback.');
             indexValueItems(rows);
             try { localStorage.setItem(VALUES_CACHE_KEY, JSON.stringify({ t: Date.now(), items: rows })); } catch (_) {}
             return true;
@@ -1062,9 +1090,8 @@ else window.addEventListener('DOMContentLoaded', init);
 
     async function refreshKoromonsDemand() {
         try {
-            const data = await gmGetJson(KOROMONS_ITEMS_URL);
-            const rows = Array.isArray(data) ? data : (Array.isArray(data && data.items) ? data.items : (Array.isArray(data && data.data) ? data.data : null));
-            if (!Array.isArray(rows)) throw new Error('Koromon’s response is not an array.');
+            const rows = await gmGetItemsWithFallback(KOROMONS_ITEMS_URL);
+            if (!Array.isArray(rows) || !rows.length) throw new Error('No item array from Koromon’s api/items or valu.json fallback.');
             indexKoromonsDemand(rows);
             try { localStorage.setItem(KOROMONS_DEMAND_CACHE_KEY, JSON.stringify({ t: Date.now(), items: rows })); } catch (_) {}
             return true;
@@ -3774,6 +3801,15 @@ else window.addEventListener('DOMContentLoaded', init);
             if (getComputedStyle(c).position === 'static') c.style.position = 'relative';
             c.style.zIndex = '1';
         });
+        // Match the profile card's rounded corners. Glassify sets border-radius
+        // on the outer [class*="card-0-2-"], but getProfileFrame often returns an
+        // inner cardBody whose own radius is 0 - so border-radius:inherit would
+        // collapse to sharp corners. Resolve the real radius from the frame or
+        // its nearest rounded ancestor and pin it every call so toggling
+        // glassify stays in sync.
+        const radiusHost = [frame, frame.closest('[class*="card-0-2-"]'), frame.parentElement]
+            .find((el) => el && parseFloat(getComputedStyle(el).borderTopLeftRadius || '0') > 0);
+        layer.style.borderRadius = radiusHost ? getComputedStyle(radiusHost).borderRadius : 'inherit';
         const img    = String(data.img).replace(/'/g, "\\'");
         const blur   = Math.max(0, Math.min(40, +data.blur || 0));
         const bright = Math.max(30, Math.min(150, +data.bright || 100)) / 100;

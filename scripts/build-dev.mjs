@@ -18,7 +18,7 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 
 const read = (p) => readFile(new URL('../' + p, import.meta.url), 'utf8');
 
-const BASE = 'https://cdn.jsdelivr.net/gh/warmpain9/Interium@main/';
+const BASE = 'https://raw.githubusercontent.com/warmpain9/Interium/main/';
 const loader = await read('loader/interium-loader.user.js');
 const files = [...loader.matchAll(/^\/\/ @require\s+(https:\/\/\S+)\s*$/gm)].map((m) => m[1].slice(BASE.length));
 if (!files.length) throw new Error('no @require lines found in the loader');

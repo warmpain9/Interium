@@ -3,7 +3,7 @@ const read = (p) => readFile(new URL('../' + p, import.meta.url), 'utf8');
 const fail = (m) => { console.error('AUDIT FAIL:', m); process.exitCode = 1; };
 
 const loader = await read('loader/interium-loader.user.js');
-const BASE = 'https://cdn.jsdelivr.net/gh/warmpain9/Interium@main/';
+const BASE = 'https://raw.githubusercontent.com/warmpain9/Interium/main/';
 const requires = [...loader.matchAll(/^\/\/ @require\s+(https:\/\/\S+)\s*$/gm)].map((m) => m[1]);
 if (requires.length !== 3) fail('expected exactly 3 @require lines, got ' + requires.length);
 for (const u of requires) if (!u.startsWith(BASE + 'src/')) fail('unexpected @require source: ' + u);
