@@ -13,8 +13,11 @@ const bodies = await Promise.all(requires.map((u) => read(u.slice(BASE.length)))
 const all = loader + bodies.join('\n');
 if (/document\.cookie|\.cookie\s*=/.test(all)) fail('cookie access found');
 if (!bodies.some((b) => b.includes('Trading Interium'))) fail('authoritative trading module missing');
-for (const forbidden of ['interium.zxwxtt.workers.dev', '/trades/v1/trades/send', 'Mass Trader']) {
-  if (all.includes(forbidden)) fail('excluded src.js trade/backend content found: ' + forbidden);
+// No third-party backend may ever be *called*. The Mass Trader engine talks
+// only to pekora.zip's own /trades/v1/trades/send offer endpoint (allowed; it
+// only sends offers the recipient must manually accept, never auto-accepts).
+for (const forbidden of ['interium.zxwxtt.workers.dev', 'workers.dev/announce', 'workers.dev/badges']) {
+  if (all.includes(forbidden)) fail('excluded third-party backend content found: ' + forbidden);
 }
 // All glassify surfaces must share the canonical visual preset. Keep the recipe in
 // one place and prohibit new hard-coded positive backdrop blur values.

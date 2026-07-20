@@ -5,8 +5,9 @@
   "type": "module",
   "description": "Unofficial open-source Pekora community userscript",
   "scripts": {
-    "check": "node --check loader/interium-loader.user.js && node --check src/core/core.js && node --check src/trading/interium-trading-9.js && node --check src/ui/interium-ui-41.js",
+    "check": "node --check loader/interium-loader.user.js && node --check src/core/core.js && node --check src/trading/interium-trading-14.js && node --check src/ui/interium-ui-45.js",
     "build": "node scripts/build.mjs",
+    "build:dev": "node scripts/build-dev.mjs",
     "test": "node tests/audit.mjs"
   },
   "license": "MIT"

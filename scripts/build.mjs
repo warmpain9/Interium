@@ -11,8 +11,8 @@ const banner = `/* Interium main runtime | MIT | Unofficial, not affiliated with
 
 const [core, trading, ui] = await Promise.all([
     read('src/core/core.js'),
-    read('src/trading/interium-trading-9.js'),
-    read('src/ui/interium-ui-41.js'),
+    read('src/trading/interium-trading-14.js'),
+    read('src/ui/interium-ui-45.js'),
 ]);
 
 await mkdir(new URL('../dist/', import.meta.url), { recursive: true });

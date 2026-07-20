@@ -1,11 +1,11 @@
 // ─────────────────────────────────────────────────────────────────────
 // Interium UI runtime — themes, panel, watermark, page styling
 // Ported from the Interium 1.0.5 GUI with these changes:
-//   • ALL trading features removed (trading lives in the separate
-//     dist/interium-trading-*.js runtime — this file never touches trades)
-//   • Auto-refresher / auto-clicker removed
-//   • "LARP" fake-balance / fake-verify / fake-item tools removed
-//   • Every call to the private hexium.zxwxtt.workers.dev server removed
+//   • Trading-specific UI is handled by the separate
+//     dist/interium-trading-*.js runtime.
+//   • Auto-refresher / auto-clicker code is not part of this UI runtime
+//   • "LARP" fake-balance / fake-verify / fake-item tools are not part of this UI runtime
+//   • Calls to the private hexium.zxwxtt.workers.dev server are not part of this build
 //     (no auth gate, announcements, badges or remote profile saves)
 // The only network requests made here go to pekora.zip itself (your own
 // profile info + avatar headshot for the panel header). Settings are
@@ -797,11 +797,9 @@
 
     const apiGet = (url) => fetch(url, { credentials: 'include', headers: { Accept: 'application/json' } });
 
-    // ── Interium: removed-feature stubs ──────────────────────────────
-    // Trading, the auto-refresher, LARP/fake-item tools and every call to
-    // the private hexium worker server were removed from this build.
+    // ── Interium: compatibility stubs ────────────────────────────────
     // Trading is handled by Interium's own trading runtime file. These
-    // no-op stubs keep the remaining UI code paths safe.
+    // no-op stubs keep optional UI hooks safe when a hook is not loaded.
     const _noop = () => {};
     const isTradePage = () => false;
     const isTradeWindow = () => false;

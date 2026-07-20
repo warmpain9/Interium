@@ -1,3 +1,72 @@
+// ==UserScript==
+// @name         Interium DEV (local build)
+// @namespace    https://github.com/warmpain9/Interium
+// @version      2.59.0.20260720.191334
+// @description  Local dev bundle of the Interium runtimes (no CDN @require). Disable the production Interium Loader while this script is enabled.
+// @author       Interium contributors
+// @license      MIT
+// @match        https://www.pekora.zip/*
+// @match        https://pekora.zip/*
+// @run-at       document-start
+// @noframes
+// @grant        none
+// ==/UserScript==
+
+console.info('[Interium] DEV bundle 2.59.0.20260720.191334 - runtimes inlined locally: src/core/core.js, src/trading/interium-trading-14.js, src/ui/interium-ui-45.js');
+
+// ==Interium Core==
+// src/core/core.js - shared foundation for the Interium runtimes.
+// Loaded FIRST (see @require order in loader/interium-loader.user.js),
+// before src/trading/*.js and src/ui/*.js.
+//
+// What lives here:
+//   - project version + module registry (each runtime announces itself)
+//   - the unified glass recipe used across the whole UI
+//   - asset URL helper for repo assets/ on jsDelivr (icons/, avatar-bgs/)
+// Runtimes keep working even if they don't use the core yet; new features
+// should read shared values from window.InteriumCore instead of copying them.
+
+(function () {
+    'use strict';
+
+    if (window.InteriumCore) return; // never double-init
+
+    const VERSION = '2.24.0';
+
+    // ── Unified glass recipe (single source of truth) ──
+    const GLASS_BG = 'rgba(255,255,255,0.05)';
+    const GLASS_FILTER = 'blur(14px) saturate(160%)';
+    const GLASS_BORDER_COLOR = 'rgba(255,255,255,0.12)';
+    const GLASS_SHADOW = '0 8px 28px rgba(0,0,0,0.28)';
+    const GLASS_CSS = `background:${GLASS_BG}!important;backdrop-filter:${GLASS_FILTER}!important;-webkit-backdrop-filter:${GLASS_FILTER}!important;border:1px solid ${GLASS_BORDER_COLOR}!important;box-shadow:${GLASS_SHADOW}!important;`;
+
+    // ── Repo asset helpers ──
+    const CDN_BASE = 'https://cdn.jsdelivr.net/gh/warmpain9/Interium@main/';
+    const assetUrl = (name) => CDN_BASE + 'assets/' + name; // e.g. assetUrl('icons/rare.svg')
+
+    // ── Module registry ──
+    const modules = {};
+    const registerModule = (name, version) => {
+        modules[name] = { version: String(version || '?'), at: Date.now() };
+        console.info(`[Interium Core] module attached: ${name} v${modules[name].version}`);
+    };
+
+    window.InteriumCore = Object.freeze({
+        version: VERSION,
+        GLASS_BG,
+        GLASS_FILTER,
+        GLASS_BORDER_COLOR,
+        GLASS_SHADOW,
+        GLASS_CSS,
+        CDN_BASE,
+        assetUrl,
+        registerModule,
+        modules,
+    });
+
+    console.info(`[Interium Core] v${VERSION} ready.`);
+})();
+
 /* Interium exact Trading Interium 1.1.0 runtime.
  * Unofficial community software; not affiliated with Pekora.
  */
@@ -47,13 +116,13 @@ if(!d.nextPageCursor) break; cursor=d.nextPageCursor;
 return items;
 };
 /* ------------------------------------------------ modern /trades page stats (read-only) */
-/* Annotates the new React trades page (/trades) with per-item RAP + Koromons Value, side  */
+/* Annotates the new React trades page (/trades) with per-item RAP + Koromon’s Value, side  */
 /* RAP totals and a win/loss verdict. Data comes from the same authenticated trade APIs    */
 /* the page itself uses; this module only reads and annotates, never clicks or sends.      */
 const _pgMt = { listType:'', listAt:0, listRows:[], details:new Map(), inflight:'', lastSig:'' };
 const PG_KOROMONS_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1094 1466.2" width="13" height="17" style="flex:none;display:inline-block;vertical-align:-2px;"><path fill="#0084dd" d="M1094 521.6 0 0v469.5l141-67.4 250 119.2L0 707.8v369.7l815.6 388.7L315 893l779-371.4z"/></svg>';
 const pgMtClear = () => {
-	document.querySelectorAll('.pg-mt-rap,.pg-mt-total,.pg-mt-verdict,.pg-mt-tag').forEach(n=>n.remove());
+	document.querySelectorAll('.pg-mt-rap,.pg-mt-total,.pg-mt-total2,.pg-mt-verdict,.pg-mt-tag').forEach(n=>n.remove());
 	document.querySelectorAll('[class*="totalRow-"] > span').forEach(sp=>{ if(/^\s*total rap:?\s*$/i.test(sp.textContent||'')) sp.textContent='Total Value:'; });
 };
 const pgMtItems = (o) => Array.isArray(o?.userAssets) ? o.userAssets : (Array.isArray(o?.items) ? o.items : []);
@@ -72,12 +141,40 @@ const pgMtDetails = async (id) => {
 	const r=await mtApi('/trades/v1/trades/'+encodeURIComponent(id)); if(!r.ok) throw new Error('HTTP '+r.status);
 	const d=await r.json(); _pgMt.details.set(String(id),d); return d;
 };
+/* ---- left trade list: partner nicknames open their /internal/collectibles ---- */
+/* Read-only. A click handler is attached to the EXISTING username node (no DOM   */
+/* re-wrapping, so React keeps owning the row); stopPropagation keeps the click   */
+/* from also selecting the trade row. DOM rows and the trades list API rows share */
+/* the same order (same assumption selIdx relies on), and the name text is        */
+/* verified before linking, so an order mismatch just means no link.              */
+const pgMtUserIdOf = (t) => { const u=(t&&(t.user||t.partner||t.userFacingUser))||{}; return (u.id!=null?u.id:(u.userId!=null?u.userId:null)); };
+const pgMtLinkListNames = (rowsDom, rows) => {
+	/* Link affordance lives in CSS (injected once): a SOLID underline, nudged a
+	   bit below the text and shown only on :hover - classic link-hover look. */
+	if(!document.getElementById('pg-mt-namelink-css')){
+		const st=document.createElement('style');
+		st.id='pg-mt-namelink-css';
+		st.textContent='[class*="tradeRow-"] [data-pg-uid]{cursor:pointer;}[class*="tradeRow-"] [data-pg-uid]:hover{text-decoration:underline;text-underline-offset:3px;}';
+		document.head.appendChild(st);
+	}
+	rowsDom.forEach((rowEl,i)=>{
+		const row=rows[i]; if(!row) return;
+		const uid=pgMtUserIdOf(row); if(uid==null) return;
+		const name=pgMtPartnerOf(row); if(!name) return;
+		const nameEl=Array.from(rowEl.querySelectorAll('span,div,p,b,strong')).find(n=>!n.children.length&&String(n.textContent||'').trim().toLowerCase()===name.toLowerCase());
+		if(!nameEl) return;
+		if(nameEl.getAttribute('data-pg-uid')===String(uid)) return;
+		nameEl.setAttribute('data-pg-uid',String(uid));
+		nameEl.title='Open collectibles: '+name;
+		nameEl.addEventListener('click',(e)=>{ e.preventDefault(); e.stopPropagation(); window.open('/internal/collectibles?userId='+encodeURIComponent(String(uid)),'_blank'); });
+	});
+};
 const pgMtAnnotateSection = (sec, offer) => {
 	const items=pgMtItems(offer);
 	const byName=new Map();
 	items.forEach(it=>{ const k=pgMtNameOf(it).toLowerCase(); if(!byName.has(k)) byName.set(k,[]); byName.get(k).push(it); });
 	const cards=Array.from(sec.querySelectorAll('[class*="itemCard-"]'));
-	let rapTotal=0, valTotal=0, valKnown=0;
+	let rapTotal=0, valTotal=0, valKnown=0, rapOfValued=0;
 	cards.forEach((card,i)=>{
 		const nameEl=card.querySelector('[class*="itemName-"]');
 		const k=String((nameEl&&nameEl.textContent)||'').trim().toLowerCase();
@@ -86,7 +183,15 @@ const pgMtAnnotateSection = (sec, offer) => {
 		const rap=it?pgMtRapOf(it):0;
 		const aid=it?pgMtAssetIdOf(it):null;
 		const val=aid!=null?Number(koromonsValueCache.get(String(aid))||0):0;
-		rapTotal+=rap; if(val>0){ valTotal+=val; valKnown++; }
+		rapTotal+=rap; if(val>0){ valTotal+=val; valKnown++; rapOfValued+=rap; }
+		if(aid!=null && card.getAttribute('data-pg-aid')!==String(aid)){
+			card.setAttribute('data-pg-aid',String(aid));
+			card.style.cursor='pointer';
+			card.addEventListener('click',(e)=>{
+				if(e.target.closest('a,button,.pg-mt-tag,.pg-mt-rap')) return;
+				window.open('/catalog/'+String(aid)+'/--','_blank');
+			});
+		}
 		let line=card.querySelector('.pg-mt-rap');
 		if(val>0){
 			if(!line){ line=document.createElement('div'); line.className='pg-mt-rap'; card.appendChild(line); }
@@ -121,12 +226,20 @@ const pgMtAnnotateSection = (sec, offer) => {
 		if(!t){ t=document.createElement('div'); t.className='pg-mt-total'; totalRow.parentNode.insertBefore(t,totalRow.nextSibling); }
 		t.style.cssText='display:flex;justify-content:space-between;align-items:center;gap:16px;max-width:565px;margin-top:8px;font-size:18px;font-weight:500;color:var(--text-color-primary,#fff);';
 		t.textContent='';
+		const rapUnvalued=rapTotal-rapOfValued;
+		const mixedTotal=valTotal+rapUnvalued;
 		const l=document.createElement('span'); l.textContent='Total Value:';
 		const v=document.createElement('span'); v.style.cssText='display:inline-flex;align-items:center;gap:6px;font-weight:700;color:#0084dd !important;';
 		v.innerHTML=PG_KOROMONS_SVG+'<span style="color:#0084dd !important;">'+(valKnown>0?valTotal.toLocaleString():'\u2014')+'</span>';
 		t.appendChild(l); t.appendChild(v);
+		let t2=sec.querySelector('.pg-mt-total2');
+		if(!t2){ t2=document.createElement('div'); t2.className='pg-mt-total2'; t.parentNode.insertBefore(t2,t.nextSibling); }
+		t2.style.cssText=t.style.cssText; t2.style.justifyContent='flex-end'; t2.textContent='';
+		const v2=document.createElement('span'); v2.style.cssText='display:inline-flex;flex-direction:column;align-items:flex-end;gap:2px;';
+		v2.innerHTML='<span style="display:inline-flex;align-items:center;gap:6px;font-weight:700;color:#0084dd !important;">'+PG_KOROMONS_SVG+'<span style="color:#0084dd !important;">'+(valKnown>0?mixedTotal.toLocaleString():rapTotal.toLocaleString())+'</span></span><span style="color:#0084dd !important;font-weight:500;font-size:11px;opacity:.85;">(+ unvalued)</span>';
+		t2.appendChild(v2);
 	}
-	return { rapTotal, valTotal, valKnown, count:cards.length, robux };
+	return { rapTotal, valTotal, valKnown, rapOfValued, count:cards.length, robux };
 };
 const applyModernTradeStats = () => {
 	const onPage=/^\/trades\/?$/i.test(location.pathname);
@@ -139,6 +252,7 @@ const applyModernTradeStats = () => {
 	const type=String((sel&&sel.value)||'inbound').toLowerCase();
 	const rowsDom=Array.from(document.querySelectorAll('[class*="tradeList-"] [class*="tradeRow-"]'));
 	const selIdx=rowsDom.findIndex(b=>/tradeRowSelected/i.test(String(b.className)));
+	if(_pgMt.listType===type && _pgMt.listRows.length) pgMtLinkListNames(rowsDom,_pgMt.listRows);
 	const partner=String(titleEl.textContent||'').replace(/^Trade with\s*/i,'').trim();
 	const sig=type+'|'+selIdx+'|'+partner;
 	if(sig===_pgMt.lastSig && main.querySelector('.pg-mt-verdict')) return;
@@ -150,6 +264,7 @@ const applyModernTradeStats = () => {
 			const myId=await mtEnsureId();
 			try{ await loadKoromonsValues(); }catch(_e){}
 			const rows=await pgMtList(type);
+			pgMtLinkListNames(rowsDom,rows);
 			let row=(selIdx>=0&&rows[selIdx])?rows[selIdx]:null;
 			if(!row||(partner&&pgMtPartnerOf(row).toLowerCase()!==partner.toLowerCase())){
 				row=rows.find(x=>pgMtPartnerOf(x).toLowerCase()===partner.toLowerCase())||row;
@@ -248,8 +363,8 @@ const pgTwDecorate = (thumbEl, anchorEl, it, mode, nameEl) => {
 const applyTradeWindowStats = () => {
 	const onPage = /^\/users\/\d+\/trade\/?$/i.test(location.pathname);
 	if(!onPage){
-		if(document.querySelector('.pg-tw-koroval,.pg-tw-tag,.pg-tw-total-value')){
-			document.querySelectorAll('.pg-tw-koroval,.pg-tw-tag,.pg-tw-total-value').forEach(n=>n.remove());
+		if(document.querySelector('.pg-tw-koroval,.pg-tw-tag,.pg-tw-total-value,.pg-tw-total-value2')){
+			document.querySelectorAll('.pg-tw-koroval,.pg-tw-tag,.pg-tw-total-value,.pg-tw-total-value2').forEach(n=>n.remove());
 			document.querySelectorAll('[class*="offerPanel-"] [class*="totalRow-"] > span[data-pg-tw-renamed]').forEach(sp=>{ sp.textContent='Total Value:'; sp.removeAttribute('data-pg-tw-renamed'); });
 		}
 		pgTwState.myItems=null; pgTwState.theirItems=null; pgTwState.partnerId=null; pgTwState.loading=false;
@@ -301,7 +416,7 @@ const applyTradeWindowStats = () => {
 		const panelIsMine=panelTitle?panelTitle.indexOf('offer')>=0:i===0;
 		const idx=pgTwIndex(panelIsMine?pgTwState.myItems:pgTwState.theirItems);
 		const slots=panel.querySelectorAll('[class*="slotFilled-"]');
-		let rapSum=0, valSum=0, valKnown=0, total=0;
+		let rapSum=0, valSum=0, valKnown=0, total=0, rapOfValued2=0;
 		slots.forEach(slot=>{
 			const nameEl=slot.querySelector('[class*="slotName-"]'); if(!nameEl) return;
 			const name=nameEl.textContent.trim();
@@ -311,7 +426,7 @@ const applyTradeWindowStats = () => {
 			const thumbWrap=slot.querySelector('[class*="slotImageWrap-"]');
 			const res=pgTwDecorate(thumbWrap,valEl||nameEl,it,'child',nameEl);
 			total++; rapSum+=rap;
-			if(res.val>0){ valSum+=res.val; valKnown++; }
+			if(res.val>0){ valSum+=res.val; valKnown++; rapOfValued2+=rap; }
 		});
 		const totalRow=panel.querySelector('[class*="totalRow-"]');
 		if(totalRow){
@@ -334,25 +449,38 @@ const applyTradeWindowStats = () => {
 				vt.style.cssText='display:flex;justify-content:space-between;align-items:center;gap:16px;margin-top:6px;font-size:16px;font-weight:500;color:var(--text-color-primary,inherit);';
 				totalRow.parentNode.insertBefore(vt, totalRow.nextSibling);
 			}
+			const rapUnvalued2=rapSum-rapOfValued2;
+			const mixedTotal2=valSum+rapUnvalued2;
 			const valTxt=valKnown>0?valSum.toLocaleString():(total>0?'\u2014':'0');
+			const mixTxt=valKnown>0?mixedTotal2.toLocaleString():rapSum.toLocaleString();
 			if(vt.getAttribute('data-pg-val')!==valTxt){
 				vt.setAttribute('data-pg-val', valTxt);
 				vt.innerHTML='<span>Total Value:</span><span style="display:inline-flex;align-items:center;gap:6px;font-weight:700;color:#0084dd !important;">'+PG_KOROMONS_SVG+'<span style="color:#0084dd !important;">'+valTxt+'</span></span>';
 			}
+			let vt2=panel.querySelector('.pg-tw-total-value2');
+			if(!vt2){
+				vt2=document.createElement('div'); vt2.className='pg-tw-total-value2';
+				vt2.style.cssText='display:flex;justify-content:flex-end;align-items:center;gap:16px;margin-top:4px;font-size:16px;font-weight:500;';
+				vt.parentNode.insertBefore(vt2, vt.nextSibling);
+			}
+			if(vt2.getAttribute('data-pg-mix')!==mixTxt){
+				vt2.setAttribute('data-pg-mix', mixTxt);
+				vt2.innerHTML='<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;"><span style="display:inline-flex;align-items:center;gap:6px;font-weight:700;color:#0084dd !important;">'+PG_KOROMONS_SVG+'<span style="color:#0084dd !important;">'+mixTxt+'</span></span><span style="color:#0084dd !important;font-weight:500;font-size:11px;opacity:.85;">(+ unvalued)</span></div>';
+			}
 		}
 	});
 };
-	/* ---------------------------------------------- Koromons Value badges */
+	/* ---------------------------------------------- Koromon’s Value badges */
 	/* Public read-only item values. No RAP fallback: large limiteds are judged */
-	/* by Value, and missing Koromons entries simply receive no badge.          */
-	const KOROMONS_VALUES_URL = 'https://www.koromons.net/items.json';
+	/* by Value, and missing Koromon’s entries simply receive no badge.          */
+	const KOROMONS_VALUES_URL = 'https://www.koromons.net/api/items';
 	const KOROMONS_VALUES_CACHE_KEY = 'pcs_koromons_values_v1';
 	const KOROMONS_VALUES_TTL = 1000 * 60 * 60 * 6;
 	const koromonsValueCache = new Map();
 	const koromonsTagsCache = new Map();
-	const PG_TAG_RARE_SRC = 'data:image/svg+xml;charset=utf-8;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIGFyaWEtaGlkZGVuPSd0cnVlJyBzdHlsZT0nLW1zLXRyYW5zZm9ybTpyb3RhdGUoMzYwZGVnKTstd2Via2l0LXRyYW5zZm9ybTpyb3RhdGUoMzYwZGVnKScgdmlld0JveD0nMCAwIDEyOCAxMjgnIHRyYW5zZm9ybT0ncm90YXRlKDM2MCknPjxwYXRoIGQ9J002My44NSAxMjMuODRsNjAuMS04Ny44LjA1LS4wMnYtLjAzTDk2LjA0IDRIMzIuMDFMNCAzNS45M3YuMDNsLjAzLjA3IDU5LjQyIDg3LjQ1LjMyLjQ0LjA3LS4wOS0uMjItLjgzLjIzLjg0eicgZmlsbD0nIzgxRDRGQScvPjxsaW5lYXJHcmFkaWVudCBpZD0nYScgeDE9JzQuMTExJyB4Mj0nMTIzLjg5JyB5MT0nNjQnIHkyPSc2NCcgZ3JhZGllbnRVbml0cz0ndXNlclNwYWNlT25Vc2UnPjxzdG9wIHN0b3AtY29sb3I9JyM4MUQ0RkEnIG9mZnNldD0nLjAwMScvPjxzdG9wIHN0b3AtY29sb3I9JyMyOUI2RjYnIG9mZnNldD0nMScvPjwvbGluZWFyR3JhZGllbnQ+PHBhdGggZmlsbD0ndXJsKCNhKScgZD0nTTYzLjc5IDEyMy45M0w0LjExIDM2LjAzbDI3LjktMzEuOTZoNjQuMDNsMjcuODUgMzEuOTZ6Jy8+PHBhdGggZmlsbD0nbm9uZScgZD0nTTY0IDRsLS4wNS4wN2guMXonLz48bGluZWFyR3JhZGllbnQgaWQ9J2InIHgxPSc2My41OTknIHgyPSc2My41OTknIHkxPScxMjMuODknIHkyPSczNi4wMDMnIGdyYWRpZW50VW5pdHM9J3VzZXJTcGFjZU9uVXNlJz48c3RvcCBzdG9wLWNvbG9yPScjODFENEZBJyBvZmZzZXQ9JzAnLz48c3RvcCBzdG9wLWNvbG9yPScjN0REM0ZBJyBvZmZzZXQ9Jy4yMjEnLz48c3RvcCBzdG9wLWNvbG9yPScjNzJDRkY5JyBvZmZzZXQ9Jy40MzEnLz48c3RvcCBzdG9wLWNvbG9yPScjNUVDOEY4JyBvZmZzZXQ9Jy42MzgnLz48c3RvcCBzdG9wLWNvbG9yPScjNDRCRkY3JyBvZmZzZXQ9Jy44NDEnLz48c3RvcCBzdG9wLWNvbG9yPScjMjlCNkY2JyBvZmZzZXQ9JzEnLz48L2xpbmVhckdyYWRpZW50PjxwYXRoIGZpbGw9J3VybCgjYiknIGQ9J002My43OCAxMjMuODlMODcuNTUgMzZsLTQ3LjkuMDV6Jy8+PHBhdGggZmlsbD0nIzgxRDRGQScgZD0nTTg3LjU1IDM2aC4zOWwtLjI4LS4zOHonLz48bGluZWFyR3JhZGllbnQgaWQ9J2MnIHgxPSc5My44OTcnIHgyPSc5My44OTcnIHkxPScxMjMuOTEnIHkyPSczNicgZ3JhZGllbnRVbml0cz0ndXNlclNwYWNlT25Vc2UnPjxzdG9wIHN0b3AtY29sb3I9JyMwMzlCRTUnIG9mZnNldD0nMCcvPjxzdG9wIHN0b3AtY29sb3I9JyMwMzk4RTInIG9mZnNldD0nLjM2OScvPjxzdG9wIHN0b3AtY29sb3I9JyMwMzkwRDknIG9mZnNldD0nLjYzOCcvPjxzdG9wIHN0b3AtY29sb3I9JyMwMjgyQzknIG9mZnNldD0nLjg3NCcvPjxzdG9wIHN0b3AtY29sb3I9JyMwMjc3QkQnIG9mZnNldD0nMScvPjwvbGluZWFyR3JhZGllbnQ+PHBhdGggZmlsbD0ndXJsKCNjKScgZD0nTTEyNCAzNi4wMkw4Ny41OCAzNmwtMjMuNzkgODcuOTFMMTI0IDM2LjAzeicvPjxsaW5lYXJHcmFkaWVudCBpZD0nZCcgeDE9JzMzLjk0NCcgeDI9JzMzLjk0NCcgeTE9JzEyMy45MScgeTI9JzM1Ljk2OCcgZ3JhZGllbnRVbml0cz0ndXNlclNwYWNlT25Vc2UnPjxzdG9wIHN0b3AtY29sb3I9JyMyOUI2RjYnIG9mZnNldD0nMCcvPjxzdG9wIHN0b3AtY29sb3I9JyMyNUIzRjQnIG9mZnNldD0nLjMzMScvPjxzdG9wIHN0b3AtY29sb3I9JyMxQUFCRUYnIG9mZnNldD0nLjY0NicvPjxzdG9wIHN0b3AtY29sb3I9JyMwNzlFRTcnIG9mZnNldD0nLjk1NCcvPjxzdG9wIHN0b3AtY29sb3I9JyMwMzlCRTUnIG9mZnNldD0nMScvPjwvbGluZWFyR3JhZGllbnQ+PHBhdGggZmlsbD0ndXJsKCNkKScgZD0nTTM5Ljg2IDM2LjU5TDM5IDM3Ljc1bC44Ni0xLjE2LS4xNy0uNjEtMzUuNTItLjAxLS4wNi4wNiA1OS42NyA4Ny44OHonLz48bGluZWFyR3JhZGllbnQgaWQ9J2UnIHgxPScyOS41MScgeDI9JzIxLjc4MycgeTE9JzUuNDU3JyB5Mj0nMzYuMzY2JyBncmFkaWVudFVuaXRzPSd1c2VyU3BhY2VPblVzZSc+PHN0b3Agc3RvcC1jb2xvcj0nI0IzRTVGQycgb2Zmc2V0PScuMDA1Jy8+PHN0b3Agc3RvcC1jb2xvcj0nIzRGQzNGNycgb2Zmc2V0PScxJy8+PC9saW5lYXJHcmFkaWVudD48cGF0aCBmaWxsPSd1cmwoI2UpJyBkPSdNNDAgMzZMMzIgNC4xIDMuNzQgMzYuMDV6Jy8+PGxpbmVhckdyYWRpZW50IGlkPSdmJyB4MT0nMTA1Ljg3JyB4Mj0nMTA1Ljg3JyB5MT0nNy4wNicgeTI9JzM3LjAyNycgZ3JhZGllbnRVbml0cz0ndXNlclNwYWNlT25Vc2UnPjxzdG9wIHN0b3AtY29sb3I9JyM4MUQ0RkEnIG9mZnNldD0nLjAwOScvPjxzdG9wIHN0b3AtY29sb3I9JyMyOUI2RjYnIG9mZnNldD0nMScvPjwvbGluZWFyR3JhZGllbnQ+PHBhdGggZmlsbD0ndXJsKCNmKScgZD0nTTg3Ljc0IDM2bDgtMzEuOUwxMjQgMzYuMDV6Jy8+PGxpbmVhckdyYWRpZW50IGlkPSdnJyB4MT0nNjMuNjQ0JyB4Mj0nNjMuNjQ0JyB5MT0nNi43MzgnIHkyPSczNS43MTUnIGdyYWRpZW50VW5pdHM9J3VzZXJTcGFjZU9uVXNlJz48c3RvcCBzdG9wLWNvbG9yPScjRTFGNUZFJyBvZmZzZXQ9JzAnLz48c3RvcCBzdG9wLWNvbG9yPScjRDNGMEZEJyBvZmZzZXQ9Jy4yNzUnLz48c3RvcCBzdG9wLWNvbG9yPScjQjNFNUZDJyBvZmZzZXQ9JzEnLz48L2xpbmVhckdyYWRpZW50PjxwYXRoIGZpbGw9J3VybCgjZyknIGQ9J00zOS43NCAzNmwyNC0zMS45Nkw4Ny41NSAzNnonLz48bGluZWFyR3JhZGllbnQgaWQ9J2gnIHgxPSc0Ny44NjgnIHgyPSc0Ny44NjgnIHkxPSc0LjQ4NCcgeTI9JzM3LjM0JyBncmFkaWVudFVuaXRzPSd1c2VyU3BhY2VPblVzZSc+PHN0b3Agc3RvcC1jb2xvcj0nIzgxRDRGQScgb2Zmc2V0PScuMDA5Jy8+PHN0b3Agc3RvcC1jb2xvcj0nIzI5QjZGNicgb2Zmc2V0PScxJy8+PC9saW5lYXJHcmFkaWVudD48cGF0aCBmaWxsPSd1cmwoI2gpJyBkPSdNNjQgNC4wNEw0MCAzNi4wNSAzMS43NCA0eicvPjxsaW5lYXJHcmFkaWVudCBpZD0naScgeDE9JzYzLjczNicgeDI9Jzk2JyB5MT0nMjAuMDIzJyB5Mj0nMjAuMDIzJyBncmFkaWVudFVuaXRzPSd1c2VyU3BhY2VPblVzZSc+PHN0b3Agc3RvcC1jb2xvcj0nIzRGQzNGNycgb2Zmc2V0PScuMDExJy8+PHN0b3Agc3RvcC1jb2xvcj0nIzI5QjZGNicgb2Zmc2V0PScxJy8+PC9saW5lYXJHcmFkaWVudD48cGF0aCBmaWxsPSd1cmwoI2kpJyBkPSdNNjMuNzQgNC4wNGwyNCAzMi4wMUw5NiA0eicvPjxwYXRoIGQ9J005NC42NyA3bDI1LjUzIDI5LjItNTYuNDIgODIuNDFMNy43NiAzNi4xOSAzMy4zNyA3aDYxLjNtMS4zNy0zSDMyLjAxTDQgMzUuOTN2LjAzbC4wMy4wNyA1OS43NCA4Ny45IDYwLjE4LTg3LjkuMDUtLjAydi0uMDNMOTYuMDQgNHonIGZpbGw9JyM0MjQyNDInIG9wYWNpdHk9Jy4yJy8+PC9zdmc+';
+	const PG_TAG_RARE_SRC = 'data:image/svg+xml;charset=utf-8;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAxMjggMTI4Jz48cGF0aCBkPSdNNjMuODUgMTIzLjg0bDYwLjEtODcuOC4wNS0uMDJ2LS4wM0w5Ni4wNCA0SDMyLjAxTDQgMzUuOTN2LjAzbC4wMy4wNyA1OS40MiA4Ny40NS4zMi40NC4wNy0uMDktLjIyLS44My4yMy44NHonIGZpbGw9JyM4MUQ0RkEnLz48bGluZWFyR3JhZGllbnQgaWQ9J2ludC1yYXJlLWEnIHgxPSc0LjExMScgeDI9JzEyMy44OScgeTE9JzY0JyB5Mj0nNjQnIGdyYWRpZW50VW5pdHM9J3VzZXJTcGFjZU9uVXNlJz48c3RvcCBzdG9wLWNvbG9yPScjODFENEZBJyBvZmZzZXQ9Jy4wMDEnLz48c3RvcCBzdG9wLWNvbG9yPScjMjlCNkY2JyBvZmZzZXQ9JzEnLz48L2xpbmVhckdyYWRpZW50PjxwYXRoIGZpbGw9J3VybCgjaW50LXJhcmUtYSknIGQ9J002My43OSAxMjMuOTNMNC4xMSAzNi4wM2wyNy45LTMxLjk2aDY0LjAzbDI3Ljg1IDMxLjk2eicvPjxwYXRoIGZpbGw9J25vbmUnIGQ9J002NCA0bC0uMDUuMDdoLjF6Jy8+PGxpbmVhckdyYWRpZW50IGlkPSdpbnQtcmFyZS1iJyB4MT0nNjMuNTk5JyB4Mj0nNjMuNTk5JyB5MT0nMTIzLjg5JyB5Mj0nMzYuMDAzJyBncmFkaWVudFVuaXRzPSd1c2VyU3BhY2VPblVzZSc+PHN0b3Agc3RvcC1jb2xvcj0nIzgxRDRGQScgb2Zmc2V0PScwJy8+PHN0b3Agc3RvcC1jb2xvcj0nIzdERDNGQScgb2Zmc2V0PScuMjIxJy8+PHN0b3Agc3RvcC1jb2xvcj0nIzcyQ0ZGOScgb2Zmc2V0PScuNDMxJy8+PHN0b3Agc3RvcC1jb2xvcj0nIzVFQzhGOCcgb2Zmc2V0PScuNjM4Jy8+PHN0b3Agc3RvcC1jb2xvcj0nIzQ0QkZGNycgb2Zmc2V0PScuODQxJy8+PHN0b3Agc3RvcC1jb2xvcj0nIzI5QjZGNicgb2Zmc2V0PScxJy8+PC9saW5lYXJHcmFkaWVudD48cGF0aCBmaWxsPSd1cmwoI2ludC1yYXJlLWIpJyBkPSdNNjMuNzggMTIzLjg5TDg3LjU1IDM2bC00Ny45LjA1eicvPjxwYXRoIGZpbGw9JyM4MUQ0RkEnIGQ9J004Ny41NSAzNmguMzlsLS4yOC0uMzh6Jy8+PGxpbmVhckdyYWRpZW50IGlkPSdpbnQtcmFyZS1jJyB4MT0nOTMuODk3JyB4Mj0nOTMuODk3JyB5MT0nMTIzLjkxJyB5Mj0nMzYnIGdyYWRpZW50VW5pdHM9J3VzZXJTcGFjZU9uVXNlJz48c3RvcCBzdG9wLWNvbG9yPScjMDM5QkU1JyBvZmZzZXQ9JzAnLz48c3RvcCBzdG9wLWNvbG9yPScjMDM5OEUyJyBvZmZzZXQ9Jy4zNjknLz48c3RvcCBzdG9wLWNvbG9yPScjMDM5MEQ5JyBvZmZzZXQ9Jy42MzgnLz48c3RvcCBzdG9wLWNvbG9yPScjMDI4MkM5JyBvZmZzZXQ9Jy44NzQnLz48c3RvcCBzdG9wLWNvbG9yPScjMDI3N0JEJyBvZmZzZXQ9JzEnLz48L2xpbmVhckdyYWRpZW50PjxwYXRoIGZpbGw9J3VybCgjaW50LXJhcmUtYyknIGQ9J00xMjQgMzYuMDJMODcuNTggMzZsLTIzLjc5IDg3LjkxTDEyNCAzNi4wM3onLz48bGluZWFyR3JhZGllbnQgaWQ9J2ludC1yYXJlLWQnIHgxPSczMy45NDQnIHgyPSczMy45NDQnIHkxPScxMjMuOTEnIHkyPSczNS45NjgnIGdyYWRpZW50VW5pdHM9J3VzZXJTcGFjZU9uVXNlJz48c3RvcCBzdG9wLWNvbG9yPScjMjlCNkY2JyBvZmZzZXQ9JzAnLz48c3RvcCBzdG9wLWNvbG9yPScjMjVCM0Y0JyBvZmZzZXQ9Jy4zMzEnLz48c3RvcCBzdG9wLWNvbG9yPScjMUFBQkVGJyBvZmZzZXQ9Jy42NDYnLz48c3RvcCBzdG9wLWNvbG9yPScjMDc5RUU3JyBvZmZzZXQ9Jy45NTQnLz48c3RvcCBzdG9wLWNvbG9yPScjMDM5QkU1JyBvZmZzZXQ9JzEnLz48L2xpbmVhckdyYWRpZW50PjxwYXRoIGZpbGw9J3VybCgjaW50LXJhcmUtZCknIGQ9J00zOS44NiAzNi41OUwzOSAzNy43NWwuODYtMS4xNi0uMTctLjYxLTM1LjUyLS4wMS0uMDYuMDYgNTkuNjcgODcuODh6Jy8+PGxpbmVhckdyYWRpZW50IGlkPSdpbnQtcmFyZS1lJyB4MT0nMjkuNTEnIHgyPScyMS43ODMnIHkxPSc1LjQ1NycgeTI9JzM2LjM2NicgZ3JhZGllbnRVbml0cz0ndXNlclNwYWNlT25Vc2UnPjxzdG9wIHN0b3AtY29sb3I9JyNCM0U1RkMnIG9mZnNldD0nLjAwNScvPjxzdG9wIHN0b3AtY29sb3I9JyM0RkMzRjcnIG9mZnNldD0nMScvPjwvbGluZWFyR3JhZGllbnQ+PHBhdGggZmlsbD0ndXJsKCNpbnQtcmFyZS1lKScgZD0nTTQwIDM2TDMyIDQuMSAzLjc0IDM2LjA1eicvPjxsaW5lYXJHcmFkaWVudCBpZD0naW50LXJhcmUtZicgeDE9JzEwNS44NycgeDI9JzEwNS44NycgeTE9JzcuMDYnIHkyPSczNy4wMjcnIGdyYWRpZW50VW5pdHM9J3VzZXJTcGFjZU9uVXNlJz48c3RvcCBzdG9wLWNvbG9yPScjODFENEZBJyBvZmZzZXQ9Jy4wMDknLz48c3RvcCBzdG9wLWNvbG9yPScjMjlCNkY2JyBvZmZzZXQ9JzEnLz48L2xpbmVhckdyYWRpZW50PjxwYXRoIGZpbGw9J3VybCgjaW50LXJhcmUtZiknIGQ9J004Ny43NCAzNmw4LTMxLjlMMTI0IDM2LjA1eicvPjxsaW5lYXJHcmFkaWVudCBpZD0naW50LXJhcmUtZycgeDE9JzYzLjY0NCcgeDI9JzYzLjY0NCcgeTE9JzYuNzM4JyB5Mj0nMzUuNzE1JyBncmFkaWVudFVuaXRzPSd1c2VyU3BhY2VPblVzZSc+PHN0b3Agc3RvcC1jb2xvcj0nI0UxRjVGRScgb2Zmc2V0PScwJy8+PHN0b3Agc3RvcC1jb2xvcj0nI0QzRjBGRCcgb2Zmc2V0PScuMjc1Jy8+PHN0b3Agc3RvcC1jb2xvcj0nI0IzRTVGQycgb2Zmc2V0PScxJy8+PC9saW5lYXJHcmFkaWVudD48cGF0aCBmaWxsPSd1cmwoI2ludC1yYXJlLWcpJyBkPSdNMzkuNzQgMzZsMjQtMzEuOTZMODcuNTUgMzZ6Jy8+PGxpbmVhckdyYWRpZW50IGlkPSdpbnQtcmFyZS1oJyB4MT0nNDcuODY4JyB4Mj0nNDcuODY4JyB5MT0nNC40ODQnIHkyPSczNy4zNCcgZ3JhZGllbnRVbml0cz0ndXNlclNwYWNlT25Vc2UnPjxzdG9wIHN0b3AtY29sb3I9JyM4MUQ0RkEnIG9mZnNldD0nLjAwOScvPjxzdG9wIHN0b3AtY29sb3I9JyMyOUI2RjYnIG9mZnNldD0nMScvPjwvbGluZWFyR3JhZGllbnQ+PHBhdGggZmlsbD0ndXJsKCNpbnQtcmFyZS1oKScgZD0nTTY0IDQuMDRMNDAgMzYuMDUgMzEuNzQgNHonLz48bGluZWFyR3JhZGllbnQgaWQ9J2ludC1yYXJlLWknIHgxPSc2My43MzYnIHgyPSc5NicgeTE9JzIwLjAyMycgeTI9JzIwLjAyMycgZ3JhZGllbnRVbml0cz0ndXNlclNwYWNlT25Vc2UnPjxzdG9wIHN0b3AtY29sb3I9JyM0RkMzRjcnIG9mZnNldD0nLjAxMScvPjxzdG9wIHN0b3AtY29sb3I9JyMyOUI2RjYnIG9mZnNldD0nMScvPjwvbGluZWFyR3JhZGllbnQ+PHBhdGggZmlsbD0ndXJsKCNpbnQtcmFyZS1pKScgZD0nTTYzLjc0IDQuMDRsMjQgMzIuMDFMOTYgNHonLz48cGF0aCBkPSdNOTQuNjcgN2wyNS41MyAyOS4yLTU2LjQyIDgyLjQxTDcuNzYgMzYuMTkgMzMuMzcgN2g2MS4zbTEuMzctM0gzMi4wMUw0IDM1Ljkzdi4wM2wuMDMuMDcgNTkuNzQgODcuOSA2MC4xOC04Ny45LjA1LS4wMnYtLjAzTDk2LjA0IDR6JyBmaWxsPScjNDI0MjQyJyBvcGFjaXR5PScuMicvPjwvc3ZnPg==';
 	const PG_TAG_RARE = '<span class="pg-tag-ico" title="Rare" style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;cursor:help;pointer-events:auto;filter:drop-shadow(0 1px 2px rgba(0,0,0,.8));"><img src="'+PG_TAG_RARE_SRC+'" width="19" height="19" style="display:block;" alt=""/></span>';
-	const PG_TAG_PROJECTED_SRC = 'data:image/svg+xml;charset=utf-8;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIGFyaWEtaGlkZGVuPSd0cnVlJyB2aWV3Qm94PScwIDAgNjQgNjQnPjxwYXRoIGQ9J002My4zNyA1My41MkM1My45ODIgMzYuMzcgNDQuNTkgMTkuMjIgMzUuMiAyLjA3YTMuNjg3IDMuNjg3IDAgMDAtNi41MjIgMEMxOS4yODkgMTkuMjIgOS44OTIgMzYuMzcuNTA4IDUzLjUyYy0xLjQ1MyAyLjY0OS4zOTkgNi4wODMgMy4yNTggNi4wODNoNTYuMzVjMS41ODQgMCAyLjY0OC0uODUzIDMuMjAzLTIuMDEuNjk4LTEuMTAyLjg4NS0yLjU2NS4wNTUtNC4wNzUnIGZpbGw9JyNmZmRkMTUnLz48cGF0aCBkPSdNMjguOTE3IDM0LjQ3N2wtLjg4OS0xMy4yNjJjLS4xNjYtMi41ODMtLjI0Ni00LjQzOS0uMjQ2LTUuNTY1IDAtMS41MzQuNC0yLjcyNyAxLjIwMi0zLjU4OC44MDUtLjg1NiAxLjg2My0xLjI4NiAzLjE3NS0xLjI4NiAxLjU4MyAwIDIuNjQ2LjU1MSAzLjE3OCAxLjY0Ni41MzcgMS4xMDIuODA5IDIuNjg0LjgwOSA0Ljc1MSAwIDEuMjE1LS4wNjYgMi40NTMtLjE5OCAzLjcwOGwtMS4xOSAxMy42NDljLS4xMjkgMS42MjYtLjQwNCAyLjg3Mi0uODI3IDMuNzM5LS40MjYuODcxLTEuMTI4IDEuMzAxLTIuMTA5IDEuMzAxLS45OTIgMC0xLjY5LS40MTktMi4wNzItMS4yNTctLjM5My0uODQxLS42NjgtMi4xMi0uODMzLTMuODM2bTMuMDcyIDE4LjIxN2MtMS4xMjUgMC0yLjEwNi0uMzYyLTIuOTQ3LTEuMDkzLS44NDEtLjcyOC0xLjI2LTEuNzQ4LTEuMjYtMy4wNTggMC0xLjE0My40LTIuMTIgMS4yMDItMi45MjEuODA1LS44MDYgMS43ODYtMS4yMDYgMi45NTEtMS4yMDZzMi4xNTMuNCAyLjk3NyAxLjIwNmMuODE1LjgwMSAxLjIzNCAxLjc3OCAxLjIzNCAyLjkyMSAwIDEuMjktLjQxOSAyLjMwOC0xLjI0NiAzLjA0NGE0LjI0NSA0LjI0NSAwIDAxLTIuOTExIDEuMTA3JyBmaWxsPScjMWYyZTM1Jy8+PC9zdmc+';
+	const PG_TAG_PROJECTED_SRC = 'data:image/svg+xml;charset=utf-8;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA2NCA2NCc+PHBhdGggZD0nTTYzLjM3IDUzLjUyQzUzLjk4MiAzNi4zNyA0NC41OSAxOS4yMiAzNS4yIDIuMDdhMy42ODcgMy42ODcgMCAwMC02LjUyMiAwQzE5LjI4OSAxOS4yMiA5Ljg5MiAzNi4zNy41MDggNTMuNTJjLTEuNDUzIDIuNjQ5LjM5OSA2LjA4MyAzLjI1OCA2LjA4M2g1Ni4zNWMxLjU4NCAwIDIuNjQ4LS44NTMgMy4yMDMtMi4wMS42OTgtMS4xMDIuODg1LTIuNTY1LjA1NS00LjA3NScgZmlsbD0nI2ZmZGQxNScvPjxwYXRoIGQ9J00yOC45MTcgMzQuNDc3bC0uODg5LTEzLjI2MmMtLjE2Ni0yLjU4My0uMjQ2LTQuNDM5LS4yNDYtNS41NjUgMC0xLjUzNC40LTIuNzI3IDEuMjAyLTMuNTg4LjgwNS0uODU2IDEuODYzLTEuMjg2IDMuMTc1LTEuMjg2IDEuNTgzIDAgMi42NDYuNTUxIDMuMTc4IDEuNjQ2LjUzNyAxLjEwMi44MDkgMi42ODQuODA5IDQuNzUxIDAgMS4yMTUtLjA2NiAyLjQ1My0uMTk4IDMuNzA4bC0xLjE5IDEzLjY0OWMtLjEyOSAxLjYyNi0uNDA0IDIuODcyLS44MjcgMy43MzktLjQyNi44NzEtMS4xMjggMS4zMDEtMi4xMDkgMS4zMDEtLjk5MiAwLTEuNjktLjQxOS0yLjA3Mi0xLjI1Ny0uMzkzLS44NDEtLjY2OC0yLjEyLS44MzMtMy44MzZtMy4wNzIgMTguMjE3Yy0xLjEyNSAwLTIuMTA2LS4zNjItMi45NDctMS4wOTMtLjg0MS0uNzI4LTEuMjYtMS43NDgtMS4yNi0zLjA1OCAwLTEuMTQzLjQtMi4xMiAxLjIwMi0yLjkyMS44MDUtLjgwNiAxLjc4Ni0xLjIwNiAyLjk1MS0xLjIwNnMyLjE1My40IDIuOTc3IDEuMjA2Yy44MTUuODAxIDEuMjM0IDEuNzc4IDEuMjM0IDIuOTIxIDAgMS4yOS0uNDE5IDIuMzA4LTEuMjQ2IDMuMDQ0YTQuMjQ1IDQuMjQ1IDAgMDEtMi45MTEgMS4xMDcnIGZpbGw9JyMxZjJlMzUnLz48L3N2Zz4=';
 	const PG_TAG_PROJECTED = '<span class="pg-tag-ico" title="Projected" style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;cursor:help;pointer-events:auto;filter:drop-shadow(0 1px 2px rgba(0,0,0,.8));"><img src="'+PG_TAG_PROJECTED_SRC+'" width="19" height="19" style="display:block;" alt=""/></span>';
 	let koromonsValuesLoaded = false;
 	let koromonsValuesPromise = null;
@@ -382,17 +510,20 @@ const applyTradeWindowStats = () => {
 			return { hit:true, fresh:age >= 0 && age <= KOROMONS_VALUES_TTL };
 		} catch (_) { return { hit:false, fresh:false }; }
 	};
-	const requestKoromonsValues = () => new Promise((resolve,reject) => {
-		try {
-			GM_xmlhttpRequest({
-				method:'GET', url:KOROMONS_VALUES_URL,
-				headers:{accept:'application/json','Cache-Control':'no-cache'},
-				responseType:'json', timeout:10000,
-				onload:r=>{ try { const d=typeof r.response==='string'?JSON.parse(r.response):(r.response||JSON.parse(r.responseText||'[]')); if(!Array.isArray(d)) throw new Error('Invalid Koromons response'); resolve(d); } catch(e){ reject(e); } },
-				onerror:()=>reject(new Error('Koromons request failed')),
-				ontimeout:()=>reject(new Error('Koromons request timed out')),
-			});
-		} catch(e){ reject(e); }
+	/* HTTP helper: plain page-context fetch. koromons.net serves open CORS headers (verified:
+	   fetch from the page returns 200 without any extension), so no GM_xmlhttpRequest privilege
+	   is needed and console/local mode gets live data too. */
+	const pgGetJson = (url, timeoutMs = 10000) => new Promise((resolve, reject) => {
+		const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+		const timer = setTimeout(() => { try { if (ctl) ctl.abort(); } catch(_) {} reject(new Error('Koromon’s request timed out')); }, timeoutMs);
+		fetch(url, { headers:{accept:'application/json'}, signal: ctl ? ctl.signal : undefined })
+			.then(r => { if (!r.ok) throw new Error('Koromon’s request failed: HTTP ' + r.status); return r.json(); })
+			.then(d => { clearTimeout(timer); resolve(d); })
+			.catch(e => { clearTimeout(timer); reject(e); });
+	});
+	const requestKoromonsValues = () => pgGetJson(KOROMONS_VALUES_URL, 10000).then(d => {
+		if (!Array.isArray(d)) throw new Error('Invalid Koromon’s response');
+		return d;
 	});
 	const loadKoromonsValues = (force=false) => {
 		if (koromonsValuesPromise && !force) return koromonsValuesPromise;
@@ -411,7 +542,7 @@ const applyTradeWindowStats = () => {
 		});
 		return koromonsValuesPromise;
 	};
-	/* ------------------------------ Koromons leaderboard cache + profile block (v1.0.11) */
+	/* ------------------------------ Koromon’s leaderboard cache + profile block (v1.0.11) */
 	const KOROMONS_LB_URL = 'https://www.koromons.net/api/leaderboard';
 	const KOROMONS_LB_CACHE_KEY = 'pcs_koromons_lb_v1';
 	const KOROMONS_LB_TTL = 1000 * 60 * 30;
@@ -426,17 +557,10 @@ const applyTradeWindowStats = () => {
 			return { hit:true, fresh:age >= 0 && age <= KOROMONS_LB_TTL };
 		} catch(e){ return { hit:false, fresh:false }; }
 	};
-	const requestKoromonsLb = () => new Promise((resolve,reject) => {
-		try {
-			GM_xmlhttpRequest({
-				method:'GET', url:KOROMONS_LB_URL,
-				headers:{accept:'application/json','Cache-Control':'no-cache'},
-				responseType:'json', timeout:15000,
-				onload:r=>{ try { const d=typeof r.response==='string'?JSON.parse(r.response):(r.response||JSON.parse(r.responseText||'null')); const rows=d&&Array.isArray(d.players)?d.players:(Array.isArray(d)?d:null); if(!rows) throw new Error('Invalid Koromons leaderboard response'); resolve(rows); } catch(e){ reject(e); } },
-				onerror:()=>reject(new Error('Koromons leaderboard request failed')),
-				ontimeout:()=>reject(new Error('Koromons leaderboard request timed out')),
-			});
-		} catch(e){ reject(e); }
+	const requestKoromonsLb = () => pgGetJson(KOROMONS_LB_URL, 15000).then(d => {
+		const rows = d && Array.isArray(d.players) ? d.players : (Array.isArray(d) ? d : null);
+		if (!rows) throw new Error('Invalid Koromon’s leaderboard response');
+		return rows;
 	});
 	const loadKoromonsLb = (force=false) => {
 		if (koromonsLbPromise && !force) return koromonsLbPromise;
@@ -484,7 +608,7 @@ const applyTradeWindowStats = () => {
 		box.className='pg-koro-profile';
 		box.setAttribute('data-uid', String(uid));
 		box.style.cssText='position:relative;z-index:1;margin-top:10px;padding:9px 14px;border-radius:10px;background:rgba(0,132,221,0.07);border:1px solid rgba(0,132,221,0.35);display:flex;align-items:center;gap:20px;flex-wrap:wrap;font-size:13px;line-height:1.4;';
-		const head='<span style="display:inline-flex;align-items:center;gap:6px;font-weight:800;letter-spacing:.02em;color:#0084dd !important;">'+PG_KOROMONS_SVG+'<span style="color:#0084dd !important;">Koromons</span></span>';
+		const head='<span style="display:inline-flex;align-items:center;gap:6px;font-weight:800;letter-spacing:.02em;color:#0084dd !important;">'+PG_KOROMONS_SVG+'<span style="color:#0084dd !important;">Koromon’s</span></span>';
 		box.innerHTML=head+'<span style="color:#9aa0a6;">loading\u2026</span>';
 		frame.appendChild(box);
 		(async () => {
@@ -497,17 +621,17 @@ const applyTradeWindowStats = () => {
 				if (hit){
 					box.innerHTML=head
 						+koroStatHtml('Value:', koroValueHtml(hit.value))
-						+koroStatHtml('RAP:', '<span style="color:#02b757 !important;">'+hit.rap.toLocaleString()+'</span>')
+						+koroStatHtml('RAP:', '<span class="pg-rap-amt" style="color:#02b757;">'+hit.rap.toLocaleString()+'</span>')
 						+koroStatHtml('Rank:', '#'+hit.rank+' <span style="color:#9aa0a6;font-weight:600;font-size:12px;">/ '+hit.total.toLocaleString()+'</span>');
 				} else if (est && est.count>0){
 					box.innerHTML=head
 						+koroStatHtml('Value:', '\u2248 '+koroValueHtml(est.value))
-						+koroStatHtml('RAP:', '<span style="color:#02b757 !important;">'+est.rap.toLocaleString()+'</span>')
+						+koroStatHtml('RAP:', '<span class="pg-rap-amt" style="color:#02b757;">'+est.rap.toLocaleString()+'</span>')
 						+'<span style="color:#9aa0a6;font-size:11px;">not on leaderboard \u00b7 estimated from public inventory</span>';
 				} else {
-					box.innerHTML=head+'<span style="color:#9aa0a6;font-size:12px;">no data \u2014 inventory is private and player is not on the Koromons leaderboard</span>';
+					box.innerHTML=head+'<span style="color:#9aa0a6;font-size:12px;">no data \u2014 inventory is private and player is not on the Koromon’s leaderboard</span>';
 				}
-			} catch(e){ if(box.isConnected) box.innerHTML=head+'<span style="color:#ffb454;font-size:12px;">Koromons data unavailable</span>'; }
+			} catch(e){ if(box.isConnected) box.innerHTML=head+'<span style="color:#ffb454;font-size:12px;">Koromon’s data unavailable</span>'; }
 		})();
 	};
 	const assetIdFromSrc = (src) => {
@@ -540,7 +664,30 @@ const applyTradeWindowStats = () => {
 	const clearBadges = () => document.querySelectorAll('.pcs-value,.pcs-rap').forEach(e => e.remove());
 	const primeFromUrl = () => { if(cfg.tradeValues) loadKoromonsValues().then(annotateThumbs); };
 
-const applyPageModules = () => { applyKoromonsProfileBlock(); applyModernTradeStats(); applyTradeWindowStats(); };
+const applyCatalogKoromonsLink = () => {
+	const m=location.pathname.match(/\/catalog\/(\d+)(?:\/|$)/i);
+	if(!m){ const el=document.querySelector('.pg-cat-koro-link'); if(el) el.remove(); return; }
+	const aid=m[1];
+	if(!koromonsValuesLoaded){ loadKoromonsValues().then(()=>{ try{ applyCatalogKoromonsLink(); }catch(_){} }); return; }
+	if(!koromonsValueCache.has(String(aid))){ const el=document.querySelector('.pg-cat-koro-link'); if(el) el.remove(); return; }
+	let link=document.querySelector('.pg-cat-koro-link');
+	if(link&&link.getAttribute('data-aid')===aid) return;
+	if(link) link.remove();
+	const anchor=document.querySelector('[class*="desktopInteractionContainer"],[class*="favBtnContainer-"],[class*="itemInteractionContainer-"]');
+	if(!anchor) return;
+	link=document.createElement('a');
+	link.className='pg-cat-koro-link';
+	link.setAttribute('data-aid',aid);
+	link.href='https://www.koromons.net/item?id='+aid;
+	link.target='_blank';
+	link.rel='noopener noreferrer';
+	link.style.cssText='display:inline-flex;align-items:center;gap:6px;margin-top:10px;padding:8px 14px;border-radius:6px;background:rgba(0,132,221,0.12);border:1px solid rgba(0,132,221,0.4);color:#0084dd !important;font-size:14px;font-weight:700;text-decoration:none;cursor:pointer;white-space:nowrap;';
+	link.innerHTML=PG_KOROMONS_SVG+'<span style="color:#0084dd !important;">View on Koromon’s</span>';
+	link.onmouseenter=()=>{ link.style.background='rgba(0,132,221,0.22)'; };
+	link.onmouseleave=()=>{ link.style.background='rgba(0,132,221,0.12)'; };
+	anchor.parentNode.insertBefore(link,anchor.nextSibling);
+};
+const applyPageModules = () => { applyKoromonsProfileBlock(); applyModernTradeStats(); applyTradeWindowStats(); applyCatalogKoromonsLink(); };
 const init = () => {
 	applyPageModules();
 	primeFromUrl();
@@ -569,11 +716,11 @@ else window.addEventListener('DOMContentLoaded', init);
     if (!/^\/internal\/collectibles/i.test(location.pathname)) return;
     console.info('[Interium] Collectibles suite: page detected, starting.');
     try {
-        const _pcsCfg = JSON.parse(GM_getValue('pcs_cfg_v1', 'null') || 'null');
+        // Stale legacy flag check (pcs_cfg_v1 was written by older builds via GM_setValue;
+        // now we read it directly from localStorage with the same prefix the polyfill used).
+        const _pcsRaw = localStorage.getItem('interium_local_pcs_cfg_v1');
+        const _pcsCfg = _pcsRaw ? JSON.parse(_pcsRaw) : null;
         if (_pcsCfg && _pcsCfg.collectiblesSuite === false) {
-            // This build keeps every feature always on. Older Interium builds could
-            // leave a stale "disabled" flag behind in this script's storage, which
-            // silently killed the collectibles page. Ignore it (and log it).
             console.warn('[Interium] Ignoring stale saved setting that disabled the collectibles suite.');
         }
     } catch (_) {}
@@ -699,20 +846,10 @@ else window.addEventListener('DOMContentLoaded', init);
     }
 
     function gmGetJson(url) {
-        return new Promise((resolve, reject) => {
-            GM_xmlhttpRequest({
-                method: 'GET',
-                url,
-                headers: { Accept: 'application/json' },
-                responseType: 'json',
-                onload: (r) => {
-                    try {
-                        resolve(typeof r.response === 'string' ? JSON.parse(r.response) : (r.response || JSON.parse(r.responseText || '{}')));
-                    } catch (e) { reject(e); }
-                },
-                onerror: reject
-            });
-        });
+        // Plain page-context fetch: koromons.net serves open CORS headers, so no GM privilege
+        // is needed and console/local mode works too. (Name kept for call-site compatibility.)
+        return fetch(url, { headers: { Accept: 'application/json' } })
+            .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
     }
 
     function numFromAny(v) {
@@ -795,7 +932,7 @@ else window.addEventListener('DOMContentLoaded', init);
 
     function rawDemandFromValueItem(obj) {
         if (!obj || typeof obj !== 'object') return '';
-        // Koromons exposes demand directly as obj.Demand, e.g. "High", "Decent",
+        // Koromon’s exposes demand directly as obj.Demand, e.g. "High", "Decent",
         // "Low", "Terrible". Untracked items use "None"/"Unassigned" and must
         // never render a pill. Trend (e.g. "Stable") must never be read here.
         const scanDemand = (node, depth = 0) => {
@@ -913,7 +1050,7 @@ else window.addEventListener('DOMContentLoaded', init);
         try {
             const data = await gmGetJson(VALUES_JSON_URL);
             const rows = Array.isArray(data) ? data : (Array.isArray(data?.items) ? data.items : (Array.isArray(data?.data) ? data.data : null));
-            if (!Array.isArray(rows)) throw new Error('Koromons response is not an item array.');
+            if (!Array.isArray(rows)) throw new Error('Koromon’s response is not an item array.');
             indexValueItems(rows);
             try { localStorage.setItem(VALUES_CACHE_KEY, JSON.stringify({ t: Date.now(), items: rows })); } catch (_) {}
             return true;
@@ -940,12 +1077,12 @@ else window.addEventListener('DOMContentLoaded', init);
         try {
             const data = await gmGetJson(KOROMONS_ITEMS_URL);
             const rows = Array.isArray(data) ? data : (Array.isArray(data && data.items) ? data.items : (Array.isArray(data && data.data) ? data.data : null));
-            if (!Array.isArray(rows)) throw new Error('Koromons response is not an array.');
+            if (!Array.isArray(rows)) throw new Error('Koromon’s response is not an array.');
             indexKoromonsDemand(rows);
             try { localStorage.setItem(KOROMONS_DEMAND_CACHE_KEY, JSON.stringify({ t: Date.now(), items: rows })); } catch (_) {}
             return true;
         } catch (e) {
-            console.warn('[PK 5.0] Koromons demand refresh failed', e);
+            console.warn('[PK 5.0] Koromon’s demand refresh failed', e);
             return false;
         }
     }
@@ -1110,7 +1247,7 @@ else window.addEventListener('DOMContentLoaded', init);
         document.querySelectorAll(`.pk-card[data-asset-id="${CSS.escape(id)}"]`).forEach(card => {
             card.classList.add('pk-rare');
             card.dataset.rare = '1';
-            if (!card.querySelector('.pk-rare-gem')) card.insertAdjacentHTML('afterbegin', '<div class="pk-rare-gem" title="Rare">💎</div>');
+            if (!card.querySelector('.pk-rare-gem')) card.insertAdjacentHTML('afterbegin', '<div class="pk-rare-gem" title="Rare"><svg width="18" height="18" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><path d="M63.85 123.84l60.1-87.8.05-.02v-.03L96.04 4H32.01L4 35.93v.03l.03.07 59.42 87.45.32.44.07-.09-.22-.83.23.84z" fill="#81D4FA"/><linearGradient id="int-rare-a" x1="4.111" x2="123.89" y1="64" y2="64" gradientUnits="userSpaceOnUse"><stop stop-color="#81D4FA" offset=".001"/><stop stop-color="#29B6F6" offset="1"/></linearGradient><path fill="url(#int-rare-a)" d="M63.79 123.93L4.11 36.03l27.9-31.96h64.03l27.85 31.96z"/><path fill="none" d="M64 4l-.05.07h.1z"/><linearGradient id="int-rare-b" x1="63.599" x2="63.599" y1="123.89" y2="36.003" gradientUnits="userSpaceOnUse"><stop stop-color="#81D4FA" offset="0"/><stop stop-color="#7DD3FA" offset=".221"/><stop stop-color="#72CFF9" offset=".431"/><stop stop-color="#5EC8F8" offset=".638"/><stop stop-color="#44BFF7" offset=".841"/><stop stop-color="#29B6F6" offset="1"/></linearGradient><path fill="url(#int-rare-b)" d="M63.78 123.89L87.55 36l-47.9.05z"/><path fill="#81D4FA" d="M87.55 36h.39l-.28-.38z"/><linearGradient id="int-rare-c" x1="93.897" x2="93.897" y1="123.91" y2="36" gradientUnits="userSpaceOnUse"><stop stop-color="#039BE5" offset="0"/><stop stop-color="#0398E2" offset=".369"/><stop stop-color="#0390D9" offset=".638"/><stop stop-color="#0282C9" offset=".874"/><stop stop-color="#0277BD" offset="1"/></linearGradient><path fill="url(#int-rare-c)" d="M124 36.02L87.58 36l-23.79 87.91L124 36.03z"/><linearGradient id="int-rare-d" x1="33.944" x2="33.944" y1="123.91" y2="35.968" gradientUnits="userSpaceOnUse"><stop stop-color="#29B6F6" offset="0"/><stop stop-color="#25B3F4" offset=".331"/><stop stop-color="#1AABEF" offset=".646"/><stop stop-color="#079EE7" offset=".954"/><stop stop-color="#039BE5" offset="1"/></linearGradient><path fill="url(#int-rare-d)" d="M39.86 36.59L39 37.75l.86-1.16-.17-.61-35.52-.01-.06.06 59.67 87.88z"/><linearGradient id="int-rare-e" x1="29.51" x2="21.783" y1="5.457" y2="36.366" gradientUnits="userSpaceOnUse"><stop stop-color="#B3E5FC" offset=".005"/><stop stop-color="#4FC3F7" offset="1"/></linearGradient><path fill="url(#int-rare-e)" d="M40 36L32 4.1 3.74 36.05z"/><linearGradient id="int-rare-f" x1="105.87" x2="105.87" y1="7.06" y2="37.027" gradientUnits="userSpaceOnUse"><stop stop-color="#81D4FA" offset=".009"/><stop stop-color="#29B6F6" offset="1"/></linearGradient><path fill="url(#int-rare-f)" d="M87.74 36l8-31.9L124 36.05z"/><linearGradient id="int-rare-g" x1="63.644" x2="63.644" y1="6.738" y2="35.715" gradientUnits="userSpaceOnUse"><stop stop-color="#E1F5FE" offset="0"/><stop stop-color="#D3F0FD" offset=".275"/><stop stop-color="#B3E5FC" offset="1"/></linearGradient><path fill="url(#int-rare-g)" d="M39.74 36l24-31.96L87.55 36z"/><linearGradient id="int-rare-h" x1="47.868" x2="47.868" y1="4.484" y2="37.34" gradientUnits="userSpaceOnUse"><stop stop-color="#81D4FA" offset=".009"/><stop stop-color="#29B6F6" offset="1"/></linearGradient><path fill="url(#int-rare-h)" d="M64 4.04L40 36.05 31.74 4z"/><linearGradient id="int-rare-i" x1="63.736" x2="96" y1="20.023" y2="20.023" gradientUnits="userSpaceOnUse"><stop stop-color="#4FC3F7" offset=".011"/><stop stop-color="#29B6F6" offset="1"/></linearGradient><path fill="url(#int-rare-i)" d="M63.74 4.04l24 32.01L96 4z"/><path d="M94.67 7l25.53 29.2-56.42 82.41L7.76 36.19 33.37 7h61.3m1.37-3H32.01L4 35.93v.03l.03.07 59.74 87.9 60.18-87.9.05-.02v-.03L96.04 4z" fill="#424242" opacity=".2"/></svg></div>');
         });
     }
 
@@ -1234,7 +1371,7 @@ else window.addEventListener('DOMContentLoaded', init);
     }
 
     function projectedBadgeHTML(stack) {
-        return isProjectedStack(stack) ? '<div class="pk-projected-badge" title="Possible projected item">��️</div>' : '';
+        return isProjectedStack(stack) ? '<div class="pk-projected-badge" title="Possible projected item"><svg width="16" height="16" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path d="M63.37 53.52C53.982 36.37 44.59 19.22 35.2 2.07a3.687 3.687 0 00-6.522 0C19.289 19.22 9.892 36.37.508 53.52c-1.453 2.649.399 6.083 3.258 6.083h56.35c1.584 0 2.648-.853 3.203-2.01.698-1.102.885-2.565.055-4.075" fill="#ffdd15"/><path d="M28.917 34.477l-.889-13.262c-.166-2.583-.246-4.439-.246-5.565 0-1.534.4-2.727 1.202-3.588.805-.856 1.863-1.286 3.175-1.286 1.583 0 2.646.551 3.178 1.646.537 1.102.809 2.684.809 4.751 0 1.215-.066 2.453-.198 3.708l-1.19 13.649c-.129 1.626-.404 2.872-.827 3.739-.426.871-1.128 1.301-2.109 1.301-.992 0-1.69-.419-2.072-1.257-.393-.841-.668-2.12-.833-3.836m3.072 18.217c-1.125 0-2.106-.362-2.947-1.093-.841-.728-1.26-1.748-1.26-3.058 0-1.143.4-2.12 1.202-2.921.805-.806 1.786-1.206 2.951-1.206s2.153.4 2.977 1.206c.815.801 1.234 1.778 1.234 2.921 0 1.29-.419 2.308-1.246 3.044a4.245 4.245 0 01-2.911 1.107" fill="#1f2e35"/></svg></div>' : '';
     }
 
     function cardHTML(stack, index) {
@@ -1244,7 +1381,7 @@ else window.addEventListener('DOMContentLoaded', init);
         const serialStyle = serialColor(stack.bestSerial);
         return `
             <div class="pk-card ${stack.isRare ? 'pk-rare' : ''} ${specialSerialRank(stack.bestSerial) < 1000 ? 'pk-special-serial' : ''}" data-index="${index}" data-uid="${esc(stack.uid)}" data-asset-id="${esc(stack.assetId)}" data-rare="${stack.isRare ? '1' : '0'}">
-                ${stack.isRare ? '<div class="pk-rare-gem" title="Rare">💎</div>' : ''}
+                ${stack.isRare ? '<div class="pk-rare-gem" title="Rare"><svg width="18" height="18" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><path d="M63.85 123.84l60.1-87.8.05-.02v-.03L96.04 4H32.01L4 35.93v.03l.03.07 59.42 87.45.32.44.07-.09-.22-.83.23.84z" fill="#81D4FA"/><linearGradient id="int-rare-a" x1="4.111" x2="123.89" y1="64" y2="64" gradientUnits="userSpaceOnUse"><stop stop-color="#81D4FA" offset=".001"/><stop stop-color="#29B6F6" offset="1"/></linearGradient><path fill="url(#int-rare-a)" d="M63.79 123.93L4.11 36.03l27.9-31.96h64.03l27.85 31.96z"/><path fill="none" d="M64 4l-.05.07h.1z"/><linearGradient id="int-rare-b" x1="63.599" x2="63.599" y1="123.89" y2="36.003" gradientUnits="userSpaceOnUse"><stop stop-color="#81D4FA" offset="0"/><stop stop-color="#7DD3FA" offset=".221"/><stop stop-color="#72CFF9" offset=".431"/><stop stop-color="#5EC8F8" offset=".638"/><stop stop-color="#44BFF7" offset=".841"/><stop stop-color="#29B6F6" offset="1"/></linearGradient><path fill="url(#int-rare-b)" d="M63.78 123.89L87.55 36l-47.9.05z"/><path fill="#81D4FA" d="M87.55 36h.39l-.28-.38z"/><linearGradient id="int-rare-c" x1="93.897" x2="93.897" y1="123.91" y2="36" gradientUnits="userSpaceOnUse"><stop stop-color="#039BE5" offset="0"/><stop stop-color="#0398E2" offset=".369"/><stop stop-color="#0390D9" offset=".638"/><stop stop-color="#0282C9" offset=".874"/><stop stop-color="#0277BD" offset="1"/></linearGradient><path fill="url(#int-rare-c)" d="M124 36.02L87.58 36l-23.79 87.91L124 36.03z"/><linearGradient id="int-rare-d" x1="33.944" x2="33.944" y1="123.91" y2="35.968" gradientUnits="userSpaceOnUse"><stop stop-color="#29B6F6" offset="0"/><stop stop-color="#25B3F4" offset=".331"/><stop stop-color="#1AABEF" offset=".646"/><stop stop-color="#079EE7" offset=".954"/><stop stop-color="#039BE5" offset="1"/></linearGradient><path fill="url(#int-rare-d)" d="M39.86 36.59L39 37.75l.86-1.16-.17-.61-35.52-.01-.06.06 59.67 87.88z"/><linearGradient id="int-rare-e" x1="29.51" x2="21.783" y1="5.457" y2="36.366" gradientUnits="userSpaceOnUse"><stop stop-color="#B3E5FC" offset=".005"/><stop stop-color="#4FC3F7" offset="1"/></linearGradient><path fill="url(#int-rare-e)" d="M40 36L32 4.1 3.74 36.05z"/><linearGradient id="int-rare-f" x1="105.87" x2="105.87" y1="7.06" y2="37.027" gradientUnits="userSpaceOnUse"><stop stop-color="#81D4FA" offset=".009"/><stop stop-color="#29B6F6" offset="1"/></linearGradient><path fill="url(#int-rare-f)" d="M87.74 36l8-31.9L124 36.05z"/><linearGradient id="int-rare-g" x1="63.644" x2="63.644" y1="6.738" y2="35.715" gradientUnits="userSpaceOnUse"><stop stop-color="#E1F5FE" offset="0"/><stop stop-color="#D3F0FD" offset=".275"/><stop stop-color="#B3E5FC" offset="1"/></linearGradient><path fill="url(#int-rare-g)" d="M39.74 36l24-31.96L87.55 36z"/><linearGradient id="int-rare-h" x1="47.868" x2="47.868" y1="4.484" y2="37.34" gradientUnits="userSpaceOnUse"><stop stop-color="#81D4FA" offset=".009"/><stop stop-color="#29B6F6" offset="1"/></linearGradient><path fill="url(#int-rare-h)" d="M64 4.04L40 36.05 31.74 4z"/><linearGradient id="int-rare-i" x1="63.736" x2="96" y1="20.023" y2="20.023" gradientUnits="userSpaceOnUse"><stop stop-color="#4FC3F7" offset=".011"/><stop stop-color="#29B6F6" offset="1"/></linearGradient><path fill="url(#int-rare-i)" d="M63.74 4.04l24 32.01L96 4z"/><path d="M94.67 7l25.53 29.2-56.42 82.41L7.76 36.19 33.37 7h61.3m1.37-3H32.01L4 35.93v.03l.03.07 59.74 87.9 60.18-87.9.05-.02v-.03L96.04 4z" fill="#424242" opacity=".2"/></svg></div>' : ''}
                 ${state.stacked && stack.count > 1 ? `<div class="pk-badge">x${stack.count}</div>` : ''}
                 ${projectedBadgeHTML(stack)}
                 <a class="pk-thumb-link" href="/catalog/${esc(stack.assetId)}/--">
@@ -1328,13 +1465,52 @@ else window.addEventListener('DOMContentLoaded', init);
         return totalsFor(new Set(), state.theirItems);
     }
 
+    // The calculator panel lives on document.body and is created lazily, so
+    // the Item Calculator button works even if the grid re-render bailed out
+    // or a site re-render removed the panel.
+    function ensureCalcPanel() {
+        let calc = document.querySelector('#pk-calc-panel');
+        if (calc) return calc;
+        calc = document.createElement('aside');
+        calc.id = 'pk-calc-panel';
+        calc.className = 'pk-calc-panel';
+        calc.innerHTML = `
+            <div id="pk-calc-head" class="pk-calc-head">
+                <span>Trade Calculator</span>
+                <button id="pk-clear-calc" class="pk-clear">Clear</button>
+            </div>
+            <div class="pk-calc-columns">
+                <section><h4>My Side <button id="pk-add-any-mine" class="pk-clear pk-add-any">Add Any Item</button></h4><div id="pk-calc-mine" class="pk-calc-list"></div></section>
+                <section><h4>Their Side <button id="pk-add-any-theirs" class="pk-clear pk-add-any">Add Any Item</button></h4><div id="pk-calc-theirs" class="pk-calc-list"></div></section>
+            </div>
+            <div id="pk-calc-summary" class="pk-calc-total"></div>
+        `;
+        document.body.appendChild(calc);
+        calc.querySelector('#pk-clear-calc').addEventListener('click', () => { state.mine.clear(); state.mineItems.clear(); state.theirItems.clear(); render(); });
+        calc.querySelector('#pk-add-any-mine').addEventListener('click', () => showItemPicker('mine'));
+        calc.querySelector('#pk-add-any-theirs').addEventListener('click', () => showItemPicker('theirs'));
+        calc.addEventListener('click', e => {
+            const btn = e.target.closest('.pk-calc-remove');
+            if (!btn) return;
+            const row = btn.closest('.pk-calc-item');
+            const key = row?.dataset?.key;
+            if (row?.dataset?.side === 'mine') { state.mine.delete(String(key)); state.mineItems.delete(String(key)); }
+            else state.theirItems.delete(String(key));
+            render();
+        });
+        makeDraggable(calc, calc.querySelector('#pk-calc-head'));
+        return calc;
+    }
+
     function updateCalc() {
+        const panel = ensureCalcPanel();
+        if (!panel) return;
+        // Toggle visibility first: even if totals computation ever fails,
+        // the panel still opens/closes on click.
+        document.body.classList.toggle('pk-calc-open', state.calcOpen);
         const mine = totalsFor(state.mine, state.mineItems);
         const theirs = theirTotals();
         const diff = theirs.value - mine.value;
-        const panel = document.querySelector('#pk-calc-panel');
-        if (!panel) return;
-        document.body.classList.toggle('pk-calc-open', state.calcOpen);
         panel.querySelector('#pk-calc-mine').innerHTML = calcSideHTML(mine.selected, 'mine');
         panel.querySelector('#pk-calc-theirs').innerHTML = calcSideHTML(theirs.selected, 'theirs');
         panel.querySelector('#pk-calc-summary').innerHTML = `
@@ -1356,7 +1532,7 @@ else window.addEventListener('DOMContentLoaded', init);
 
     function render() {
         const row = getInventoryRow();
-        if (!row) return;
+        if (!row) { updateCalc(); updateToolbarState(); return; }
         removeOriginalPagination();
         const shown = visibleStacks();
         row.innerHTML = `<div class="pk-grid">${shown.map((s, i) => cardHTML(s, i)).join('')}</div>`;
@@ -1429,6 +1605,35 @@ else window.addEventListener('DOMContentLoaded', init);
     }
 
 
+    // Toolbar events are delegated at the document level so every button
+    // keeps working even if the site re-renders/replaces the toolbar DOM
+    // (a React re-render keeps the visible buttons but silently strips
+    // directly-attached listeners - the exact "button does nothing" bug).
+    let _toolbarHandlersInstalled = false;
+    function installToolbarHandlers() {
+        if (_toolbarHandlersInstalled) return;
+        _toolbarHandlersInstalled = true;
+        document.addEventListener('input', (e) => {
+            const t = e.target;
+            if (t && t.id === 'pk-search') { state.query = t.value || ''; render(); }
+        }, true);
+        document.addEventListener('click', (e) => {
+            const t = e.target instanceof Element ? e.target : null;
+            if (!t) return;
+            try {
+                const sortBtn = t.closest('#pk-shell [data-sort]');
+                if (sortBtn) { state.sortMode = sortBtn.dataset.sort; render(); return; }
+                if (t.closest('#pk-toggle-calc')) { state.calcOpen = !state.calcOpen; updateCalc(); updateToolbarState(); return; }
+                if (t.closest('#pk-toggle-stack')) { state.stacked = !state.stacked; render(); return; }
+                if (t.closest('#pk-toggle-value-only')) { state.valueOnly = !state.valueOnly; saveSettings(); render(); return; }
+                if (t.closest('#pk-toggle-serial-outline')) { state.serialOutline = !state.serialOutline; saveSettings(); render(); return; }
+                if (t.closest('#pk-toggle-glow')) { state.rareGlow = !state.rareGlow; saveSettings(); applyRareGlowToggle(); return; }
+            } catch (err) {
+                console.error('[Interium] Toolbar action failed:', err);
+            }
+        }, true);
+    }
+
     function buildShell() {
         if (document.getElementById('pk-shell')) return true;
         const body = getInventoryBody();
@@ -1451,7 +1656,7 @@ else window.addEventListener('DOMContentLoaded', init);
                         <button class="pk-btn" data-sort="value">Value</button>
                         <button class="pk-btn" data-sort="rap">RAP</button>
                         <button class="pk-btn" data-sort="serials">Serials</button>
-                        <button class="pk-btn" data-sort="rares">Rares💎</button>
+                        <button class="pk-btn" data-sort="rares">Rares <svg width="11" height="11" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><path d="M63.85 123.84l60.1-87.8.05-.02v-.03L96.04 4H32.01L4 35.93v.03l.03.07 59.42 87.45.32.44.07-.09-.22-.83.23.84z" fill="#81D4FA"/><linearGradient id="int-rare-a" x1="4.111" x2="123.89" y1="64" y2="64" gradientUnits="userSpaceOnUse"><stop stop-color="#81D4FA" offset=".001"/><stop stop-color="#29B6F6" offset="1"/></linearGradient><path fill="url(#int-rare-a)" d="M63.79 123.93L4.11 36.03l27.9-31.96h64.03l27.85 31.96z"/><path fill="none" d="M64 4l-.05.07h.1z"/><linearGradient id="int-rare-b" x1="63.599" x2="63.599" y1="123.89" y2="36.003" gradientUnits="userSpaceOnUse"><stop stop-color="#81D4FA" offset="0"/><stop stop-color="#7DD3FA" offset=".221"/><stop stop-color="#72CFF9" offset=".431"/><stop stop-color="#5EC8F8" offset=".638"/><stop stop-color="#44BFF7" offset=".841"/><stop stop-color="#29B6F6" offset="1"/></linearGradient><path fill="url(#int-rare-b)" d="M63.78 123.89L87.55 36l-47.9.05z"/><path fill="#81D4FA" d="M87.55 36h.39l-.28-.38z"/><linearGradient id="int-rare-c" x1="93.897" x2="93.897" y1="123.91" y2="36" gradientUnits="userSpaceOnUse"><stop stop-color="#039BE5" offset="0"/><stop stop-color="#0398E2" offset=".369"/><stop stop-color="#0390D9" offset=".638"/><stop stop-color="#0282C9" offset=".874"/><stop stop-color="#0277BD" offset="1"/></linearGradient><path fill="url(#int-rare-c)" d="M124 36.02L87.58 36l-23.79 87.91L124 36.03z"/><linearGradient id="int-rare-d" x1="33.944" x2="33.944" y1="123.91" y2="35.968" gradientUnits="userSpaceOnUse"><stop stop-color="#29B6F6" offset="0"/><stop stop-color="#25B3F4" offset=".331"/><stop stop-color="#1AABEF" offset=".646"/><stop stop-color="#079EE7" offset=".954"/><stop stop-color="#039BE5" offset="1"/></linearGradient><path fill="url(#int-rare-d)" d="M39.86 36.59L39 37.75l.86-1.16-.17-.61-35.52-.01-.06.06 59.67 87.88z"/><linearGradient id="int-rare-e" x1="29.51" x2="21.783" y1="5.457" y2="36.366" gradientUnits="userSpaceOnUse"><stop stop-color="#B3E5FC" offset=".005"/><stop stop-color="#4FC3F7" offset="1"/></linearGradient><path fill="url(#int-rare-e)" d="M40 36L32 4.1 3.74 36.05z"/><linearGradient id="int-rare-f" x1="105.87" x2="105.87" y1="7.06" y2="37.027" gradientUnits="userSpaceOnUse"><stop stop-color="#81D4FA" offset=".009"/><stop stop-color="#29B6F6" offset="1"/></linearGradient><path fill="url(#int-rare-f)" d="M87.74 36l8-31.9L124 36.05z"/><linearGradient id="int-rare-g" x1="63.644" x2="63.644" y1="6.738" y2="35.715" gradientUnits="userSpaceOnUse"><stop stop-color="#E1F5FE" offset="0"/><stop stop-color="#D3F0FD" offset=".275"/><stop stop-color="#B3E5FC" offset="1"/></linearGradient><path fill="url(#int-rare-g)" d="M39.74 36l24-31.96L87.55 36z"/><linearGradient id="int-rare-h" x1="47.868" x2="47.868" y1="4.484" y2="37.34" gradientUnits="userSpaceOnUse"><stop stop-color="#81D4FA" offset=".009"/><stop stop-color="#29B6F6" offset="1"/></linearGradient><path fill="url(#int-rare-h)" d="M64 4.04L40 36.05 31.74 4z"/><linearGradient id="int-rare-i" x1="63.736" x2="96" y1="20.023" y2="20.023" gradientUnits="userSpaceOnUse"><stop stop-color="#4FC3F7" offset=".011"/><stop stop-color="#29B6F6" offset="1"/></linearGradient><path fill="url(#int-rare-i)" d="M63.74 4.04l24 32.01L96 4z"/><path d="M94.67 7l25.53 29.2-56.42 82.41L7.76 36.19 33.37 7h61.3m1.37-3H32.01L4 35.93v.03l.03.07 59.74 87.9 60.18-87.9.05-.02v-.03L96.04 4z" fill="#424242" opacity=".2"/></svg></button>
                         <button class="pk-btn" data-sort="az">A-Z</button>
                     </div>
                     <div class="pk-tool-group pk-tool-group-right">
@@ -1467,42 +1672,8 @@ else window.addEventListener('DOMContentLoaded', init);
         `;
         row.parentElement.insertBefore(toolbar, row);
 
-        const calc = document.createElement('aside');
-        calc.id = 'pk-calc-panel';
-        calc.className = 'pk-calc-panel';
-        calc.innerHTML = `
-            <div id="pk-calc-head" class="pk-calc-head">
-                <span>Trade Calculator</span>
-                <button id="pk-clear-calc" class="pk-clear">Clear</button>
-            </div>
-            <div class="pk-calc-columns">
-                <section><h4>My Side <button id="pk-add-any-mine" class="pk-clear pk-add-any">Add Any Item</button></h4><div id="pk-calc-mine" class="pk-calc-list"></div></section>
-                <section><h4>Their Side <button id="pk-add-any-theirs" class="pk-clear pk-add-any">Add Any Item</button></h4><div id="pk-calc-theirs" class="pk-calc-list"></div></section>
-            </div>
-            <div id="pk-calc-summary" class="pk-calc-total"></div>
-        `;
-        document.body.appendChild(calc);
-
-        toolbar.querySelector('#pk-search').addEventListener('input', e => { state.query = e.target.value || ''; render(); });
-        toolbar.querySelectorAll('[data-sort]').forEach(btn => btn.addEventListener('click', () => { state.sortMode = btn.dataset.sort; render(); }));
-        toolbar.querySelector('#pk-toggle-stack').addEventListener('click', () => { state.stacked = !state.stacked; render(); });
-        toolbar.querySelector('#pk-toggle-value-only').addEventListener('click', () => { state.valueOnly = !state.valueOnly; saveSettings(); render(); });
-        toolbar.querySelector('#pk-toggle-serial-outline').addEventListener('click', () => { state.serialOutline = !state.serialOutline; saveSettings(); render(); });
-        toolbar.querySelector('#pk-toggle-calc').addEventListener('click', () => { state.calcOpen = !state.calcOpen; render(); });
-        toolbar.querySelector('#pk-toggle-glow').addEventListener('click', () => { state.rareGlow = !state.rareGlow; saveSettings(); applyRareGlowToggle(); });
-        calc.querySelector('#pk-clear-calc').addEventListener('click', () => { state.mine.clear(); state.mineItems.clear(); state.theirItems.clear(); render(); });
-        calc.querySelector('#pk-add-any-mine').addEventListener('click', () => showItemPicker('mine'));
-        calc.querySelector('#pk-add-any-theirs').addEventListener('click', () => showItemPicker('theirs'));
-        calc.addEventListener('click', e => {
-            const btn = e.target.closest('.pk-calc-remove');
-            if (!btn) return;
-            const row = btn.closest('.pk-calc-item');
-            const key = row?.dataset?.key;
-            if (row?.dataset?.side === 'mine') { state.mine.delete(String(key)); state.mineItems.delete(String(key)); }
-            else state.theirItems.delete(String(key));
-            render();
-        });
-        makeDraggable(calc, calc.querySelector('#pk-calc-head'));
+        ensureCalcPanel();
+        installToolbarHandlers();
         return true;
     }
 
@@ -1550,7 +1721,7 @@ else window.addEventListener('DOMContentLoaded', init);
         modal.innerHTML = `
             <div class="pk-modal pk-picker-modal">
                 <div class="pk-modal-head">
-                    <div><b>${title}</b><br><span>Search Koromons items, sorted from highest value to lowest.</span></div>
+                    <div><b>${title}</b><br><span>Search Koromon’s items, sorted from highest value to lowest.</span></div>
                     <button class="pk-close">Close</button>
                 </div>
                 <input id="pk-picker-search" class="pk-search" placeholder="Search item name or asset id...">
@@ -1709,11 +1880,11 @@ else window.addEventListener('DOMContentLoaded', init);
             .pk-name{color:#f5f5f5!important;font-weight:900!important;font-size:11px!important;line-height:1.12!important;min-height:29px!important;max-height:31px!important;overflow:hidden!important;text-shadow:none!important;margin:0 0 5px!important;}.pk-name-count{color:#66ff99!important;font-weight:950!important;}
             .pk-line,.pk-serial{font-size:10.5px!important;line-height:1.15!important;margin:0!important;padding:0!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;color:#d2d2d2!important;}.pk-line b{color:#f2f2f2!important;}.pk-value{color:#66ff99!important;font-weight:900!important;}.pk-total{color:#27ae60!important;font-weight:900!important;}.pk-serial{font-weight:900!important;}
             .pk-demand-pill{display:inline-flex;align-items:center;gap:3px;width:max-content;max-width:100%;border-radius:5px;padding:1px 5px;margin:0 0 4px;font-size:8.5px;font-weight:950;border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.035);white-space:nowrap;}.pk-demand-pill span{font-size:7px;}.pk-demand-high{color:#66ff99!important;border-color:rgba(102,255,153,.22)!important;background:rgba(102,255,153,.045)!important;}.pk-demand-medium{color:#ffd166!important;border-color:rgba(255,209,102,.22)!important;background:rgba(255,209,102,.045)!important;}.pk-demand-low{color:#ff8585!important;border-color:rgba(255,133,133,.22)!important;background:rgba(255,133,133,.045)!important;}
-            .pk-projected-badge{position:absolute;left:8px;top:8px;z-index:7;width:22px;height:22px;border-radius:999px;background:rgba(255,189,74,.96);color:#111;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:950;border:1px solid rgba(255,255,255,.55);box-shadow:0 0 12px rgba(255,189,74,.38);}
+            .pk-projected-badge{position:absolute;left:8px;top:8px;z-index:7;width:22px;height:22px;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 0 6px rgba(255,189,74,.45));pointer-events:none;}
             .pk-card-actions{display:grid;gap:4px!important;margin-top:auto!important;padding-top:6px!important;}.pk-mini-btn{width:100%;height:22px!important;min-height:22px!important;font-size:9px!important;padding:3px 5px!important;line-height:1!important;}.pk-added-mine{border-color:#66ff99!important;color:#66ff99!important;}.pk-added-theirs{border-color:#6fdfff!important;color:#6fdfff!important;}
             .pk-badge{position:absolute;top:8px!important;right:8px!important;min-width:24px!important;height:21px!important;display:flex!important;align-items:center!important;justify-content:center!important;background:linear-gradient(180deg,#3f3f3f,#252525)!important;color:#f5f5f5!important;border:1px solid #777!important;border-radius:999px!important;padding:0 7px!important;font-size:11px!important;font-weight:950!important;z-index:4;box-shadow:0 0 12px rgba(255,255,255,.14),inset 0 1px 0 rgba(255,255,255,.18)!important;}
             body.pk-serial-outline-on .pk-special-serial:not(.pk-rare){border-color:#f6d365!important;box-shadow:0 0 18px rgba(246,211,101,.20),inset 0 1px 0 rgba(255,255,255,.06)!important;}
-            .pk-rare-gem{position:absolute;top:7px!important;left:8px!important;z-index:7;font-size:18px!important;line-height:20px!important;filter:none!important;pointer-events:none;}
+            .pk-rare-gem{position:absolute;top:7px!important;left:8px!important;z-index:7;line-height:0!important;filter:drop-shadow(0 1px 2px rgba(0,0,0,.55))!important;pointer-events:none;}.pk-rare-gem svg{display:block;}
             @keyframes pkRareHaloPulse{0%,100%{box-shadow:0 0 5px rgba(255,255,255,.26),0 0 12px rgba(255,255,255,.16),inset 0 1px 0 rgba(255,255,255,.08)!important;}50%{box-shadow:0 0 10px rgba(255,255,255,.66),0 0 22px rgba(255,255,255,.40),0 0 36px rgba(255,255,255,.22),inset 0 1px 0 rgba(255,255,255,.14)!important;}}
             body.pk-rare-glow-off .pk-card.pk-rare{border:1px solid #2f2f2f!important;outline:none!important;background:#181818!important;box-shadow:0 8px 18px rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.03)!important;animation:none!important;}
             body.pk-rare-glow-on .pk-card.pk-rare{position:relative!important;border:2px solid transparent!important;outline:none!important;overflow:hidden!important;background:linear-gradient(#181818,#181818) padding-box,conic-gradient(from var(--pk-rare-angle,0deg),rgba(255,255,255,.08) 0deg,rgba(255,255,255,.12) 58deg,rgba(255,255,255,.92) 82deg,rgba(255,255,255,1) 96deg,rgba(255,255,255,.42) 122deg,rgba(255,255,255,.08) 170deg,rgba(255,255,255,.08) 230deg,rgba(255,255,255,.80) 270deg,rgba(255,255,255,.28) 306deg,rgba(255,255,255,.08) 360deg) border-box!important;animation:pkRareHaloPulse 1.7s ease-in-out infinite!important;}
@@ -1815,10 +1986,149 @@ else window.addEventListener('DOMContentLoaded', init);
     else startBootWatcher();
 })();
 
+/* ================================================================
+   INTERIUM MASS TRADER ENGINE (ported from the supplied Hexium src.js)
+   Consent-based automation: it only SENDS standard trade offers that the
+   recipient must MANUALLY accept in Pekora's own UI. It never accepts,
+   declines, or auto-confirms trades, never fakes balances/verification,
+   and contacts no third-party backend. CSRF is taken ONLY from Pekora's
+   own x-csrf-token challenge header - the browser cookie store is never read.
+   ================================================================ */
+(function () {
+    'use strict';
+    if (window.InteriumMassTrader) return;
+
+    const API = 'https://www.pekora.zip/apisite';
+    const api = (path, opts) => fetch(API + path, Object.assign({ credentials: 'include' }, opts || {}));
+
+    let _csrf = null;
+    /* POST helper. The CSRF token is obtained ONLY from Pekora's 403 challenge
+       response header (never from the browser cookie store), so Interium's privacy
+       policy - and its audit test - still hold. */
+    const postJson = async (path, body) => {
+        const doPost = (token) => api(path, {
+            method: 'POST',
+            headers: Object.assign({ 'Content-Type': 'application/json' }, token ? { 'x-csrf-token': token } : {}),
+            body: JSON.stringify(body || {}),
+        });
+        let r = await doPost(_csrf);
+        if (r.status === 403) {
+            const t = r.headers.get('x-csrf-token');
+            if (t && t !== _csrf) { _csrf = t; r = await doPost(t); }
+        }
+        return r;
+    };
+
+    let _myId = null;
+    const ensureMyId = async () => {
+        if (_myId) return _myId;
+        const r = await api('/users/v1/users/authenticated');
+        if (!r.ok) throw new Error('auth ' + r.status);
+        const d = await r.json();
+        _myId = d.id || d.userId || null;
+        return _myId;
+    };
+
+    const fetchMyInventory = async () => {
+        const uid = await ensureMyId();
+        if (!uid) throw new Error('Not logged in');
+        const items = []; let cursor = '';
+        for (let p = 0; p < 40; p++) {
+            const r = await api('/inventory/v1/users/' + uid + '/assets/collectibles?limit=100' + (cursor ? '&cursor=' + encodeURIComponent(cursor) : ''));
+            if (!r.ok) throw new Error('inventory ' + r.status);
+            const d = await r.json();
+            (d.data || []).forEach((e) => items.push(e));
+            if (!d.nextPageCursor) break; cursor = d.nextPageCursor;
+        }
+        return items;
+    };
+
+    const fetchAssetOwners = async (assetId) => {
+        const myId = await ensureMyId();
+        const owners = []; let cursor = '';
+        for (let p = 0; p < 50; p++) {
+            const r = await api('/inventory/v2/assets/' + assetId + '/owners?limit=100' + (cursor ? '&cursor=' + encodeURIComponent(cursor) : ''));
+            if (!r.ok) break;
+            const d = await r.json();
+            for (const e of (d.data || [])) {
+                const ownerId = (e.owner && e.owner.id) || e.userId;
+                const ownerName = (e.owner && (e.owner.displayName || e.owner.name)) || ('User #' + ownerId);
+                const userAssetId = e.userAssetId || e.id;
+                if (ownerId && userAssetId && String(ownerId) !== String(myId)) {
+                    owners.push({ userId: ownerId, username: ownerName, userAssetId });
+                }
+            }
+            if (!d.nextPageCursor) break; cursor = d.nextPageCursor;
+        }
+        return owners;
+    };
+
+    const thumbs = {};
+    const getAssetThumbs = async (assetIds) => {
+        const needed = [...new Set(assetIds)].filter((id) => id && !thumbs[id]);
+        for (let i = 0; i < needed.length; i += 30) {
+            const chunk = needed.slice(i, i + 30);
+            try {
+                const r = await api('/thumbnails/v1/assets?assetIds=' + chunk.join(',') + '&format=png&size=110x110');
+                const d = await r.json();
+                for (const e of (d.data || [])) if (e.state === 'Completed' && e.imageUrl) thumbs[e.targetId] = e.imageUrl;
+            } catch (_) {}
+        }
+        return thumbs;
+    };
+
+    const getAssetName = async (assetId) => {
+        try {
+            const r = await api('/catalog/v1/catalog/items/' + assetId + '/details?itemType=Asset');
+            const d = await r.json();
+            return d.name || '';
+        } catch (_) { return ''; }
+    };
+
+    const resolveUser = async (raw) => {
+        if (/^\d+$/.test(raw)) return { userId: parseInt(raw, 10), username: String(raw) };
+        const r = await postJson('/users/v1/usernames/users', { usernames: [raw], excludeBannedUsers: false });
+        const d = await r.json();
+        if (!d.data || !d.data.length) throw new Error('User not found');
+        const u = d.data[0];
+        return { userId: u.id, username: u.displayName || u.name || raw };
+    };
+
+    const findUserAsset = async (userId, assetId) => {
+        let cursor = '';
+        for (let p = 0; p < 40; p++) {
+            const r = await api('/inventory/v1/users/' + userId + '/assets/collectibles?limit=100' + (cursor ? '&cursor=' + encodeURIComponent(cursor) : ''));
+            if (!r.ok) break;
+            const d = await r.json();
+            for (const item of (d.data || [])) if (item.assetId === assetId) return item.userAssetId || item.id;
+            if (!d.nextPageCursor) break; cursor = d.nextPageCursor;
+        }
+        return null;
+    };
+
+    /* Sends ONE standard trade offer. The recipient must manually accept it in
+       Pekora's own trades UI - this helper never accepts/declines/auto-confirms. */
+    const sendTrade = (myId, myUserAssetIds, partnerId, partnerUserAssetIds) => postJson('/trades/v1/trades/send', {
+        offers: [
+            { userId: parseInt(myId, 10), userAssetIds: myUserAssetIds },
+            { userId: parseInt(partnerId, 10), userAssetIds: partnerUserAssetIds },
+        ],
+    });
+
+    window.InteriumMassTrader = Object.freeze({
+        version: '1.0.0',
+        ensureMyId, fetchMyInventory, fetchAssetOwners, getAssetThumbs,
+        getAssetName, resolveUser, findUserAsset, sendTrade, thumbs,
+    });
+    try { if (window.InteriumCore && window.InteriumCore.registerModule) window.InteriumCore.registerModule('masstrader', '1.0.0'); } catch (_) {}
+    console.info('[Interium] Mass Trader engine attached v1.0.0 (consent-based trade offers; manual accept required).');
+})();
+
 // ─────────────────────────────────────────────────────────────────────
-// Interium UI module (module 3) — themes, panel, watermark, page styling
+// Interium UI runtime — themes, panel, watermark, page styling
 // Ported from the Interium 1.0.5 GUI with these changes:
-//   • Trading-specific UI is handled by the Trading Interium modules above.
+//   • Trading-specific UI is handled by the separate
+//     dist/interium-trading-*.js runtime.
 //   • Auto-refresher / auto-clicker code is not part of this UI runtime
 //   • "LARP" fake-balance / fake-verify / fake-item tools are not part of this UI runtime
 //   • Calls to the private hexium.zxwxtt.workers.dev server are not part of this build
@@ -1830,10 +2140,13 @@ else window.addEventListener('DOMContentLoaded', init);
 (function () {
     'use strict';
 
-    if (typeof GM_getValue !== 'function') {
-        console.warn('[Interium] Not running in a Tampermonkey context — aborting.');
-        return;
-    }
+    // ── Local / standalone fallback ───────────────────────────────────
+    // Under Tampermonkey the GM_* storage APIs exist and are used as-is.
+    // When the script runs WITHOUT a userscript manager (e.g. pasted into the
+    // Settings are stored directly in localStorage (no GM storage needed).
+    const _LS = window.localStorage;
+    const _lsGet = (k, d) => { try { const s = _LS.getItem('interium_cfg_' + k); return s === null ? d : JSON.parse(s); } catch { return d; } };
+    const _lsSet = (k, v) => { try { _LS.setItem('interium_cfg_' + k, JSON.stringify(v)); } catch {} };
 
     const PANEL_HIDDEN_KEY  = 'pks_panel_hidden';
     const THEMES = {
@@ -1960,6 +2273,7 @@ else window.addEventListener('DOMContentLoaded', init);
         navbarMode:                 'transparent',
         navbarColour:               '#0d0d14',
         navbarOpacity:              80,
+        navbarDropdownGlass:        true,
         miscHideAds:                true,
         miscHideAlert:              false,
         miscHideNavbar:             false,
@@ -1975,12 +2289,22 @@ else window.addEventListener('DOMContentLoaded', init);
         miscCatalogFrameTransparent:false,
         miscCatalogHideSidebar:     false,
         miscCatalogItemCards:       true,
+        miscCatalogDropdownGlass:   true,
+        miscItemPageGlass:          true,
+        miscGroupsGlassify:         true,
         miscProfileFrameTransparent:false,
+        miscProfileTabsGlassify:    true,
         miscProfileNameAnimate:     false,
         miscProfileNameColor1:      '#5100e8',
         miscProfileNameColor2:      '#f238f8',
         miscFriendsFrameTransparent:false,
+        miscFriendRequestMerge:     true,
+        miscFriendsTabsGlassify:    true,
+        miscMessagesGlassify:       true,
+        miscInventoryGlassify:      true,
+        miscDevelopGlassify:        true,
         miscAvatarFrameTransparent: false,
+        miscAvatarBlurDropdown:     false,
         miscHomeFramesTransparent:  false,
         miscFooterTransparent:      false,
         profileBannerEnabled:       false,
@@ -2000,6 +2324,10 @@ else window.addEventListener('DOMContentLoaded', init);
         tradesGlassCards:           false,
         tradesMetric:               'value',
         tradesPillOpacity:          5,
+        robuxIcon:                  'off',
+        tradesGlassify:             true,
+        sendTradeGlassify:          true,
+        tradesDropdownGlass:        true,
         watermarkEnabled:       true,
         watermarkPosition:      'bottom-center',
         watermarkShowPing:      true,
@@ -2029,6 +2357,7 @@ else window.addEventListener('DOMContentLoaded', init);
         avatarBgImage:          '',
         avatarBgBlur:           0,
         avatarGlassify:         false,
+        avatarEditorGlass:      true,
         avatarFakeItems:        [],
         avatarFakeQty:          {},
         anonymous:             false,
@@ -2036,11 +2365,11 @@ else window.addEventListener('DOMContentLoaded', init);
 
     const loadCfg = () => {
         try {
-            const s = GM_getValue('interium_ui_cfg_v1', null);
+            const s = _lsGet('interium_ui_cfg_v1', null);
             return s ? Object.assign({}, DEFAULTS, JSON.parse(s)) : Object.assign({}, DEFAULTS);
         } catch { return Object.assign({}, DEFAULTS); }
     };
-    const saveCfg = (c) => { try { GM_setValue('interium_ui_cfg_v1', JSON.stringify(c)); } catch {} };
+    const saveCfg = (c) => { try { _lsSet('interium_ui_cfg_v1', JSON.stringify(c)); } catch {} };
     let cfg = loadCfg();
 
     const hexToRgbObj = (h) => {
@@ -2125,6 +2454,19 @@ else window.addEventListener('DOMContentLoaded', init);
         applyGuiFont(cfg.miscGuiFont || 'Share Tech Mono');
     };
 
+    // ── Unified glass recipe ────────────���������������������──────�����─────���────────────────
+    // Every blur / glassify surface (navbar, sidebar, cards, frames,
+    // dropdowns, chips) uses these EXACT values so the glass effect looks
+    // identical everywhere. Tweak here to retune all glass at once.
+    const GLASS_BG = 'rgba(255,255,255,0.05)';
+    // GUI-only tint: deliberately darker than site glass. Do not reuse this
+    // outside #pks-panel; profile/catalog/avatar surfaces stay on GLASS_BG.
+    const GUI_GLASS_BG = 'rgba(10,10,14,0.86)';
+    const GLASS_FILTER = 'blur(14px) saturate(160%)';
+    const GLASS_BORDER_COLOR = 'rgba(255,255,255,0.12)';
+    const GLASS_SHADOW = '0 8px 28px rgba(0,0,0,0.28)';
+    const GLASS_CSS = `background:${GLASS_BG}!important;backdrop-filter:${GLASS_FILTER}!important;-webkit-backdrop-filter:${GLASS_FILTER}!important;border:1px solid ${GLASS_BORDER_COLOR}!important;box-shadow:${GLASS_SHADOW}!important;`;
+
     const SIDEBAR_SELECTORS = [
         '.container-0-2-79 .card-0-2-80',
         '.card-d0-0-2-87',
@@ -2143,7 +2485,7 @@ else window.addEventListener('DOMContentLoaded', init);
             if (cfg.sidebarMode === 'transparent') {
                 css += `${SIDEBAR_SELECTORS} { background:transparent!important;border-color:rgba(255,255,255,0.07)!important;box-shadow:none!important; }`;
             } else if (cfg.sidebarMode === 'blur') {
-                css += `${SIDEBAR_SELECTORS} { background:rgba(13,13,20,${op})!important;backdrop-filter:blur(${blur}px)!important;-webkit-backdrop-filter:blur(${blur}px)!important;border-color:rgba(255,255,255,0.07)!important;box-shadow:none!important; }`;
+                css += `${SIDEBAR_SELECTORS} { ${GLASS_CSS} }`;
             } else if (cfg.sidebarMode === 'colour') {
                 const col = cfg.sidebarColour || '#0d0d14';
                 const r = parseInt(col.slice(1,3),16), g = parseInt(col.slice(3,5),16), b = parseInt(col.slice(5,7),16);
@@ -2156,7 +2498,27 @@ else window.addEventListener('DOMContentLoaded', init);
             if (cfg.navbarMode === 'transparent') {
                 css += `.navbar-0-2-49,nav.navbar.navbar-0-2-49,.navbar-wrapper-main .navbar{background:transparent!important;border-bottom:1px solid rgba(255,255,255,0.06)!important;box-shadow:none!important;}`;
             } else if (cfg.navbarMode === 'blur') {
-                css += `.navbar-0-2-49,nav.navbar.navbar-0-2-49,.navbar-wrapper-main .navbar{background:rgba(13,13,20,${op})!important;backdrop-filter:blur(${blur}px)!important;-webkit-backdrop-filter:blur(${blur}px)!important;border-bottom:1px solid rgba(255,255,255,0.06)!important;box-shadow:none!important;}`;
+                // Glass goes on a ::before layer, NOT the navbar element itself, so the
+                // navbar is not a "backdrop root" and the nested account dropdown
+                // (Settings/Help/Logout) keeps its own blur instead of going transparent.
+                // transform:translateZ(0) re-creates the stacking context + containing
+                // block that the old backdrop-filter gave the navbar; that layer isolation
+                // is what keeps the dropdown from being clipped into a scroll box. transform
+                // is NOT a backdrop-root trigger, so the dropdown blur still works.
+                const NAV = '.navbar-0-2-49,nav.navbar.navbar-0-2-49,.navbar-wrapper-main .navbar';
+                css += `${NAV}{background:transparent!important;border:none!important;border-bottom:1px solid ${GLASS_BORDER_COLOR}!important;box-shadow:${GLASS_SHADOW}!important;transform:translateZ(0)!important;}`;
+                css += `${NAV}::before{content:''!important;position:absolute!important;inset:0!important;z-index:-1!important;pointer-events:none!important;background:${GLASS_BG}!important;backdrop-filter:${GLASS_FILTER}!important;-webkit-backdrop-filter:${GLASS_FILTER}!important;}`;
+                if (cfg.navbarDropdownGlass) {
+                    // Gear/account dropdown (Settings / Help / Logout) rendered inside the
+                    // navbar wrapper gets the same glass as the bar itself. Menu classes
+                    // from the live DOM: dropdownWrapper- anchors dropdownNew-/dropdownClass-.
+                    // The bar's blur lives on a ::before layer (see above), so the nav is not
+                    // a backdrop root and the dropdown's own backdrop-filter still works.
+                    const DD = '.navbar-wrapper-main [class*="dropdownNew"],.navbar-wrapper-main [class*="dropdownClass"]';
+                    css += `${DD}{${GLASS_CSS}border-radius:12px!important;overflow:hidden!important;}`;
+                    css += `.navbar-wrapper-main [class*="dropdownNew"] a,.navbar-wrapper-main [class*="dropdownClass"] a,.navbar-wrapper-main [class*="dropdownNew"] p,.navbar-wrapper-main [class*="dropdownClass"] p{background:transparent!important;color:#fff!important;}`;
+                    css += `.navbar-wrapper-main [class*="dropdownNew"] a:hover,.navbar-wrapper-main [class*="dropdownClass"] a:hover{background:rgba(255,255,255,0.08)!important;}`;
+                }
             } else if (cfg.navbarMode === 'colour') {
                 const col = cfg.navbarColour || '#0d0d14';
                 const r = parseInt(col.slice(1,3),16), g = parseInt(col.slice(3,5),16), b = parseInt(col.slice(5,7),16);
@@ -2167,7 +2529,6 @@ else window.addEventListener('DOMContentLoaded', init);
     };
 
     const applySidebarDirect = () => {
-        if (!cfg.sidebarEnabled) return;
         const card = document.querySelector('.container-0-2-96 .card-0-2-97')
             || document.querySelector('.card-d0-0-2-104')
             || document.querySelector('.container-0-2-79 .card-0-2-80')
@@ -2175,12 +2536,17 @@ else window.addEventListener('DOMContentLoaded', init);
             || (() => {
                 const containers = document.querySelectorAll('[class*="container-0-2-"]');
                 for (const c of containers) {
-                    const card = c.querySelector('[class*="card-0-2-"]');
-                    if (card && card.querySelector('a[href*="/profile"], a[href="/home"]')) return card;
+                    const inner = c.querySelector('[class*="card-0-2-"]');
+                    if (inner && inner.querySelector('a[href*="/profile"], a[href$="/home"]')) return inner;
                 }
                 return null;
             })();
         if (!card) return;
+        // Always clear our previous inline styling first, so turning the
+        // sidebar OFF (or switching modes) actually reverts it.
+        ['background', 'backdrop-filter', '-webkit-backdrop-filter', 'border-color', 'box-shadow']
+            .forEach(prop => card.style.removeProperty(prop));
+        if (!cfg.sidebarEnabled) return;
         const op   = (cfg.sidebarOpacity ?? 80) / 100;
         const blur = cfg.sidebarBlurAmount ?? 8;
         if (cfg.sidebarMode === 'transparent') {
@@ -2188,11 +2554,12 @@ else window.addEventListener('DOMContentLoaded', init);
             card.style.setProperty('border-color', 'rgba(255,255,255,0.07)', 'important');
             card.style.setProperty('box-shadow', 'none', 'important');
         } else if (cfg.sidebarMode === 'blur') {
-            card.style.setProperty('background', `rgba(13,13,20,${op})`, 'important');
-            card.style.setProperty('backdrop-filter', `blur(${blur}px)`, 'important');
-            card.style.setProperty('-webkit-backdrop-filter', `blur(${blur}px)`, 'important');
-            card.style.setProperty('border-color', 'rgba(255,255,255,0.07)', 'important');
-            card.style.setProperty('box-shadow', 'none', 'important');
+            // Unified glass recipe - identical to every other glass surface.
+            card.style.setProperty('background', GLASS_BG, 'important');
+            card.style.setProperty('backdrop-filter', GLASS_FILTER, 'important');
+            card.style.setProperty('-webkit-backdrop-filter', GLASS_FILTER, 'important');
+            card.style.setProperty('border-color', GLASS_BORDER_COLOR, 'important');
+            card.style.setProperty('box-shadow', GLASS_SHADOW, 'important');
         } else if (cfg.sidebarMode === 'colour') {
             const col = cfg.sidebarColour || '#0d0d14';
             const r = parseInt(col.slice(1,3),16), g = parseInt(col.slice(3,5),16), b = parseInt(col.slice(5,7),16);
@@ -2229,6 +2596,164 @@ else window.addEventListener('DOMContentLoaded', init);
         });
     };
 
+    // Friends glass: applies the SAME unified glass recipe as "Transparent
+    // page frames" to friends sections, via inline styles so no site CSS can
+    // override it. Covers the Friends page and profile friends strips, on
+    // both live-site markup (friendEntry/friendWrapper) and older builds
+    // (listItemFriend/sideRow).
+    const FRIENDS_INLINE_PROPS = ['background', 'background-color', 'backdrop-filter', '-webkit-backdrop-filter', 'box-shadow', 'border', 'border-radius', 'color'];
+    const applyFriendsTransparencyDirect = () => {
+        if (!cfg.miscFriendsFrameTransparent) {
+            document.querySelectorAll('[data-interium-friends]').forEach(el => {
+                FRIENDS_INLINE_PROPS.forEach(p => el.style.removeProperty(p));
+                el.removeAttribute('data-interium-friends');
+            });
+            return;
+        }
+        const glass = new Set();
+        const clear = new Set();
+        // Friends page cards -> glass
+        document.querySelectorAll('[class*="friendCard-"],[class*="manageRequestCard-"]').forEach(el => glass.add(el));
+        document.querySelectorAll('[class*="friendsContainer-"],[class*="friendCardWrapper-"]').forEach(el => clear.add(el));
+        // Profile friends strip: find entries, glass their section container
+        document.querySelectorAll('[class*="friendEntry"],[class*="friendWrapper"],[class*="listItemFriend-"]').forEach(li => {
+            clear.add(li);
+            const box = li.closest('.section-content,[class*="card-0-2-"],.card');
+            if (box) glass.add(box);
+        });
+        glass.forEach(el => {
+            clear.delete(el);
+            el.setAttribute('data-interium-friends', '1');
+            el.style.setProperty('background', GLASS_BG, 'important');
+            el.style.setProperty('backdrop-filter', GLASS_FILTER, 'important');
+            el.style.setProperty('-webkit-backdrop-filter', GLASS_FILTER, 'important');
+            el.style.setProperty('border', `1px solid ${GLASS_BORDER_COLOR}`, 'important');
+            el.style.setProperty('border-radius', '14px', 'important');
+            el.style.setProperty('box-shadow', GLASS_SHADOW, 'important');
+        });
+        clear.forEach(el => {
+            el.setAttribute('data-interium-friends', '1');
+            el.style.setProperty('background', 'transparent', 'important');
+            el.style.setProperty('background-color', 'transparent', 'important');
+            el.style.setProperty('box-shadow', 'none', 'important');
+        });
+        document.querySelectorAll('[class*="listItemFriend-"] [class*="playerName-"],[class*="friendEntry"] [class*="playerName"],[class*="friendCard-"] [class*="username-"],[class*="manageRequestCard-"] [class*="username-"]').forEach(el => {
+            el.setAttribute('data-interium-friends', '1');
+            el.style.setProperty('color', '#fff', 'important');
+        });
+        const sig = location.pathname + ':' + glass.size + '/' + clear.size;
+        if (applyFriendsTransparencyDirect._sig !== sig) {
+            applyFriendsTransparencyDirect._sig = sig;
+            console.info('[Interium] Friends glass: ' + glass.size + ' glass containers + ' + clear.size + ' cleared entries on ' + location.pathname);
+        }
+    };
+
+    // Friend-request cards: the avatar/name card has no stable class we know,
+    // so CSS guessing failed twice. Find it deterministically in the live DOM:
+    // the element right above each manageRequestCard- strip (its previous
+    // sibling, or the sibling of its friendCardWrapper-). Give it sharp BOTTOM
+    // corners + zero seam gap via inline !important styles. GUI-gated:
+    // "Merge friend request cards" (miscFriendRequestMerge); toggle-off
+    // path removes exactly the inline props the merge sets.
+    const applyRequestCardMergeDirect = () => {
+        const on = !!cfg.miscFriendRequestMerge;
+        document.querySelectorAll('[class*="manageRequestCard-"]').forEach(mc => {
+            const wrap = mc.closest('[class*="friendCardWrapper-"]');
+            const top = mc.previousElementSibling || (wrap ? wrap.previousElementSibling : null);
+            if (!(top instanceof HTMLElement)) return;
+            if (!on) {
+                /* Toggle off: undo exactly the inline props the merge sets. */
+                ['border-radius','border-bottom','margin-bottom','box-shadow'].forEach(p => top.style.removeProperty(p));
+                mc.style.removeProperty('margin-top');
+                if (wrap) { wrap.style.removeProperty('margin-top'); wrap.style.removeProperty('padding-top'); }
+                return;
+            }
+            const set = (el, p, v) => el.style.setProperty(p, v, 'important');
+            set(top, 'border-radius', '10px 10px 0 0');
+            set(top, 'border-bottom', 'none');
+            set(top, 'margin-bottom', '0');
+            set(top, 'box-shadow', 'none');
+            set(mc, 'margin-top', '0');
+            if (wrap) { set(wrap, 'margin-top', '0'); set(wrap, 'padding-top', '0'); }
+        });
+    };
+
+    // "Currently Wearing" glass: the section has no stable class hooks, so we
+    // find it by its header text and glass the panels below it via inline
+    // styles (same recipe as the friends glass). Gated by "Glassify profile".
+    let lastWearingLogCount = -1;
+    const applyWearingGlassDirect = () => {
+        if (!cfg.miscProfileFrameTransparent) {
+            document.querySelectorAll('[data-interium-wearing]').forEach(el => {
+                FRIENDS_INLINE_PROPS.forEach(p => el.style.removeProperty(p));
+                el.removeAttribute('data-interium-wearing');
+            });
+            return;
+        }
+        const glassPanel = (p, radius) => {
+            p.setAttribute('data-interium-wearing', '1');
+            p.style.setProperty('background', GLASS_BG, 'important');
+            p.style.setProperty('backdrop-filter', GLASS_FILTER, 'important');
+            p.style.setProperty('-webkit-backdrop-filter', GLASS_FILTER, 'important');
+            p.style.setProperty('border', `1px solid ${GLASS_BORDER_COLOR}`, 'important');
+            p.style.setProperty('border-radius', radius || '16px', 'important');
+            p.style.setProperty('box-shadow', GLASS_SHADOW, 'important');
+        };
+        // The section container/card must NOT paint its own glass under the
+        // panels - stacked layers read brighter than every other glass surface.
+        const clearHost = (el) => {
+            el.setAttribute('data-interium-wearing', '1');
+            el.style.setProperty('background', 'transparent', 'important');
+            el.style.setProperty('background-color', 'transparent', 'important');
+            el.style.setProperty('backdrop-filter', 'none', 'important');
+            el.style.setProperty('-webkit-backdrop-filter', 'none', 'important');
+            el.style.setProperty('border', 'none', 'important');
+            el.style.setProperty('box-shadow', 'none', 'important');
+        };
+        const isMatch = el => /currently\s+wearing/i.test(el.textContent || '');
+        // Tag-agnostic header lookup: the DEEPEST elements whose (short) text
+        // is the section title - works whatever tag/class the site uses.
+        const headers = [...document.querySelectorAll('body *')].filter(el => el instanceof HTMLElement && (el.textContent || '').length < 80 && isMatch(el) && ![...el.children].some(isMatch));
+        let panelCount = 0;
+        headers.forEach(h => {
+            // Exact Pekora profile DOM (from a live dump): the H3 header sits in
+            // <div class="col-12">, and its siblings inside <div class="flex
+            // marginStuff"> are the two panels <div class="col-12 col-lg-6">
+            // (3D viewer | wearing items).
+            const headCol = h.closest('[class*="col-12"]') || h;
+            const wrap = headCol.parentElement;
+            if (!wrap) return;
+            const panels = [...wrap.children].filter(c => c instanceof HTMLElement && c !== headCol && !c.contains(h) && c.offsetHeight >= 120);
+            panels.forEach((p, i) => {
+                // ONE-card effect: only the outer corners are rounded; the
+                // inner meeting edges stay sharp on both sides.
+                glassPanel(p, panels.length < 2 ? '16px' : (i === 0 ? '16px 0 0 16px' : (i === panels.length - 1 ? '0 16px 16px 0' : '0')));
+                // No border on the inner meeting edges - two adjacent 1px
+                // borders otherwise render as a bright seam line.
+                if (panels.length > 1 && i < panels.length - 1) p.style.setProperty('border-right', 'none', 'important');
+                if (panels.length > 1 && i > 0) p.style.setProperty('border-left', 'none', 'important');
+                // No drop shadow on merged panels: each panel's soft glass
+                // shadow paints over its neighbour at the seam and ruins the
+                // one-card look. Inline !important beats every stylesheet.
+                if (panels.length > 1) p.style.setProperty('box-shadow', 'none', 'important');
+                // If the panel's own paint lives on a full-size inner wrapper,
+                // clear it so it neither covers nor stacks over the glass.
+                [...p.children].forEach(inner => {
+                    if (inner instanceof HTMLElement && inner.offsetHeight >= p.offsetHeight - 24) clearHost(inner);
+                });
+                panelCount += 1;
+            });
+            if (!panels.length) return;
+            clearHost(wrap);
+            const host = wrap.closest('.card,[class*="card-0-2-"],.section-content');
+            if (host && host !== wrap && host.contains(h)) clearHost(host);
+        });
+        if (panelCount !== lastWearingLogCount) {
+            lastWearingLogCount = panelCount;
+            console.info('[Interium] Wearing glass: ' + panelCount + ' panels on ' + location.pathname);
+        }
+    };
+
     const applyPageFrameTransparency = () => {
         let el = document.getElementById('pks-frame-style');
         if (!el) { el = document.createElement('style'); el.id = 'pks-frame-style'; document.head.appendChild(el); }
@@ -2238,48 +2763,59 @@ else window.addEventListener('DOMContentLoaded', init);
         css += `[class*="dropdownWrapper"]{position:relative!important;z-index:1500!important;}[class*="dropdownNew"],[class*="dropdownClass"]{z-index:1500!important;}`;
         css += `[class*="userStatus"],[class*="statHeader"],[class*="statText"]{font-weight:700!important;}`;
         const FRAME_CSS = `background:transparent!important;backdrop-filter:blur(0px)!important;border-color:rgba(255,255,255,0.06)!important;box-shadow:none!important;`;
-        if (cfg.miscHomeFramesTransparent) {
-            css += `.container.container-0-2-162,.container-0-2-162{${FRAME_CSS}}.myFeedContainer-0-2-176,.blogNewsContainer-0-2-177,.homeGamesContainer-0-2-172{${FRAME_CSS}}`;
+        /* PAGE-GATED (leak audit): each block below only builds its CSS on
+           the page it belongs to. Generic JSS names (buttonCol-, card-0-2-,
+           thumbnailWrapper, favoriteButton, containerHeader...) exist on many
+           pages, so ungated rules leaked across pages (e.g. profile glass
+           restyled the avatar category strip). applyPageFrameTransparency is
+           re-run on every SPA navigation, so the gates stay in sync. */
+        if (cfg.miscHomeFramesTransparent && isHomePage()) {
+            css += `[class*="myFeedContainer-"],[class*="blogNewsContainer-"],[class*="homeGamesContainer-"]{${FRAME_CSS}}`;
             css += `[class*="friendSection"] .section-content,[class*="friendSection"]{background:transparent!important;}[class*="thumbnailWrapper"]{box-shadow:none!important;}`;
         }
-        if (cfg.miscCatalogFrameTransparent) css += `.catalogContainer-0-2-4,.detailsWrapper-0-2-117{${FRAME_CSS}}`;
-        if (cfg.miscProfileFrameTransparent) {
+        if (cfg.miscCatalogFrameTransparent && /^\/catalog(\/|$)/i.test(location.pathname)) {
+            // Catalog listing page + item detail page (hash-proof wildcards).
+            css += `[class*="catalogPage-"],[class*="catalogContainer-"],[class*="searchResultsContainer-"],[class*="resultsWrapper-"],[class*="searchOptionsContainer-"]{${FRAME_CSS}}`;
+            css += `[class*="itemDetailsContainer-"],[class*="itemDetails-"],[class*="itemThumbContainer-"]{${FRAME_CSS}}`;
+        }
+        if (cfg.miscProfileFrameTransparent && isProfilePage()) {
+            // :has() may be unsupported in older engines - feature-detect so
+            // the glass never breaks (we only lose the sidebar exclusion).
+            let NOHOME = '';
+            try { if (CSS.supports('selector(:has(a))')) NOHOME = ':not(:has(a[href$="/home"]))'; } catch {}
             let glassEl = document.getElementById('pks-profile-glass-style');
             if (!glassEl) { glassEl = document.createElement('style'); glassEl.id = 'pks-profile-glass-style'; document.head.appendChild(glassEl); }
             glassEl.textContent = `
-                .card,
-                [class*="card-0-2-"],
-                .card-body,
-                [class*="cardBody-0-2-"],
-                .avatarImageCard-0-2-334,
-                .groupCard-0-2-402 {
-                    background: rgba(255,255,255,0.05) !important;
-                    backdrop-filter: blur(20px) saturate(180%) !important;
-                    -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
-                    border: 1px solid rgba(255,255,255,0.15) !important;
-                    border-radius: 12px !important;
-                    box-shadow: 0 8px 32px rgba(0,0,0,.20), inset 0 1px 0 rgba(255,255,255,.15) !important;
+                /* NOHOME keeps the site's left nav sidebar (also a .card)
+                   out of the glassify effect when :has() is supported */
+                .card${NOHOME},
+                [class*="card-0-2-"]${NOHOME},
+                [class*="avatarImageCard-"],
+                [class*="groupCard-"] {
+                    ${GLASS_CSS}
+                    border-radius:12px!important;
                 }
-                .avatarWrapper-0-2-191,
-                .avatarContainer-0-2-189,
-                .image-0-2-193,
-                .listItemFriend-0-2-188,
-                .friendLink-0-2-190 {
+                /* Nested card bodies must stay transparent: glass on both the
+                   outer card and card-body stacks two white layers and makes
+                   the profile header brighter than the About section. */
+                .card > .card-body,
+                [class*="card-0-2-"] > .card-body,
+                [class*="card-0-2-"] > [class*="cardBody-0-2-"],
+                [class*="avatarWrapper-"],
+                [class*="avatarContainer-"],
+                [class*="image-0-2-"],
+                [class*="listItemFriend-"],
+                [class*="friendLink-"] {
                     background: transparent !important;
                     background-color: transparent !important;
                     box-shadow: none !important;
                     border: none !important;
                 }
-                .avatarWrapper-0-2-191 {
-                    backdrop-filter: blur(12px) !important;
-                    -webkit-backdrop-filter: blur(12px) !important;
-                }
                 /* backdrop-filter makes each card its own stacking context, which
                    buries the Past Usernames popover under the next glass frame.
                    Lift the hovered card so its popover paints above its siblings. */
                 .card:hover,
-                [class*="card-0-2-"]:hover:not([class*="dropdown"]),
-                [class*="cardBody-0-2-"]:hover {
+                [class*="card-0-2-"]:hover:not([class*="dropdown"]) {
                     position: relative !important;
                     z-index: 100 !important;
                 }
@@ -2287,23 +2823,101 @@ else window.addEventListener('DOMContentLoaded', init);
                 [class*="popover"] {
                     z-index: 2000 !important;
                 }
+                /* About / Creations tab bar -> ONE merged glass bar: FULLY rounded
+                   (14px, matches the unified tab-bar block); overflow:hidden clips
+                   the accent underline inside the rounded corners */
+                [class*="buttonCol"]{${GLASS_CSS}border-radius:14px!important;border-bottom:none!important;overflow:hidden!important;gap:0!important;}
+                [class*="buttonCol"] [class*="vTab-"]{background:transparent!important;background-color:transparent!important;border:none!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;border-radius:0!important;margin:0!important;}
+                [class*="buttonCol"] [class*="vTabLabel"],[class*="buttonCol"] [class*="vTabUnselected"]{background:transparent!important;background-color:transparent!important;}
+                /* Favorite Games cards on the profile page — same flat glass as
+                   the game page recommended cards; nested inside .card so no
+                   stacked blur (flat rgba bg + border, no backdrop-filter) */
+                [class*="gameCardContainer"]{background:rgba(255,255,255,0.045)!important;border:1px solid rgba(255,255,255,0.12)!important;border-radius:14px!important;box-shadow:none!important;overflow:hidden!important;transition:border-color 0.15s ease,transform 0.14s ease!important;}
+                [class*="gameCardContainer"]:hover{border-color:${t.accent}88!important;transform:translateY(-2px)!important;}
+                [class*="gameCardThumbContainer"],[class*="gameCardThumbContainer"] img{border-radius:14px 14px 0 0!important;background:transparent!important;}
+                [class*="gameCardTitle"]{color:#fff!important;}
+                [class*="gameCardPlaying"]{color:#9aa0c0!important;}
+                [class*="gameCardFooterContainer"]{background:rgba(20,22,34,0.92)!important;border-radius:0 0 14px 14px!important;}
             `;
         } else {
             document.getElementById('pks-profile-glass-style')?.remove();
         }
-        if (cfg.miscFriendsFrameTransparent) {
-            css += `.section-content{background:rgba(255,255,255,0.04)!important;backdrop-filter:blur(20px) saturate(180%)!important;-webkit-backdrop-filter:blur(20px) saturate(180%)!important;border:1px solid rgba(255,255,255,0.12)!important;border-radius:14px!important;box-shadow:0 8px 32px rgba(0,0,0,.20),inset 0 1px 0 rgba(255,255,255,.15)!important;}`;
-            css += `.friendEntry-0-2-180,.friendWrapper-0-2-181,.thumbnailWrapper-0-2-182{background:transparent!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;}`;
+        if (cfg.miscFriendsFrameTransparent && isFriendsPage()) {
+            // Friends sections get the SAME glass as "Transparent page frames".
+            css += `.section-content:has([class*="friendEntry"],[class*="listItemFriend-"]){${GLASS_CSS}border-radius:14px!important;}`;
+            css += `[class*="friendCard-"],[class*="manageRequestCard-"]{${GLASS_CSS}border-radius:10px!important;}`;
+            css += `[class*="friendsContainer-"],[class*="friendCardWrapper-"]{background:transparent!important;background-color:transparent!important;box-shadow:none!important;}`;
+            css += `[class*="friendEntry"],[class*="friendWrapper"],[class*="thumbnailWrapper"],[class*="listItemFriend-"],[class*="sideRow-"]{background:transparent!important;background-color:transparent!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;}`;
+            css += `[class*="listItemFriend-"] [class*="playerName-"],[class*="friendCard-"] [class*="username-"],[class*="manageRequestCard-"] [class*="username-"]{color:#fff!important;}`;
         }
-        if (cfg.miscAvatarFrameTransparent) css += `.avatarCardContainer-0-2-570,.catalogContainer-0-2-4{${FRAME_CSS}}.pillToggle-0-2-553{background:rgba(255,255,255,0.05)!important;border-color:rgba(255,255,255,0.1)!important;}`;
+        /* Friends page (live DOM dump): tab bar is card-0-2-* > row-0-2-* >
+           .col > p.entry-0-2-*; request cards are friendCardWrapper-* >
+           friendCard-* (avatar/name) + manageRequestCard-* (white strip with
+           p.buttonShared- Ignore/Accept). Always-on restyle: */
+        /* 1. Tab bar: FULLY rounded (14px, matches the unified tab-bar block);
+           overflow:hidden clips the accent underline inside the corners. */
+        /* Page-gated: card-0-2-/row-0-2-/entry-0-2- are generic JSS names. */
+        if (isFriendsPage()) {
+        css += `[class*="card-0-2-"]:has(> [class*="row-0-2-"] > .col > [class*="entry-0-2-"]){border-radius:14px!important;overflow:hidden!important;}`;
+        /* 2. Merge avatar card + buttons strip into ONE glass card: rounded
+           outer corners, no borders/shadow at the seam (profile lesson).
+           GUI-gated: "Merge friend request cards" (miscFriendRequestMerge). */
+        if (cfg.miscFriendRequestMerge) {
+        /* The avatar/name card's class is unknown - target it structurally:
+           the direct child of the wrapper that sits right BEFORE the buttons
+           strip. Zero out the vertical gap and both seam borders/shadows. */
+        css += `[class*="friendCardWrapper-"] > *:has(+ [class*="manageRequestCard-"]){${GLASS_CSS}border-radius:10px 10px 0 0!important;border-bottom:0!important;margin-bottom:0!important;box-shadow:none!important;}`;
+        css += `[class*="friendCardWrapper-"] [class*="manageRequestCard-"]{${GLASS_CSS}border-radius:0 0 10px 10px!important;border-top:0!important;margin-top:0!important;box-shadow:none!important;padding:8px 10px 10px!important;}`;
+        css += `[class*="manageRequestCard-"] [class*="buttonShared-"]{border-radius:8px!important;margin:0!important;font-weight:700!important;cursor:pointer!important;transition:filter 0.15s ease,border-color 0.15s ease!important;}`;
+        css += `[class*="manageRequestCard-"] [class*="ignoreButton-"]{background-color:${GLASS_BG}!important;border:1px solid ${GLASS_BORDER_COLOR}!important;color:#fff!important;margin-right:4px!important;}`;
+        css += `[class*="manageRequestCard-"] [class*="ignoreButton-"]:hover{border-color:${t.accent}77!important;}`;
+        css += `[class*="manageRequestCard-"] [class*="acceptButton-"]{background:linear-gradient(135deg,${t.accent},${darkenHex(t.accent,0.6)})!important;border:none!important;color:#050508!important;margin-left:4px!important;}`;
+        css += `[class*="manageRequestCard-"] [class*="acceptButton-"]:hover{filter:brightness(1.12)!important;}`;
+        }
+        }
+        applyFriendsTransparencyDirect();
+        applyRequestCardMergeDirect();
+        applyWearingGlassDirect();
+        if (cfg.miscAvatarFrameTransparent && isAvatarPage()) css += `[class*="avatarCardContainer-"]{${FRAME_CSS}}[class*="pillToggle-"]{background:${GLASS_BG}!important;border-color:rgba(255,255,255,0.1)!important;}`;
+        if (cfg.miscAvatarBlurDropdown && isAvatarPage()) { // buttonCol- also exists on profile pages
+            // Exact Pekora Avatar DOM (from Avatar runtime): buttonCol-* is the category strip;
+            // submenuContainer-* section-content is the hover dropdown rendered directly below it.
+            // Apply the SAME complete glass recipe directly to both. Do not style their common
+            // parent: backdrop-filter never blurs a parent's own children (the item cards).
+            // One literal preset for BOTH surfaces. The stronger shared tint normalises the
+            // different backdrops (dark page behind the strip, bright cards behind submenu)
+            // while retaining the same live 14px backdrop blur on each element.
+            css += `[class*="buttonCol-"],[class*="submenuContainer-"][class~="section-content"]{${GLASS_CSS}}`;
+            css += `[class*="buttonCol-"]{border-radius:12px 12px 0 0!important;border-bottom:0!important;}`;
+            css += `[class*="submenuContainer-"][class~="section-content"]{border-radius:0 0 12px 12px!important;border-top:0!important;margin-top:0!important;}`;
+
+            // Pekora gives unselected category <p> elements their own opaque background. Clear
+            // only those child paints so the real blur on buttonCol remains visible.
+            css += `[class*="buttonCol-"] [class*="vTab-"],[class*="buttonCol-"] [class*="vTabLabel-"],[class*="buttonCol-"] [class*="vTabUnselected-"]{background:transparent!important;background-color:transparent!important;}`;
+            css += `[class*="buttonCol-"] p[class*="vTabUnselected-"]{box-shadow:none!important;}`;
+        }
         if (cfg.miscFooterTransparent) css += `[class*="footerContainer"],footer[class*="footerContainer"]{background:transparent!important;border-top:1px solid rgba(255,255,255,0.06)!important;box-shadow:none!important;backdrop-filter:none!important;}`;
-        if (cfg.miscGamesGlassify) {
+        const onGamesPage = /^\/games(\/|$)/i.test(location.pathname);
+        if (cfg.miscGamesGlassify && onGamesPage) {
             const accentDark = darkenHex(t.accent, 0.62);
-            const GLASS = `background:rgba(255,255,255,0.05)!important;backdrop-filter:blur(16px) saturate(160%)!important;-webkit-backdrop-filter:blur(16px) saturate(160%)!important;border:1px solid rgba(255,255,255,0.12)!important;border-radius:16px!important;box-shadow:0 8px 30px rgba(0,0,0,0.3)!important;`;
+            const GLASS = `${GLASS_CSS}border-radius:16px!important;`;
             css += `
                 /* every major frame → glass */
-                [class*="callsToAction"],[class*="recommendedGamesContainer"],[class*="serverContainer"],[class*="subSectionContainer"],[class*="gameDescription"],[class*="contentContainer"]{${GLASS}padding:16px!important;}
-                [class*="callsToAction"]{padding:14px!important;}
+                [class*="recommendedGamesContainer"],[class*="serverContainer"],[class*="subSectionContainer"],[class*="gameDescription"],[class*="contentContainer"]:not([class*="badgeContentContainer"]){${GLASS}padding:16px!important;}
+                /* hero → ONE unified glass frame: div.background wraps BOTH thumbContainer
+                   (the game preview carousel) and callsToAction (name / creator / play / votes),
+                   so the frame sits on the wrapper; callsToAction stays paint-free (stacking rule).
+                   Native children are floats with hard-coded widths (640px / calc(100% - 640px)),
+                   and the wrapper itself has a hard-coded height:384px (sized for the native
+                   12px padding + 360px carousel) — with our 16px padding that fixed height
+                   squeezes the image against the bottom edge (big gap on top, none below).
+                   Rebuild it as a symmetric flex row with height:auto: even 16px padding all around. */
+                [class*="gameContainer"] [class*="background-"]{${GLASS}padding:16px!important;height:auto!important;min-height:0!important;display:flex!important;align-items:stretch!important;flex-wrap:wrap!important;gap:18px!important;}
+                [class*="gameContainer"] [class*="background-"]>[class*="thumbContainer"]{float:none!important;flex:0 1 640px!important;min-width:0!important;display:flex!important;align-items:center!important;justify-content:center!important;}
+                [class*="carouselGameDetails"]{max-width:100%!important;}
+                [class*="gameContainer"] [class*="background-"]>[class*="callsToAction"]{float:none!important;flex:1 1 240px!important;width:auto!important;min-width:0!important;height:auto!important;padding:0!important;}
+                [class*="callsToAction"]{background:transparent!important;border:none!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;}
+                [class*="serverContainer"] [class*="callsToAction"]{border-right:1px solid rgba(255,255,255,0.12)!important;}
                 [class*="carouselGameDetails"],[class*="thumbContainer"],[class*="innerCarousel"],[class*="carouselItem"]{border-radius:16px!important;overflow:hidden!important;}
                 [class*="gameName"],[class*="containerHeader"] h3{color:#fff!important;}
                 [class*="creatorName"]{color:${t.accent}!important;}
@@ -2311,55 +2925,342 @@ else window.addEventListener('DOMContentLoaded', init);
                 [class*="voteText"],[class*="voteNumbers"],[class*="playerCount"],[class*="creatorLabel"]{color:#e6e9f5!important;}
                 /* game stats → modern glass chips */
                 [class*="gameStatsContainer"]{display:flex!important;flex-wrap:wrap!important;gap:8px!important;border:none!important;padding:0!important;margin-top:12px!important;}
-                [class*="gameStat-"]{list-style:none!important;background:rgba(255,255,255,0.05)!important;backdrop-filter:blur(10px)!important;-webkit-backdrop-filter:blur(10px)!important;border:1px solid rgba(255,255,255,0.1)!important;border-radius:12px!important;padding:8px 13px!important;transition:border-color 0.15s ease,transform 0.12s ease!important;}
+                [class*="gameStat-"]{list-style:none!important;${GLASS_CSS}border-radius:12px!important;padding:8px 13px!important;transition:border-color 0.15s ease,transform 0.12s ease!important;}
                 [class*="gameStat-"]:hover{border-color:${t.accent}66!important;transform:translateY(-1px)!important;}
                 [class*="gameStatLabel"]{color:#9aa0c0!important;}
                 [class*="gameStatStat"]{color:#fff!important;font-weight:700!important;}
                 [class*="reportAbuseContainer"] a,[class*="abuseLink"]{color:${t.accent}!important;}
-                /* comments → glass */
-                [class*="commentContainer"]{background:rgba(255,255,255,0.04)!important;backdrop-filter:blur(10px)!important;-webkit-backdrop-filter:blur(10px)!important;border:1px solid rgba(255,255,255,0.1)!important;border-radius:12px!important;padding:10px!important;margin-bottom:8px!important;}
-                [class*="createCommentContainer"],[class*="commentBox"]{background:rgba(255,255,255,0.05)!important;backdrop-filter:blur(12px)!important;-webkit-backdrop-filter:blur(12px)!important;border:1px solid rgba(255,255,255,0.12)!important;border-radius:12px!important;}
-                [class*="commentBox"] input,[class*="createCommentContainer"] input{background:transparent!important;color:#fff!important;border:none!important;}
+                /* about/store/servers tabs → styled by the unified tab-bar block below */
+                /* comments → glass cards */
+                [class*="commentContainer"]{${GLASS_CSS}border-radius:14px!important;padding:12px 14px!important;margin-bottom:10px!important;}
+                [class*="commentEntryDiv"]{background:transparent!important;border:none!important;box-shadow:none!important;height:auto!important;}
+                [class*="commentText"]{color:#e8ebf7!important;}
+                [class*="commentCreatedAt"]{color:#8b93b8!important;}
+                [class*="noCommentFound"]{color:#9aa0c0!important;}
+                /* comment composer → one glass row: input grows, button sits right,
+                   character counter drops to its own full-width line below */
+                [class*="createCommentContainer"]{${GLASS_CSS}border-radius:14px!important;padding:16px!important;margin-bottom:12px!important;display:flex!important;flex-wrap:wrap!important;align-items:center!important;}
+                [class*="createCommentContainer"] [class*="commentBox"]{flex:1 1 auto!important;width:auto!important;background:transparent!important;border:none!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;}
+                [class*="createCommentContainer"] [class*="btnDiv"]{flex:0 0 auto!important;margin:0 0 0 12px!important;}
+                [class*="createCommentContainer"] input{background:rgba(255,255,255,0.06)!important;border:1px solid rgba(255,255,255,0.14)!important;border-radius:12px!important;color:#fff!important;height:44px!important;padding:5px 14px!important;}
+                [class*="createCommentContainer"] input:focus{border-color:${t.accent}!important;background:rgba(255,255,255,0.09)!important;outline:none!important;}
+                [class*="createCommentContainer"] input::placeholder{color:rgba(255,255,255,0.42)!important;}
+                [class*="createCommentContainer"] [class*="continueButton"]{height:44px!important;padding:8px 16px!important;border-radius:12px!important;border:none!important;background:linear-gradient(135deg,${t.accent},${accentDark})!important;color:#fff!important;font-weight:700!important;box-shadow:0 6px 20px ${t.accent}44!important;cursor:pointer!important;transition:transform 0.15s ease,box-shadow 0.15s ease,filter 0.15s ease!important;}
+                [class*="createCommentContainer"] [class*="continueButton"]:hover{transform:translateY(-1px)!important;filter:brightness(1.08)!important;box-shadow:0 8px 24px ${t.accent}77!important;}
+                [class*="createCommentContainer"] [class*="continueButton"]:disabled{opacity:0.55!important;}
+                [class*="createCommentContainer"] [class*="commentMsg"]{flex:0 0 100%!important;position:static!important;width:100%!important;min-height:0!important;margin:10px 0 0!important;text-align:right!important;font-size:12px!important;display:block!important;}
+                [class*="characterCount"]{position:static!important;display:inline-block!important;color:#8b93b8!important;font-size:12px!important;}
+                /* badges → flat translucent cards (inside glassed panels — stacking rule) */
+                [class*="descriptionHeaderContainer"] h3{color:#fff!important;}
+                [class*="badgeList"]{gap:10px!important;}
+                [class*="badgeContainer"]{background:rgba(255,255,255,0.045)!important;border:1px solid rgba(255,255,255,0.10)!important;border-radius:14px!important;padding:14px!important;transition:border-color 0.15s ease,transform 0.12s ease!important;}
+                [class*="badgeContainer"]:hover{border-color:${t.accent}66!important;transform:translateY(-1px)!important;}
+                [class*="badgeContentContainer"]{background:transparent!important;border:none!important;box-shadow:none!important;padding:0 12px!important;}
+                [class*="badgeImageContainer"] img{filter:drop-shadow(0 4px 10px rgba(0,0,0,0.35))!important;}
+                [class*="badgeDetailsContainer"] a{color:${t.accent}!important;}
+                [class*="badgeStatField"]{color:#9aa0c0!important;}
+                [class*="badgeStatValue"]{color:#fff!important;font-weight:700!important;}
+                [class*="seeMoreButton"],[class*="loadMoreBtn"]{background:rgba(255,255,255,0.05)!important;border:1px solid rgba(255,255,255,0.12)!important;border-radius:12px!important;color:#fff!important;font-weight:600!important;cursor:pointer!important;transition:background 0.15s ease,border-color 0.15s ease!important;}
+                [class*="seeMoreButton"]:hover,[class*="loadMoreBtn"]:hover{background:rgba(255,255,255,0.10)!important;border-color:${t.accent}99!important;}
+                [class*="loadMore"]{color:${t.accent}!important;font-weight:600!important;}
+                /* recommended games → hover cards. Real component (2901 shared chunk):
+                   gameCardContainer paints the native card (var(--white-color) + grey shadow,
+                   3px radius). Flat translucent inside the glassed panel (stacking rule).
+                   SCOPED under recommendedGamesContainer: this glassify block is gated to
+                   /games as a whole, so unscoped gameCard* rules also hit the /games
+                   LISTING and (winning the cascade by document order) turned its cards
+                   back into a bare 4.5% white film -- the listing is owned by the unified
+                   "Modern game cards" setting (applyCardStyle) instead. */
+                [class*="recommendedGamesContainer"] [class*="gameCardsContainer"]{gap:10px!important;}
+                [class*="recommendedGamesContainer"] [class*="gameCardContainer"]{background:rgba(255,255,255,0.045)!important;border:1px solid rgba(255,255,255,0.10)!important;border-radius:14px!important;overflow:hidden!important;box-shadow:none!important;transition:border-color 0.15s ease,transform 0.14s ease,box-shadow 0.15s ease!important;}
+                [class*="recommendedGamesContainer"] [class*="gameCardContainer"]:hover{border-color:${t.accent}88!important;transform:translateY(-2px)!important;box-shadow:0 10px 26px rgba(0,0,0,0.35)!important;}
+                [class*="recommendedGamesContainer"] [class*="gameCardThumbContainer"],[class*="recommendedGamesContainer"] [class*="gameCardThumbContainer"] img{border-radius:14px 14px 0 0!important;}
+                [class*="recommendedGamesContainer"] [class*="gameCardTitle"]{color:#fff!important;}
+                [class*="recommendedGamesContainer"] [class*="gameCardPlaying"]{color:#9aa0c0!important;}
+                [class*="recommendedGamesContainer"] [class*="gameCardFooterContainer"]{background:rgba(20,22,34,0.92)!important;box-shadow:0 10px 26px rgba(0,0,0,0.45)!important;border-radius:0 0 14px 14px!important;}
+                [class*="recommendedGamesContainer"] [class*="gameCardFooter-"]{border-top:1px solid rgba(255,255,255,0.12)!important;}
+                /* recommended games → ONE scrollable row instead of wrapping. Native layout is
+                   ul > li.listItem (width:16.66%, float:left), which wraps to extra rows. Scoped
+                   to the recommended panel so other card grids keep their native layout. The
+                   hover footer strip is hidden here: a horizontal scroll container clips
+                   anything hanging below the cards, so it would render cut in half. */
+                [class*="recommendedGamesContainer"] [class*="gameCardsContainer"]{display:flex!important;flex-wrap:nowrap!important;overflow-x:auto!important;padding:6px 2px 12px!important;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.22) transparent;}
+                [class*="recommendedGamesContainer"] [class*="gameCardsContainer"]>li{float:none!important;flex:0 0 auto!important;width:16.6667%!important;min-width:150px!important;margin-bottom:0!important;}
+                [class*="recommendedGamesContainer"] [class*="gameCardsContainer"]::-webkit-scrollbar{height:8px;}
+                [class*="recommendedGamesContainer"] [class*="gameCardsContainer"]::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.18);border-radius:8px;}
+                [class*="recommendedGamesContainer"] [class*="gameCardsContainer"]::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.32);}
+                [class*="recommendedGamesContainer"] [class*="gameCardsContainer"]::-webkit-scrollbar-track{background:transparent;}
+                [class*="recommendedGamesContainer"] [class*="gameCardFooterContainer"]{display:none!important;}
+                /* store tab game passes → cards. Flat translucent (NO backdrop-filter): they sit
+                   inside the already-glassed tabPane panel (stacking rule). Native passCard is a
+                   white 3px-radius box with a hard caption divider and grey Buy buttons. */
+                [class*="passCard"]{background:rgba(255,255,255,0.045)!important;border:1px solid rgba(255,255,255,0.10)!important;border-radius:14px!important;overflow:hidden!important;transition:border-color 0.15s ease,transform 0.12s ease!important;}
+                [class*="passCard"]:hover{border-color:${t.accent}66!important;transform:translateY(-1px)!important;}
+                [class*="passPicture"] img{border-radius:14px 14px 0 0!important;}
+                [class*="passCaption"]{border-top:1px solid rgba(255,255,255,0.12)!important;padding:4px 10px 10px!important;}
+                [class*="passName"]{color:#fff!important;}
+                [class*="passCard"] [class*="buyBtn"]{background:rgba(255,255,255,0.05)!important;border:1px solid rgba(255,255,255,0.14)!important;border-radius:10px!important;color:#fff!important;transition:background 0.15s ease,border-color 0.15s ease,color 0.15s ease!important;}
+                [class*="passCard"] [class*="buyBtn"]:hover{background:#3fc679!important;border-color:#3fc679!important;color:#fff!important;}
+                /* ...but the LIVE game page renders passes with a different component:
+                   gPassWrapper > "section-content hoverShadow" gPassContainer > gPassImg +
+                   gPassDetails (hard #b8b8b8 divider, gPassName / price / gPassBuyButton).
+                   section-content paints the native white card — override it here. */
+                [class*="gPassContainer"]{background:rgba(255,255,255,0.045)!important;border:1px solid rgba(255,255,255,0.10)!important;border-radius:14px!important;overflow:hidden!important;box-shadow:none!important;transition:border-color 0.15s ease,transform 0.12s ease!important;}
+                [class*="gPassContainer"]:hover{border-color:${t.accent}66!important;transform:translateY(-1px)!important;box-shadow:none!important;}
+                [class*="gPassImg"]{border-radius:14px 14px 0 0!important;}
+                [class*="gPassDetails"]{border-top:1px solid rgba(255,255,255,0.12)!important;padding:4px 10px 10px!important;background:transparent!important;}
+                [class*="gPassName"]{color:#fff!important;}
+                [class*="gPassBuyButton"]{background:rgba(255,255,255,0.05)!important;border:1px solid rgba(255,255,255,0.14)!important;border-radius:10px!important;color:#fff!important;transition:background 0.15s ease,border-color 0.15s ease,color 0.15s ease!important;}
+                [class*="gPassBuyButton"]:hover{background:#3fc679!important;border-color:#3fc679!important;color:#fff!important;}
+                [class*="gPassOwnedButton"]{color:#9aa0c0!important;}
+                /* creator's "Add Pass" tile */
+                [class*="addPassText"]{color:#c8cde0!important;}
+                [class*="addPassIcon"]{filter:invert(1) opacity(0.75)!important;}
+                /* recommended games and comments both live in a row.recommendedGamesContainer
+                   glass panel back-to-back — add breathing room so they read as separate blocks */
+                [class*="recommendedGamesContainer"]{margin-bottom:18px!important;}
                 /* modern, sleek buttons */
                 [class*="actionButtonsContainer"]{gap:8px!important;}
                 [class*="playButtonContainer"] button,[class*="buttonWrapper"] button{background:linear-gradient(135deg,${t.accent},${accentDark})!important;border:none!important;border-radius:14px!important;box-shadow:0 6px 22px ${t.accent}55!important;transition:transform 0.16s ease,box-shadow 0.16s ease,filter 0.16s ease!important;}
                 [class*="playButtonContainer"] button:hover,[class*="buttonWrapper"] button:hover{transform:translateY(-2px) scale(1.02)!important;filter:brightness(1.08)!important;box-shadow:0 12px 30px ${t.accent}88!important;}
                 [class*="playButtonContainer"] button [class*="iconPlay"]{filter:drop-shadow(0 1px 2px rgba(0,0,0,0.4))!important;}
-                [class*="favoriteButton"],[class*="followButton"]{display:flex!important;align-items:center!important;justify-content:center!important;gap:6px!important;background:rgba(255,255,255,0.06)!important;backdrop-filter:blur(10px)!important;-webkit-backdrop-filter:blur(10px)!important;border:1px solid rgba(255,255,255,0.14)!important;border-radius:14px!important;padding:8px 14px!important;transition:background 0.15s ease,border-color 0.15s ease,transform 0.15s ease!important;}
-                [class*="favoriteButton"]:hover,[class*="followButton"]:hover{background:rgba(255,255,255,0.11)!important;border-color:${t.accent}99!important;transform:translateY(-1px)!important;}
-                [class*="favoriteLabel"],[class*="followLabel"]{color:#fff!important;font-weight:600!important;}
-                /* About / Store / Servers tabs → modern glass segmented control */
-                [class*="buttonCol"]{display:flex!important;gap:8px!important;flex-wrap:wrap!important;}
-                [class*="vTab-"]{background:rgba(255,255,255,0.05)!important;backdrop-filter:blur(10px)!important;-webkit-backdrop-filter:blur(10px)!important;border:1px solid rgba(255,255,255,0.12)!important;border-radius:12px!important;overflow:hidden!important;transition:border-color 0.15s ease,transform 0.12s ease,background 0.15s ease!important;}
-                [class*="vTab-"]:hover{border-color:${t.accent}66!important;transform:translateY(-1px)!important;}
-                [class*="vTabLabel"]{color:#cfd3e6!important;font-weight:600!important;margin:0!important;padding:9px 16px!important;text-align:center!important;cursor:pointer!important;}
-                [class*="vTabLabel"]:not([class*="vTabUnselected"]){color:#fff!important;background:linear-gradient(135deg,${t.accent}33,${t.accent}11)!important;box-shadow:inset 0 -2px 0 ${t.accent}!important;}
-                [class*="vTabUnselected"]{color:#8a90ad!important;}
+
+            `;
+            // /games LISTING cards are owned by the unified "Modern game
+            // cards" setting (miscModernGameCards in applyCardStyle), shared
+            // with the home page. The flat translucent card rules above only
+            // matter on the game DETAIL page (nested inside glassed panels).
+        }
+        // Only strip native frames when a feature that draws its own (glass / hero backdrop) is enabled.
+        // Inner hosts (thumb, carousel, description) are always cleared; the background- hero
+        // wrapper is cleared ONLY when it does not itself carry the unified hero glass above
+        // (i.e. glassify off or not on a /games/<id> page).
+        if (cfg.miscGamesGlassify || cfg.miscGamesHeroBackdrop) css += `[class*="gameContainer"] [class*="thumbContainer"],[class*="gameContainer"] [class*="carouselGameDetails"],[class*="gameContainer"] [class*="descriptionContainer"]{background:transparent!important;background-color:transparent!important;border:none!important;box-shadow:none!important;}`;
+        if ((cfg.miscGamesGlassify || cfg.miscGamesHeroBackdrop) && !(cfg.miscGamesGlassify && onGamesPage)) css += `[class*="gameContainer"] [class*="background-"]{background:transparent!important;background-color:transparent!important;border:none!important;box-shadow:none!important;}`;
+        if (cfg.miscGamesHideRecommended && onGamesPage) css += `[class*="recommendedGamesContainer"]{display:none!important;}`;
+        if (cfg.miscGamesHideComments && onGamesPage) css += `[class*="commentsContainer"]{display:none!important;}[class*="containerHeader"]:has(+[class*="commentsContainer"]){display:none!important;}`;
+        // ── Tab bars: unified glass (REWRITTEN) ──
+        // There are TWO different native tab components, not one:
+        //  1) vTab component — game page (About/Store/Servers, wrapped in
+        //     horizontalTabs) and profile page (About/Creations, no wrapper):
+        //     div[buttonCol-] > div[vTab-] > p[vTabLabel-]; unselected labels also
+        //     carry vTabUnselected- with a native paddingTop:7px that misaligns the
+        //     text, and the selected tab hides a white btnBottomSeperator strip that
+        //     hangs BELOW the bar (height:5px;margin-bottom:-5px) — display:none it.
+        //  2) friends page (/users/<id>/friends) — a DIFFERENT component entirely:
+        //     div[card-] > div[row-] > .col > p[entry-] (+entryActive-); its native
+        //     underline is an inset box-shadow 0 -4px var(--primary-color).
+        // Both are rebuilt as ONE glass bar: equal flex columns, uniform padding,
+        // accent underline on the active tab, soft hover highlight. Page-gated
+        // because the same generic class names are reused elsewhere (Groups,
+        // Messages keep their native tabs; the avatar page strip styles buttonCol-
+        // itself, but that block is gated to the avatar page).
+        // The underline is an INSET PILL (::after with rounded ends, pulled in from
+        // the sides and lifted off the bottom) so it can never poke past the bar's
+        // rounded glass corners like a full-width inset box-shadow would.
+        const onProfileTabsPage = /\/users\/\d+\/profile/i.test(location.pathname);
+        const onFriendsTabsPage = /\/users\/\d+\/friends/i.test(location.pathname) || /^\/my\/friends/i.test(location.pathname);
+        // SPLIT GATES (cross-toggle leak fix): the /games toggle only styles the
+        // /games page, the profile About/Creations tab bar follows its OWN
+        // /profile toggle - one page's toggle must never restyle another page.
+        if ((cfg.miscGamesGlassify && onGamesPage) || (cfg.miscProfileTabsGlassify && onProfileTabsPage)) {
+            const t = getTheme();
+            css += `
+                [class*="buttonCol-"]{${GLASS_CSS}border-radius:14px!important;overflow:hidden!important;display:flex!important;align-items:stretch!important;padding:0!important;border-bottom:none!important;}
+                [class*="buttonCol-"] [class*="vTab-"]{flex:1 1 0!important;display:block!important;margin:0!important;border:none!important;background:transparent!important;min-width:0!important;}
+                /* underline: 1:1 the game-page look — full-width inset box-shadow flush
+                   with the tab bottom; the bar's border-radius + overflow:hidden clips it
+                   at the rounded corners so it stays inside the glass */
+                [class*="buttonCol-"] [class*="vTabLabel-"]{background:transparent!important;color:#fff!important;margin:0!important;padding:12px 8px!important;text-align:center!important;font-size:16px!important;font-weight:600!important;box-shadow:inset 0 -3px 0 0 ${t.accent}!important;transition:background 0.15s ease,box-shadow 0.15s ease!important;}
+                [class*="buttonCol-"] [class*="vTabUnselected-"]{box-shadow:none!important;cursor:pointer!important;}
+                [class*="buttonCol-"] [class*="vTabUnselected-"]:hover{background:rgba(255,255,255,0.08)!important;box-shadow:inset 0 -3px 0 0 ${t.accent}55!important;}
+                [class*="btnBottomSeperator-"]{display:none!important;}
+                /* count bubble (e.g. pending requests) inside a tab label */
+                [class*="buttonCol-"] [class*="count-"]{background:rgba(255,255,255,0.08)!important;border:1px solid rgba(255,255,255,0.22)!important;color:#fff!important;border-radius:8px!important;}
             `;
         }
-        css += `[class*="gameContainer"] [class*="background-"],[class*="gameContainer"] [class*="thumbContainer"],[class*="gameContainer"] [class*="carouselGameDetails"],[class*="gameContainer"] [class*="descriptionContainer"]{background:transparent!important;background-color:transparent!important;border:none!important;box-shadow:none!important;}`;
-        if (!cfg.miscGamesGlassify) css += `[class*="gameContainer"] [class*="contentContainer"],[class*="gameContainer"] [class*="callsToAction"],[class*="gameContainer"] [class*="recommendedGamesContainer"],[class*="gameContainer"] [class*="commentsContainer"],[class*="gameContainer"] [class*="createCommentContainer"],[class*="gameContainer"] [class*="commentBox"]{background:transparent!important;background-color:transparent!important;border:none!important;box-shadow:none!important;}`;
-        if (cfg.miscGamesHideRecommended) css += `[class*="recommendedGamesContainer"]{display:none!important;}`;
-        if (cfg.miscGamesHideComments) css += `[class*="commentsContainer"]{display:none!important;}[class*="containerHeader"]:has(+[class*="commentsContainer"]){display:none!important;}`;
+        if (cfg.miscFriendsTabsGlassify && onFriendsTabsPage) {
+            const t = getTheme();
+            css += `
+                [class*="friendsContainer-"] [class*="card-"]:has([class*="entryActive-"]){${GLASS_CSS}border-radius:14px!important;overflow:hidden!important;}
+                [class*="friendsContainer-"] [class*="card-"]:has([class*="entryActive-"]) [class*="row-"]{padding:0!important;margin:0!important;}
+                /* underline: 1:1 the game-page look (full-width inset box-shadow); the
+                   card's border-radius + overflow:hidden keeps it inside the glass */
+                [class*="friendsContainer-"] p[class*="entry-"]{background:transparent!important;color:#fff!important;margin:0!important;padding:12px 8px!important;font-size:16px!important;font-weight:600!important;text-align:center!important;cursor:pointer!important;box-shadow:none!important;transition:background 0.15s ease,box-shadow 0.15s ease!important;}
+                [class*="friendsContainer-"] p[class*="entry-"]:not([class*="entryActive-"]):hover{background:rgba(255,255,255,0.08)!important;box-shadow:inset 0 -3px 0 0 ${t.accent}55!important;}
+                [class*="friendsContainer-"] p[class*="entryActive-"]{box-shadow:inset 0 -3px 0 0 ${t.accent}!important;}
+            `;
+        }
+        // ── Develop page (/develop) glassify ──
+        // Saved-DOM reference: the page content lives in div[developerContainer-];
+        // every selector below is SCOPED under it because the page reuses generic
+        // JSS names (wrapper-, text-, row-, box-, container-, buttonCol-) that also
+        // exist in the navbar/side nav and on other pages (same cross-page-leak
+        // lesson as the /trades itemCard- and /games recommendedGamesContainer fixes).
+        // Structure map (from the saved page):
+        //   div[buttonCol-] > div[vTab-] > p[vTabLabel-]   top tabs (My Creations...)
+        //   a[wrapper-] > span[text-]                      left asset-type list
+        //     (+wrapperSelected-/textSelected- = active, +wrapperDisabled- = greyed)
+        //   div[row-]:has(img[image-])                     one creation row
+        //   div[container-] > div[box-] > gear-/caret-     per-row settings button
+        const onDevelopPage = /^\/develop(\/|$)/i.test(location.pathname);
+        if (cfg.miscDevelopGlassify && onDevelopPage) {
+            const t = getTheme();
+            css += `
+                /* the WHOLE page card is one big glass surface; every inner panel
+                   (tab bar, sidebar, rows) is layered on top of it */
+                [class*="developerContainer-"]{${GLASS_CSS}border-radius:16px!important;padding:14px 16px 16px!important;}
+                /* top tab bar - same glass recipe as the game/profile vTab bar */
+                [class*="developerContainer-"] [class*="buttonCol-"]{${GLASS_CSS}border-radius:14px!important;overflow:hidden!important;display:flex!important;align-items:stretch!important;padding:0!important;border-bottom:none!important;}
+                [class*="developerContainer-"] [class*="buttonCol-"] [class*="vTab-"]{flex:1 1 0!important;display:block!important;margin:0!important;border:none!important;background:transparent!important;min-width:0!important;}
+                [class*="developerContainer-"] [class*="buttonCol-"] [class*="vTabLabel-"]{background:transparent!important;color:#fff!important;margin:0!important;padding:12px 8px!important;text-align:center!important;font-size:16px!important;font-weight:600!important;box-shadow:inset 0 -3px 0 0 ${t.accent}!important;transition:background 0.15s ease,box-shadow 0.15s ease!important;}
+                [class*="developerContainer-"] [class*="buttonCol-"] [class*="vTabUnselected-"]{box-shadow:none!important;cursor:pointer!important;}
+                [class*="developerContainer-"] [class*="buttonCol-"] [class*="vTabUnselected-"]:hover{background:rgba(255,255,255,0.08)!important;box-shadow:inset 0 -3px 0 0 ${t.accent}55!important;}
+                [class*="developerContainer-"] [class*="btnBottomSeperator-"]{display:none!important;}
+                /* left asset-type list: one glass panel, entries become soft rows */
+                [class*="developerContainer-"] div:has(> a[class*="wrapper-"]){${GLASS_CSS}border-radius:14px!important;padding:6px!important;overflow:hidden!important;}
+                [class*="developerContainer-"] a[class*="wrapper-"]{display:block!important;background:transparent!important;border:none!important;border-radius:9px!important;padding:7px 10px!important;margin:1px 0!important;transition:background 0.15s ease,box-shadow 0.15s ease!important;}
+                [class*="developerContainer-"] a[class*="wrapper-"]:hover{background:rgba(255,255,255,0.08)!important;text-decoration:none!important;}
+                [class*="developerContainer-"] a[class*="wrapperSelected-"]{background:${t.accent}22!important;box-shadow:inset 3px 0 0 0 ${t.accent}!important;}
+                [class*="developerContainer-"] a[class*="wrapperDisabled-"]{opacity:0.45!important;}
+                [class*="developerContainer-"] a[class*="wrapper-"] [class*="text-"]{color:#fff!important;}
+                /* creation rows (a row holding the asset thumbnail) become glass cards.
+                   margin:0 kills the bootstrap .row negative side gutters - without it the
+                   card bleeds ~12px left and visually merges with the sidebar panel */
+                [class*="developerContainer-"] div[class*="row-"]:has(> div > a > img[class*="image-"]){${GLASS_CSS}border-radius:14px!important;padding:10px!important;margin:0 0 10px 0!important;align-items:center!important;transition:box-shadow 0.16s ease,border-color 0.16s ease!important;}
+                [class*="developerContainer-"] div[class*="row-"]:has(> div > a > img[class*="image-"]):hover{border-color:${t.accent}77!important;box-shadow:0 12px 32px rgba(0,0,0,0.4)!important;}
+                [class*="developerContainer-"] img[class*="image-"]{border-radius:10px!important;background:rgba(255,255,255,0.035)!important;}
+                [class*="developerContainer-"] [class*="startPlaceLabel-"]{color:rgba(255,255,255,0.65)!important;}
+                /* per-row gear/settings button */
+                [class*="developerContainer-"] [class*="box-"]{background:rgba(255,255,255,0.06)!important;border:1px solid rgba(255,255,255,0.14)!important;border-radius:10px!important;transition:background 0.15s ease,border-color 0.15s ease!important;}
+                [class*="developerContainer-"] [class*="box-"]:hover{background:rgba(255,255,255,0.12)!important;border-color:${t.accent}77!important;}
+                /* form controls (upload forms, Select Group, search fields...) follow the glass */
+                [class*="developerContainer-"] input[type="text"],[class*="developerContainer-"] input[type="number"],[class*="developerContainer-"] input[type="file"],[class*="developerContainer-"] textarea,[class*="developerContainer-"] select{background:rgba(255,255,255,0.06)!important;border:1px solid rgba(255,255,255,0.14)!important;border-radius:9px!important;color:#fff!important;transition:border-color 0.15s ease,background 0.15s ease!important;}
+                [class*="developerContainer-"] input[type="text"]:focus,[class*="developerContainer-"] input[type="number"]:focus,[class*="developerContainer-"] textarea:focus,[class*="developerContainer-"] select:focus{border-color:${t.accent}99!important;background:rgba(255,255,255,0.09)!important;outline:none!important;}
+            `;
+        }
         el.textContent = css;
         applyGamesHeroBackdrop();
         applyMessagesGlass();
+        applyGroupsGlass();
+        applyInventoryGlass();
+    };
+
+    // ── Inventory page (/users/<id>/inventory) glassify ──
+    // JSS names from Next chunk 6236 (Korone dump): itemCard-, serial-,
+    // itemLabel-, creatorLabel-, creatorUrl-, categoryBgDesktop-,
+    // categoryTitle-, categoryValue-, showingLabel-, selectorOption(Selected)-,
+    // selectorClosed-, selectorMenuOpen-, selectOption-. Site defaults paint
+    // OPAQUE var(--white-color) panels with light seams (itemLabel border-top
+    // #f2f2f2) -- broken look on dark theme + custom bg. Page-gated: these
+    // are generic JSS names that could collide elsewhere.
+    const isInventoryPage = () => /^\/users\/\d+\/inventory(\/|$)/i.test(location.pathname);
+    const applyInventoryGlass = () => {
+        let el = document.getElementById('pks-inventory-glass-style');
+        if (!cfg.miscInventoryGlassify || !isInventoryPage()) { el?.remove(); return; }
+        if (!el) { el = document.createElement('style'); el.id = 'pks-inventory-glass-style'; document.head.appendChild(el); }
+        const t = getTheme();
+        // Card surface: same branching as modern game cards. With a custom
+        // background we need the REAL fake-backdrop blur (absolute pseudo
+        // slice + background-attachment:fixed) because backdrop-filter alone
+        // reads as a flat tint; hover lift therefore uses top, never
+        // transform (transform breaks background-attachment:fixed).
+        let cardCss;
+        const invBgUrl = cfg.miscBgUrl?.trim();
+        if (invBgUrl) {
+            const sliceBlur = (cfg.miscBgBlur ? (cfg.miscBgBlurAmount ?? 8) : 0) + 16;
+            const bgDarkOp = cfg.miscBgDarkOverlay ? ((cfg.miscBgDarkOpacity ?? 50) / 100) : 0;
+            const cardVeil = Math.min(0.8, 0.32 + bgDarkOp * 0.55).toFixed(2);
+            el.dataset.invMode = 'custom-slice';
+            cardCss = `
+            [class*="itemCard-"]{position:relative!important;top:0!important;isolation:isolate!important;background:transparent!important;border:1px solid ${GLASS_BORDER_COLOR}!important;box-shadow:${GLASS_SHADOW}!important;border-radius:12px!important;padding:8px!important;overflow:hidden!important;transition:border-color 0.22s,box-shadow 0.22s,top 0.18s!important;}
+            [class*="itemCard-"]::before{content:'';position:absolute;inset:-${sliceBlur * 2}px;z-index:-2;background:url('${invBgUrl.replace(/'/g, "\\'")}') center/cover no-repeat fixed;filter:blur(${sliceBlur}px) saturate(150%);pointer-events:none;}
+            [class*="itemCard-"]::after{content:'';position:absolute;inset:0;z-index:-1;background:rgba(10,11,16,${cardVeil});pointer-events:none;}
+            [class*="itemCard-"]:hover{border-color:${t.cardHoverBorder}!important;box-shadow:${t.cardHoverGlow}!important;top:-3px!important;z-index:2!important;}
+            `;
+        } else {
+            // No custom background: ONE unified glass recipe -- exactly the
+            // same GLASS_CSS surface as the category sidebar / messages /
+            // groups panels. The graphite tint and site-background slice
+            // experiments both read as solid dark tiles, not glass.
+            el.dataset.invMode = 'glass';
+            cardCss = `
+            [class*="itemCard-"]{${GLASS_CSS}position:relative!important;top:0!important;border-radius:12px!important;padding:8px!important;overflow:hidden!important;transition:border-color 0.22s,box-shadow 0.22s,top 0.18s!important;}
+            [class*="itemCard-"]:hover{border-color:${t.cardHoverBorder}!important;box-shadow:${t.cardHoverGlow}!important;top:-3px!important;z-index:2!important;}
+            `;
+        }
+        el.textContent = `
+            /* category sidebar: one glass panel, accent for the active entry.
+               NOTE: the backdrop-filter must live on a ::before pseudo layer,
+               NOT on the panel element itself. Element-level backdrop-filter
+               makes the panel a backdrop root, and the nested SUBCATEGORY
+               flyout (also a categoryBgDesktop) can then only blur the
+               panel's own content -- outside the panel bounds it saw nothing,
+               so the flyout rendered transparent with no blur. Each pseudo
+               needs a stacking context to keep z-index:-1 contained: the
+               outer panel gets one from the z-index:5 lift below, the flyout
+               from its own zIndex:4. */
+            [class*="categoryBgDesktop-"]{background:transparent!important;border:1px solid ${GLASS_BORDER_COLOR}!important;box-shadow:${GLASS_SHADOW}!important;border-radius:14px!important;}
+            [class*="categoryBgDesktop-"]::before{content:'';position:absolute;inset:0;z-index:-1;border-radius:14px;background:${GLASS_BG};backdrop-filter:${GLASS_FILTER};-webkit-backdrop-filter:${GLASS_FILTER};pointer-events:none;}
+            /* GLASS_CSS backdrop-filter turns the sidebar panel into a
+               stacking context, trapping the SUBCATEGORY flyout's own
+               zIndex:4 inside it -- so the later-painted position:relative
+               item cards covered the flyout (Accessories > Hat/Face/...).
+               Lift the whole panel above the cards (hover cards peak at
+               z-index:2). The flyout is ALSO a categoryBgDesktop clone with
+               childSelector (position:absolute), so exclude it from the
+               position:relative override or its placement breaks. */
+            [class*="categoryBgDesktop-"]:not([class*="childSelector-"]){position:relative!important;z-index:5!important;}
+            [class*="categoryTitle-"]{color:#fff!important;}
+            [class*="selectorOption-"]{color:#c9cde0!important;transition:color 0.15s ease!important;}
+            [class*="selectorOption-"]:hover{color:#fff!important;}
+            [class*="selectorOptionSelected-"]{color:${t.accent}!important;border-right-color:${t.accent}!important;}
+            /* header */
+            [class*="categoryValue-"]{color:#fff!important;}
+            [class*="showingLabel-"]{color:#9aa0c0!important;}
+            /* item cards: surface from the branch above (real blur slice
+               with custom bg, glass + graphite tint otherwise) */
+            ${cardCss}
+            /* Equal-height cards (pekora bug: the serial pill and the limited
+               badge shift geometry per card). Layout normalised to padding +
+               square image + fixed 16px badge row + one name line + one
+               creator line; the serial pill is lifted out of the flow. */
+            [class*="itemCard-"] [class*="serial-"]{position:absolute!important;top:8px!important;right:8px!important;float:none!important;margin:0!important;z-index:3!important;}
+            /* Preview framed EXACTLY like the catalog listing cards
+               (cardImage- recipe): faint translucent fill + 10px radius,
+               plus an explicit glass hairline so the frame reads on any
+               background. The site renders the thumb img at its natural
+               ~110px size (stock cards are narrower); force the img to fill
+               the square frame edge-to-edge like catalog previews do. */
+            [class*="itemCard-"] [class*="itemImage-"]{margin:0 0 6px!important;width:100%!important;aspect-ratio:1/1!important;display:flex!important;align-items:center!important;justify-content:center!important;overflow:hidden!important;background-color:rgba(255,255,255,0.035)!important;border:1px solid ${GLASS_BORDER_COLOR}!important;border-radius:10px!important;box-shadow:none!important;}
+            [class*="itemCard-"] [class*="itemImage-"] img{width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;object-fit:contain!important;border:none!important;border-radius:10px!important;background-color:transparent!important;}
+            [class*="itemCard-"] .icon-limited-label,[class*="itemCard-"] .icon-limited-unique-label,[class*="itemCard-"] [class*="fakeLimitedLabel-"]{display:block!important;height:16px!important;margin:2px 0 0!important;}
+            [class*="itemLabel-"]{color:#fff!important;border-top:1px solid rgba(255,255,255,0.1)!important;padding-top:4px!important;}
+            [class*="creatorLabel-"]{color:#9aa0c0!important;margin-bottom:6px!important;}
+            [class*="creatorUrl-"]{color:${t.accent}!important;}
+            [class*="serial-"]{background:rgba(0,0,0,0.68)!important;border:1px solid rgba(255,255,255,0.14)!important;}
+            /* mobile category selector */
+            [class*="selectorClosed-"]{${GLASS_CSS}border-radius:10px!important;color:#fff!important;}
+            [class*="selectorMenuOpen-"]{${GLASS_CSS}background:rgba(15,15,18,0.92)!important;border-radius:10px!important;overflow:hidden!important;}
+            [class*="selectOption-"]{color:#e6e9f5!important;}
+            [class*="selectOption-"]:hover{background:rgba(255,255,255,0.08)!important;box-shadow:inset 3px 0 0 0 ${t.accent}!important;}
+        `;
     };
 
     const applyMessagesGlass = () => {
-        if (!document.querySelector('div[class*="messagesContainer-"]')) {
+        if (!cfg.miscMessagesGlassify || !document.querySelector('div[class*="messagesContainer-"]')) {
             document.getElementById('pks-messages-glass-style')?.remove();
             return;
         }
         let el = document.getElementById('pks-messages-glass-style');
         if (!el) { el = document.createElement('style'); el.id = 'pks-messages-glass-style'; document.head.appendChild(el); }
         const t = getTheme();
-        const GLASS = `background:rgba(255,255,255,0.05)!important;backdrop-filter:blur(16px) saturate(160%)!important;-webkit-backdrop-filter:blur(16px) saturate(160%)!important;border:1px solid rgba(255,255,255,0.12)!important;border-radius:16px!important;box-shadow:0 8px 30px rgba(0,0,0,0.3)!important;`;
+        const GLASS = `${GLASS_CSS}border-radius:16px!important;`;
         const M = 'div[class*="messagesContainer-"]';
         el.textContent = `
             ${M}{${GLASS}padding:18px!important;color:#e6e9f5!important;}
             /* tabs (Inbox / Sent / Notifications / Archive) */
-            ${M} [class*="vTab-0-2"]{background:rgba(255,255,255,0.05)!important;backdrop-filter:blur(10px)!important;-webkit-backdrop-filter:blur(10px)!important;border:1px solid rgba(255,255,255,0.12)!important;border-radius:12px!important;overflow:hidden!important;margin-bottom:8px!important;transition:border-color 0.15s ease,transform 0.12s ease!important;}
+            ${M} [class*="vTab-0-2"]{${GLASS_CSS}border-radius:12px!important;overflow:hidden!important;margin-bottom:8px!important;transition:border-color 0.15s ease,transform 0.12s ease!important;}
             ${M} [class*="vTab-0-2"]:hover{border-color:${t.accent}66!important;transform:translateY(-1px)!important;}
             ${M} [class*="vTabLabel"]{margin:0!important;padding:10px 16px!important;color:#cfd3e6!important;font-weight:600!important;cursor:pointer!important;}
             ${M} [class*="vTabLabel"]:not([class*="vTabUnselected"]){color:#fff!important;background:linear-gradient(135deg,${t.accent}33,${t.accent}11)!important;box-shadow:inset 3px 0 0 ${t.accent}!important;}
@@ -2369,18 +3270,49 @@ else window.addEventListener('DOMContentLoaded', init);
             /* message rows → individual glass cards */
             ${M} [class*="messageRow-"]{${GLASS}display:flex!important;align-items:center!important;gap:12px!important;padding:12px 14px!important;margin-bottom:8px!important;transition:border-color 0.15s ease,transform 0.12s ease,background 0.15s ease!important;}
             ${M} [class*="messageRow-"]:hover{border-color:${t.accent}66!important;transform:translateY(-1px)!important;background:rgba(255,255,255,0.08)!important;}
-            ${M} [class*="userImage-"] img{border-radius:50%!important;border:1px solid rgba(255,255,255,0.15)!important;}
+            /* The stock row is an inline-block layout with hand-tuned offsets
+               (Messages dump JSS: userImage margin-top:-15px + margin-left:18px,
+               markReadWrapper top:20px, userCheckAndImage width:68px,
+               subjectAndContent width:calc(100% - 73px) + vertical-align:super).
+               Under our flex row those offsets make the avatar and the
+               checkbox sag out of line, so neutralise them all and let
+               flexbox do the centring. */
+            ${M} [class*="userCheckAndImage-"]{width:auto!important;margin:0!important;flex:0 0 auto!important;display:flex!important;align-items:center!important;gap:10px!important;}
+            ${M} [class*="markReadWrapper-"]{position:static!important;top:auto!important;width:auto!important;display:flex!important;align-items:center!important;}
+            /* Fixed 48px avatar: the stock 68px userCheckAndImage column was
+               the only thing capping the avatar; with it neutralised the img
+               rendered at its natural (huge) size. */
+            ${M} [class*="userImage-"]{margin:0!important;flex:0 0 auto!important;width:48px!important;height:48px!important;}
+            ${M} [class*="subjectAndContent-"]{width:auto!important;flex:1 1 auto!important;min-width:0!important;vertical-align:baseline!important;}
+            ${M} [class*="userImage-"] img{display:block!important;width:100%!important;height:100%!important;object-fit:cover!important;border-radius:50%!important;border:1px solid rgba(255,255,255,0.15)!important;}
             ${M} [class*="username-"]{color:#fff!important;font-weight:700!important;}
             ${M} [class*="subjectUnread"]{color:${t.accent}!important;font-weight:700!important;}
             ${M} [class*="subject-0-2"]:not([class*="subjectUnread"]){color:#dfe3f0!important;}
             ${M} [class*="body-0-2"]{color:#9aa0c0!important;}
             ${M} [class*="divider-top"]{display:none!important;}
             /* action + pagination buttons → glass */
-            ${M} button{background:rgba(255,255,255,0.06)!important;color:#e6e9f5!important;border:1px solid rgba(255,255,255,0.14)!important;border-radius:10px!important;transition:all 0.15s ease!important;}
+            ${M} button{${GLASS_CSS}color:#e6e9f5!important;border-radius:10px!important;transition:all 0.15s ease!important;}
             ${M} button:hover:not(:disabled){border-color:${t.accent}99!important;background:rgba(255,255,255,0.1)!important;transform:translateY(-1px)!important;}
             ${M} button:disabled{opacity:0.4!important;}
             /* checkboxes */
             ${M} input[type="checkbox"]{accent-color:${t.accent}!important;cursor:pointer!important;}
+        `;
+    };
+
+    const isGroupsPage = () => /^\/(my\/)?groups(\.aspx)?(\/|$)/i.test(location.pathname);
+    // Glassify the /groups page: no stable page-specific JSS hook is known
+    // for this page, so generic panel selectors are used. That is safe ONLY
+    // because the whole block is path-gated to /groups (leak-audit rule) and
+    // rebuilt on SPA navigation via applyPageFrameTransparency.
+    const applyGroupsGlass = () => {
+        let el = document.getElementById('pks-groups-glass-style');
+        if (!cfg.miscGroupsGlassify || !isGroupsPage()) { el?.remove(); return; }
+        if (!el) { el = document.createElement('style'); el.id = 'pks-groups-glass-style'; document.head.appendChild(el); }
+        el.textContent = `
+            /* Top-level panels: groups list, search strip, main group card, Controls. */
+            .card,.section-content,[class*="card-0-2-"],[class*="groupContainer-"],[class*="groupsContainer-"]{${GLASS_CSS}border-radius:14px!important;}
+            /* Nested panels stay transparent so glass never stacks twice. */
+            .card .card,.card .section-content,.section-content .card,.section-content .section-content,.card .card-body,[class*="card-0-2-"] [class*="card-0-2-"],[class*="card-0-2-"] .card-body,[class*="card-0-2-"] .section-content,.section-content [class*="card-0-2-"]{background-color:transparent!important;border:none!important;box-shadow:none!important;backdrop-filter:blur(0px)!important;-webkit-backdrop-filter:blur(0px)!important;}
         `;
     };
 
@@ -2468,12 +3400,15 @@ else window.addEventListener('DOMContentLoaded', init);
         tabbar?.style.removeProperty('background');
 
         if (cfg.panelGlass) {
-            const op   = (cfg.panelOpacity ?? 85) / 100;
-            const blur = cfg.panelBlur ?? 14;
-            const c    = hexToRgbObj(t.panelBg) || { r: 12, g: 12, b: 14 };
-            panel.style.setProperty('background', `rgba(${c.r},${c.g},${c.b},${op})`, 'important');
-            panel.style.setProperty('backdrop-filter', `blur(${blur}px) saturate(180%)`, 'important');
-            panel.style.setProperty('-webkit-backdrop-filter', `blur(${blur}px) saturate(180%)`, 'important');
+            // Only the Interium GUI uses the darker glass tint. Blur/border/shadow
+            // remain canonical, while every site glassify surface keeps GLASS_BG.
+            panel.style.setProperty('background', GUI_GLASS_BG, 'important');
+            panel.style.setProperty('backdrop-filter', GLASS_FILTER, 'important');
+            panel.style.setProperty('-webkit-backdrop-filter', GLASS_FILTER, 'important');
+            panel.style.setProperty('border-color', GLASS_BORDER_COLOR, 'important');
+            panel.style.setProperty('box-shadow', GLASS_SHADOW, 'important');
+            header?.style.setProperty('background', 'transparent', 'important');
+            tabbar?.style.setProperty('background', 'transparent', 'important');
         } else {
             panel.style.removeProperty('background');
             panel.style.removeProperty('backdrop-filter');
@@ -2507,10 +3442,9 @@ else window.addEventListener('DOMContentLoaded', init);
     const isProfilePage  = () => /\/users\/\d+\/profile/i.test(location.pathname);
 
     let _csrfToken = null;
-    const getCsrf = () => {
-        const m = document.cookie.match(/rbxcsrf4=([^;]+)/);
-        return m ? m[1] : _csrfToken || '';
-    };
+    // No browser cookie reads here: the CSRF token is obtained from the
+    // x-csrf-token response header via the 403 retry in postApi below.
+    const getCsrf = () => _csrfToken || '';
 
     const postApi = async (url, body = {}) => {
         let csrf = getCsrf();
@@ -2530,13 +3464,15 @@ else window.addEventListener('DOMContentLoaded', init);
     const apiGet = (url) => fetch(url, { credentials: 'include', headers: { Accept: 'application/json' } });
 
     // ── Interium: compatibility stubs ────────────────────────────────
-    // Trading is handled by Interium's own trading module. These no-op
-    // stubs keep optional UI hooks safe when a hook is not loaded.
+    // Trading is handled by Interium's own trading runtime file. These
+    // no-op stubs keep optional UI hooks safe when a hook is not loaded.
     const _noop = () => {};
     const isTradePage = () => false;
     const isTradeWindow = () => false;
     const applyTradeStyle = _noop, applyTradesCustom = _noop, ensureTradesOverlay = _noop,
-          injectTradeWindow = _noop, buildMassTradeUI = _noop, injectProfileTradeButton = _noop;
+          injectTradeWindow = _noop, injectProfileTradeButton = _noop;
+    // buildMassTradeUI is a real implementation (see below) that renders the
+    // TRADE tab and drives window.InteriumMassTrader (consent-based offers).
     const startRefresher = _noop, stopRefresher = _noop, panelLog = _noop,
           updateRefresherUI = _noop, updateRefresherStatus = _noop;
     const applyLarp = _noop, applyFakeVerify = _noop, applyCatalogOwned = _noop,
@@ -2577,7 +3513,7 @@ else window.addEventListener('DOMContentLoaded', init);
         });
         const el = document.createElement('div');
         el.className = 'pks-notif';
-        el.style.cssText = `all:initial;position:fixed;${pos}z-index:2147483647;display:inline-flex;align-items:center;gap:9px;background:${c.bg};border:1px solid ${c.border};border-radius:10px;padding:10px 14px;width:auto;max-width:340px;white-space:nowrap;font-family:var(--pks-font),'Share Tech Mono',monospace;font-size:11px;color:#e0e0e0;box-shadow:0 0 18px ${c.border}33,0 4px 14px rgba(0,0,0,0.5);opacity:0;transition:opacity 0.2s,top 0.2s,bottom 0.2s;pointer-events:none;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);overflow:hidden;`;
+        el.style.cssText = `all:initial;position:fixed;${pos}z-index:2147483647;display:inline-flex;align-items:center;gap:9px;background:${GLASS_BG};border:1px solid ${c.border};border-radius:10px;padding:10px 14px;width:auto;max-width:340px;white-space:nowrap;font-family:var(--pks-font),'Share Tech Mono',monospace;font-size:11px;color:#e0e0e0;box-shadow:0 0 18px ${c.border}33,0 4px 14px rgba(0,0,0,0.5);opacity:0;transition:opacity 0.2s,top 0.2s,bottom 0.2s;pointer-events:none;backdrop-filter:${GLASS_FILTER};-webkit-backdrop-filter:${GLASS_FILTER};overflow:hidden;`;
         el.innerHTML = `<div style="width:20px;height:20px;border-radius:50%;border:1.5px solid ${c.accent};display:flex;align-items:center;justify-content:center;color:${c.accent};flex-shrink:0;">${icon}</div><span style="flex:1;line-height:1.3;white-space:normal;max-width:260px;">${message}</span><div style="width:2px;height:28px;border-radius:2px;background:${c.accent};flex-shrink:0;"></div>`;
         document.body.appendChild(el);
         requestAnimationFrame(() => requestAnimationFrame(() => { el.style.opacity = '1'; }));
@@ -2675,7 +3611,10 @@ else window.addEventListener('DOMContentLoaded', init);
                 'bottom-center':'bottom:12px;left:50%;transform:translateX(-50%);','top-center':'top:12px;left:50%;transform:translateX(-50%);',
             };
             const pos = positions[cfg.watermarkPosition] || positions['bottom-left'];
-            wm.style.cssText = `all:initial;position:fixed;${pos}z-index:2147483640;display:flex;align-items:center;gap:0;font-family:var(--pks-font),'Share Tech Mono',monospace;font-weight:600;letter-spacing:0.06em;background:rgba(5,5,8,0.75);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:${5*scale}px ${12*scale}px;pointer-events:auto;user-select:none;overflow:hidden;opacity:${op};cursor:grab;`;
+            const wmCss = `all:initial;position:fixed;${pos}z-index:2147483640;display:flex;align-items:center;gap:0;font-family:var(--pks-font),'Share Tech Mono',monospace;font-weight:600;letter-spacing:0.06em;background:${GLASS_BG};backdrop-filter:${GLASS_FILTER};-webkit-backdrop-filter:${GLASS_FILTER};border:1px solid ${GLASS_BORDER_COLOR};box-shadow:${GLASS_SHADOW};border-radius:6px;padding:${5*scale}px ${12*scale}px;pointer-events:auto;user-select:none;overflow:hidden;opacity:${op};cursor:grab;`;
+            /* PERF: identical cssText writes still force style recalc at the
+               1 Hz watermark tick -- only write when it actually changed. */
+            if (wm.__pksCss !== wmCss) { wm.__pksCss = wmCss; wm.style.cssText = wmCss; }
         } else {
             wm.style.left = state.watermark.dragX + 'px'; wm.style.top = state.watermark.dragY + 'px';
             wm.style.opacity = String(op); wm.style.padding = `${5*scale}px ${12*scale}px`;
@@ -2700,9 +3639,9 @@ else window.addEventListener('DOMContentLoaded', init);
         });
         document.addEventListener('mouseup', () => { isDragging = false; wm.style.cursor = 'grab'; });
         updateWatermark();
-        setInterval(updateWatermark, 1000);
+        setInterval(() => { if (!document.hidden) updateWatermark(); }, 1000); /* PERF: clock catches up on focus */
         measurePing();
-        state.watermark.pingTimer = setInterval(measurePing, 10000);
+        state.watermark.pingTimer = setInterval(() => { if (!document.hidden) measurePing(); }, 10000); /* PERF: no pings from background tabs */
     };
 
     let _fxCanvas = null, _fxCtx = null, _fxRaf = null, _fxParticles = [], _fxCols = [], _fxResize = null, _fxLast = 0;
@@ -2857,12 +3796,24 @@ else window.addEventListener('DOMContentLoaded', init);
         const grad   = !!data.tintGradient;
         const tintBg = grad ? `linear-gradient(${angle}deg, ${tint}, ${tint2})` : tint;
         const tintOp = Math.max(0, Math.min(100, +data.tintOp || 0)) / 100;
-        const sig = `${img}|${blur}|${bright}|${tint}|${tint2}|${angle}|${grad}|${tintOp}`;
+        const rawMedia = String(data.img).replace(/\.gifv(\?.*)?$/i, '.mp4');
+        const isVideo = /\.(mp4|webm|mov)(\?.*)?$/i.test(rawMedia);
+        const spread = blur * 2 + 2;
+        const sig = `${rawMedia}|${blur}|${bright}|${tint}|${tint2}|${angle}|${grad}|${tintOp}|${isVideo}`;
         if (layer.getAttribute('data-sig') === sig) return;
         layer.setAttribute('data-sig', sig);
-        layer.innerHTML = `
-            <div style="position:absolute;inset:-${blur * 2 + 2}px;background-image:url('${img}');background-size:cover;background-position:center;filter:blur(${blur}px) brightness(${bright});"></div>
+        if (isVideo) {
+            const vsrc = rawMedia.replace(/"/g, '&quot;');
+            layer.innerHTML = `
+            <video autoplay loop muted playsinline src="${vsrc}" style="position:absolute;inset:-${spread}px;width:calc(100% + ${spread * 2}px);height:calc(100% + ${spread * 2}px);object-fit:cover;filter:blur(${blur}px) brightness(${bright});"></video>
             <div style="position:absolute;inset:0;background:${tintBg};opacity:${tintOp};"></div>`;
+            const vv = layer.querySelector('video');
+            if (vv) { vv.muted = true; if (vv.play) vv.play().catch(() => {}); }
+        } else {
+            layer.innerHTML = `
+            <div style="position:absolute;inset:-${spread}px;background-image:url('${img}');background-size:cover;background-position:center;filter:blur(${blur}px) brightness(${bright});"></div>
+            <div style="position:absolute;inset:0;background:${tintBg};opacity:${tintOp};"></div>`;
+        }
     };
 
     let _bannerFetchedId = null, _bannerFetchedData = null;
@@ -2917,24 +3868,87 @@ else window.addEventListener('DOMContentLoaded', init);
     const applyCardStyle = () => {
         let cs = document.getElementById('pks-card-style');
         if (!cs) { cs = document.createElement('style'); cs.id = 'pks-card-style'; document.head.appendChild(cs); }
-        if (!cfg.miscModernGameCards && !cfg.miscCatalogItemCards) { cs.textContent = ''; return; }
+        if (!cfg.miscModernGameCards && !cfg.miscCatalogItemCards && !cfg.miscItemPageGlass) { cs.textContent = ''; return; }
         const t = getTheme();
         let cssOut = '';
         if (cfg.miscModernGameCards) {
-            cssOut += `.gameCardContainer-0-2-207,[class*="gameCardContainer"]{background:rgba(12,12,18,0.9)!important;border-radius:14px!important;border:1px solid ${t.cardBorder}!important;box-shadow:${t.cardGlow}!important;transition:border-color 0.22s,box-shadow 0.22s,transform 0.18s!important;overflow:hidden!important;}.gameCardContainer-0-2-207:hover,[class*="gameCardContainer"]:hover{border-color:${t.cardHoverBorder}!important;box-shadow:${t.cardHoverGlow}!important;transform:translateY(-3px)!important;z-index:2!important;}`;
+            // Unified "Modern game cards": the SINGLE owner of game-card
+            // styling on pages where the cards sit directly on the page
+            // background -- the HOME rows and the /games LISTING. Page-gated:
+            // the game DETAIL page (/games/<id>) and profile favorites style
+            // their own nested cards (flat translucent inside glassed panels).
+            // backdrop-filter proved unreliable on these carousel cards, so
+            // when the custom site background (miscBgUrl) is set, the cards
+            // produce a REAL, guaranteed-visible blur without backdrop-filter:
+            // an ::before inside each card carries the SAME image the bg
+            // feature paints on body, with background-attachment:fixed (the
+            // IMAGE is viewport-aligned, matching the real background pixel-
+            // for-pixel) plus filter:blur. The pseudo itself is position:
+            // ABSOLUTE -- never fixed: overflow:hidden does NOT clip
+            // position:fixed descendants (they escape ancestor clipping
+            // unless the ancestor is their containing block), which painted
+            // full-viewport blur over the whole page. Absolute pseudos are
+            // clipped by the card's overflow:hidden normally. The pseudo is
+            // oversized (negative inset) so the blur's transparent edge fade
+            // is cropped away. isolation:isolate keeps the negative-z pseudos
+            // inside the card (never lift card CHILDREN with position/
+            // z-index -- see the avatar-bg lesson). NOTE: no transform on the
+            // card in this variant: transform breaks background-attachment:
+            // fixed (it degrades to scroll) and would misalign the slice. The
+            // hover lift is done with a relative top offset instead -- it
+            // moves the box without creating a containing block, so the
+            // viewport-anchored slice stays put (exactly how real glass
+            // behaves when the card moves).
+            const onModernCardsPage = isHomePage() || (/^\/games(\/|$)/i.test(location.pathname) && !isGamePage());
+            if (onModernCardsPage) {
+                const cardBgUrl = cfg.miscBgUrl?.trim();
+                if (cardBgUrl) {
+                    const sliceBlur = (cfg.miscBgBlur ? (cfg.miscBgBlurAmount ?? 8) : 0) + 16;
+                    const bgDarkOp = cfg.miscBgDarkOverlay ? ((cfg.miscBgDarkOpacity ?? 50) / 100) : 0;
+                    const cardVeil = Math.min(0.8, 0.32 + bgDarkOp * 0.55).toFixed(2);
+                    cssOut += `
+                [class*="gameCardContainer"]{position:relative!important;top:0!important;isolation:isolate!important;background:transparent!important;border:1px solid ${GLASS_BORDER_COLOR}!important;box-shadow:${GLASS_SHADOW}!important;border-radius:14px!important;overflow:hidden!important;transition:border-color 0.22s,box-shadow 0.22s,top 0.18s!important;}
+                [class*="gameCardContainer"]::before{content:'';position:absolute;inset:-${sliceBlur * 2}px;z-index:-2;background:url('${cardBgUrl.replace(/'/g, "\\'")}') center/cover no-repeat fixed;filter:blur(${sliceBlur}px) saturate(150%);pointer-events:none;}
+                [class*="gameCardContainer"]::after{content:'';position:absolute;inset:0;z-index:-1;background:rgba(10,11,16,${cardVeil});pointer-events:none;}
+                [class*="gameCardContainer"]:hover{border-color:${t.cardHoverBorder}!important;box-shadow:${t.cardHoverGlow}!important;top:-3px!important;z-index:2!important;}
+                    `;
+                } else {
+                    // No custom background set: glass + self-sufficient
+                    // graphite tint (backdrop-filter stays as progressive
+                    // enhancement over the native site theme).
+                    cssOut += `
+                [class*="gameCardContainer"]{${GLASS_CSS}background:rgba(20,20,22,0.55)!important;border-radius:14px!important;transition:border-color 0.22s,box-shadow 0.22s,transform 0.18s!important;overflow:hidden!important;}
+                [class*="gameCardContainer"]:hover{border-color:${t.cardHoverBorder}!important;box-shadow:${t.cardHoverGlow}!important;transform:translateY(-3px)!important;z-index:2!important;}
+                    `;
+                }
+                cssOut += `
+                [class*="gameCardTitle"]{color:#fff!important;}
+                [class*="gameCardPlaying"]{color:#9aa0c0!important;}
+                [class*="gameCardThumbContainer"],[class*="gameCardThumbContainer"] img{border-radius:14px 14px 0 0!important;}
+                [class*="gameCardFooterContainer"]{background:rgba(15,15,16,0.75)!important;border-radius:0 0 14px 14px!important;}
+                `;
+            }
         }
         if (cfg.miscCatalogItemCards) {
             cssOut += `
-                div[class*="imageBig"],div[class*="imageSmall"]{max-width:none!important;background:rgba(255,255,255,0.045)!important;backdrop-filter:blur(13px) saturate(160%)!important;-webkit-backdrop-filter:blur(13px) saturate(160%)!important;border:1px solid rgba(255,255,255,0.12)!important;border-radius:16px!important;box-shadow:0 8px 28px rgba(0,0,0,0.28)!important;padding:10px!important;overflow:hidden!important;transition:transform 0.16s ease,box-shadow 0.16s ease,border-color 0.16s ease!important;}
-                div[class*="imageBig"]:hover,div[class*="imageSmall"]:hover{transform:translateY(-5px)!important;box-shadow:0 16px 44px rgba(0,0,0,0.45)!important;border-color:${t.accent}77!important;}
-                div[class*="imageBig"] img:not([class*="overlay"]),div[class*="imageSmall"] img:not([class*="overlay"]){border:none!important;border-radius:12px!important;background:transparent!important;}
-                [class*="overviewDetails"]{background:linear-gradient(to top,rgba(0,0,0,0.82),rgba(0,0,0,0.12),transparent)!important;border-radius:0 0 12px 12px!important;padding:16px 8px 6px!important;}
-                [class*="itemName"]{color:#fff!important;font-weight:700!important;text-shadow:0 1px 3px rgba(0,0,0,0.65)!important;}
-                [class*="overviewDetails"] p{color:#e3e8ff!important;}
-                [class*="detailsWrapper"]{background:rgba(12,12,20,0.9)!important;backdrop-filter:blur(16px) saturate(160%)!important;-webkit-backdrop-filter:blur(16px) saturate(160%)!important;border:1px solid ${t.accent}55!important;border-radius:12px!important;box-shadow:0 12px 32px rgba(0,0,0,0.5)!important;color:#fff!important;}
-                [class*="detailsKey"]{color:#9aa0c0!important;}
-                [class*="detailsValue"]{color:#fff!important;}
-                [class*="detailsValue"] a,[class*="detailsWrapper"] a{color:${t.accent}!important;}
+                /* catalog listing cards (scoped under the results grid so
+                   avatarCardWrapper etc. on other pages are not affected) */
+                [class*="resultsContainer-"] [class*="cardWrapper-"]{${GLASS_CSS}border-radius:14px!important;padding:8px!important;overflow:hidden!important;transition:transform 0.16s ease,box-shadow 0.16s ease,border-color 0.16s ease!important;}
+                [class*="resultsContainer-"] [class*="cardWrapper-"]:hover{transform:translateY(-4px)!important;box-shadow:0 14px 38px rgba(0,0,0,0.45)!important;border-color:${t.accent}77!important;}
+                [class*="resultsContainer-"] [class*="cardContainer-"]{background:transparent!important;box-shadow:none!important;border:none!important;border-radius:10px!important;}
+                [class*="resultsContainer-"] [class*="cardWrapper-"] a{background:transparent!important;text-decoration:none!important;}
+                [class*="resultsContainer-"] [class*="cardEquipped-"]{border:none!important;box-shadow:none!important;background:transparent!important;}
+                [class*="resultsContainer-"] [class*="cardWrapper-"]:has([class*="cardEquipped-"]){outline:2px solid rgba(2,183,87,0.85)!important;outline-offset:3px!important;}
+                /* background-COLOR only: the background shorthand also wiped
+                   background-image, blanking the placeholder preview on items
+                   not yet approved by moderation */
+                [class*="resultsContainer-"] [class*="cardImage-"],[class*="resultsContainer-"] div[class*="imageBig"],[class*="resultsContainer-"] div[class*="image-"],[class*="resultsContainer-"] div[class*="thumb"]{background-color:rgba(255,255,255,0.035)!important;border-radius:10px!important;overflow:hidden!important;border:none!important;box-shadow:none!important;}
+                [class*="resultsContainer-"] [class*="cardImage-"] img{border:none!important;border-radius:10px!important;background-color:transparent!important;}
+                [class*="resultsContainer-"] [class*="cardItemLink-"] span{color:#fff!important;font-weight:700!important;}
+                [class*="resultsContainer-"] [class*="salesCounter-"]{color:#9aa0c0!important;}
+                [class*="resultsContainer-"] [class*="salesCounterValue-"]{color:#fff!important;}
+                [class*="resultsContainer-"] [class*="itemStatusSaleBadge-"]{border-radius:6px!important;}
+                [class*="breadcrumbsContainer-"],[class*="breadcrumbsContainer-"] span{color:#dfe3f0!important;}
             `;
             const catDark = darkenHex(t.accent, 0.6);
             cssOut += `
@@ -2942,16 +3956,115 @@ else window.addEventListener('DOMContentLoaded', init);
                 [class*="catalogContainer"] h1,[class*="catalogContainer"] h2,[class*="catalogContainer"] [class*="bottom-0-2"],[class*="catalogContainer"] [class*="top-0-2"]{color:#fff!important;}
                 [class*="catalogContainer"] h3,[class*="catalogContainer"] label,[class*="catalogContainer"] summary,[class*="catalogContainer"] p,[class*="catalogContainer"] [class*="sortByLabel"]{color:#dfe3f0!important;}
                 [class*="catalogContainer"] a{color:${t.accent}!important;}
-                [class*="catalogContainer"] input[type="text"],[class*="catalogContainer"] select{background:rgba(255,255,255,0.06)!important;border:1px solid rgba(255,255,255,0.14)!important;border-radius:8px!important;color:#fff!important;padding:5px 9px!important;}
+                /* ...but the Category/Filters sidebar keeps neutral text (accent only on hover) */
+                [class*="searchOptionsContainer-"] a{color:#dfe3f0!important;}
+                [class*="searchOptionsContainer-"] a:hover{color:${t.accent}!important;}
+                [class*="searchOptionsContainer-"] h1,[class*="searchOptionsContainer-"] h2,[class*="searchOptionsContainer-"] h3{color:#fff!important;}
+                [class*="catalogContainer"] input[type="text"]{${GLASS_CSS}border-radius:8px!important;color:#fff!important;padding:5px 9px!important;}
+            `;
+            // Flat select fallback only while "Glassy dropdowns" is off - when
+            // it is on, the merged-card recipe (pksGlassSelectCss) owns selects.
+            if (!cfg.miscCatalogDropdownGlass) cssOut += `
+                [class*="catalogContainer"] select{${GLASS_CSS}border-radius:8px!important;color:#fff!important;padding:5px 9px!important;}
                 [class*="catalogContainer"] select option{background:#16161f!important;color:#fff!important;}
+            `;
+            // Catalog dropdowns are a custom component (from a live DOM dump):
+            //   selectorWrapper-* > selectorClosed-* (which GAINS the class
+            //   selectorOpen-* while open) + sibling selectorMenuOpen-* with
+            //   p.selectOption-* rows.
+            // Merged-card glass like the trades dropdowns: while open, the
+            // closed control keeps rounded TOP corners with a sharp bottom, and
+            // the menu below gets a sharp top with rounded BOTTOM corners.
+            if (cfg.miscCatalogDropdownGlass) cssOut += `
+                /* Anchor the wrapper so the absolute menu below sizes/aligns
+                   to IT (not to the page - that made the menu full-width). */
+                /* display:flex kills the inline baseline gap under the control
+                   (a 1-2px dark seam between the open control and the menu). */
+                [class*="selectorWrapper-"]{position:relative!important;padding:0!important;display:flex!important;border:none!important;background-color:transparent!important;}
+                [class*="selectorWrapper-"] > [class*="selectorClosed-"]{flex:1 1 auto!important;}
+                [class*="selectorClosed-"]{${GLASS_CSS}border-radius:8px!important;color:#fff!important;cursor:pointer!important;margin:0!important;box-sizing:border-box!important;transition:border-color 0.15s ease!important;}
+                [class*="selectorClosed-"]:hover{border-color:${t.accent}77!important;}
+                [class*="selectorClosed-"][class*="selectorOpen-"]{border-radius:8px 8px 0 0!important;border-bottom:0!important;}
+                [class*="selectorMenuOpen-"]{${GLASS_CSS}border-radius:0 0 8px 8px!important;border-top:0!important;overflow:hidden!important;z-index:1600!important;padding:5px!important;position:absolute!important;top:100%!important;left:0!important;right:auto!important;margin:0!important;width:100%!important;box-sizing:border-box!important;}
+                [class*="selectorMenuOpen-"] [class*="selectOption-"]{background:transparent!important;color:#fff!important;margin:0!important;padding:7px 10px!important;border-radius:0!important;cursor:pointer!important;}
+                [class*="selectorMenuOpen-"] [class*="selectOption-"]:hover{background:${t.accent}2e!important;}
+                [class*="selectorCaret-"]{background:transparent!important;border:none!important;color:#fff!important;}
+                /* Header search row: merge [input | category dropdown | search
+                   icon] into ONE card - rounded outer corners, sharp seams,
+                   single 1px divider between segments. The standalone sort
+                   dropdown (Relevance) is NOT inside catalogHeader- and keeps
+                   the generic rounded style above. */
+                [class*="catalogHeader-"] [class*="search-0-2"],[class*="catalogHeader-"] [class*="sdfaafasfafsaf-"]{gap:0!important;}
+                [class*="catalogHeader-"] input[type="text"]{border-radius:8px 0 0 8px!important;border-right:0!important;margin:0!important;}
+                [class*="catalogHeader-"] [class*="selectorWrapper-"]{margin:0!important;}
+                [class*="catalogHeader-"] [class*="selectorClosed-"]{border-radius:0!important;}
+                /* NOTE: no GLASS_CSS / background shorthand here - the search
+                   icon is likely a background-image and a shorthand would wipe
+                   it (same bug that blanked unmoderated item previews). */
+                [class*="catalogHeader-"] [class*="selectorWrapper-"] + *{background-color:${GLASS_BG}!important;backdrop-filter:${GLASS_FILTER}!important;-webkit-backdrop-filter:${GLASS_FILTER}!important;border:1px solid ${GLASS_BORDER_COLOR}!important;box-shadow:${GLASS_SHADOW}!important;border-radius:0 8px 8px 0!important;border-left:0!important;margin:0!important;color:#fff!important;display:flex;align-items:center;justify-content:center;cursor:pointer!important;}
+                [class*="catalogHeader-"] [class*="selectorWrapper-"] + * *{background-color:transparent!important;border:none!important;color:#fff!important;box-shadow:none!important;}
+                /* Same overlap bug as trades: keep the fixed navbar above open
+                   dropdown menus (menus are z-index 1600, popovers stay 2000). */
+                nav.navbar,[class*="navbar-0-2"],.navbar{z-index:1700!important;}
+            `;
+            cssOut += `
                 [class*="catalogContainer"] [class*="caret-0-2"]{background:transparent!important;border:none!important;color:#fff!important;}
                 [class*="catalogContainer"] .buttons_legacyButton__vUgL2,[class*="catalogContainer"] [class*="button-0-2"]{background:linear-gradient(135deg,${t.accent},${catDark})!important;border:none!important;color:#050508!important;border-radius:8px!important;font-weight:700!important;transition:filter 0.15s ease!important;}
                 [class*="catalogContainer"] .buttons_legacyButton__vUgL2:hover,[class*="catalogContainer"] [class*="button-0-2"]:hover{filter:brightness(1.12)!important;color:#050508!important;}
-                [class*="catalogContainer"] [class*="itemDiv-0-2"]{background:rgba(255,255,255,0.04)!important;border:1px solid rgba(255,255,255,0.08)!important;border-radius:8px!important;margin-bottom:4px!important;padding:2px 8px!important;transition:background 0.15s ease,border-color 0.15s ease!important;}
+                [class*="catalogContainer"] [class*="itemDiv-0-2"]{${GLASS_CSS}border-radius:8px!important;margin-bottom:4px!important;padding:2px 8px!important;transition:background 0.15s ease,border-color 0.15s ease!important;}
                 [class*="catalogContainer"] [class*="itemDiv-0-2"]:hover{background:${t.accent}1f!important;border-color:${t.accent}66!important;}
                 [class*="catalogContainer"] [class*="separator-0-2"]{border-color:rgba(255,255,255,0.1)!important;background:rgba(255,255,255,0.1)!important;}
                 [class*="catalogContainer"] [class*="divider-right"]{border-color:rgba(255,255,255,0.1)!important;}
-                [class*="catalogContainer"] [class*="wrapper-0-2"]{background:rgba(255,255,255,0.04)!important;backdrop-filter:blur(12px) saturate(150%)!important;-webkit-backdrop-filter:blur(12px) saturate(150%)!important;border:1px solid rgba(255,255,255,0.1)!important;border-radius:12px!important;padding:10px!important;}
+                [class*="catalogContainer"] [class*="wrapper-0-2"]{${GLASS_CSS}border-radius:12px!important;padding:10px!important;}
+            `;
+        }
+        if (cfg.miscItemPageGlass && isCatalogItemPage()) {
+            // Item detail page (/catalog/:id). One recipe covers all three
+            // variants from the Korone dump (limited w/ resellers + price
+            // chart, owned w/ Edit Avatar, not-owned w/ Buy) - they share the
+            // same itemContainer- skeleton; limited-only sections (resellers
+            // list, chart/stats) are .section-content SIBLINGS of it.
+            const itemDark = darkenHex(t.accent, 0.6);
+            cssOut += `
+                /* main card + limited-only sections. Resellers AND Owners
+                   share the resellersWrapper- component; the Price Chart is
+                   body-0-2-* (identified via its legend, since "body-" alone
+                   is too generic). They are NOT siblings of itemContainer-
+                   (nested in a classless div), so they are matched directly. */
+                .section-content[class*="itemContainer-"],.section-content[class*="resellersWrapper-"],.section-content[class*="body-0-2-"]:has([class*="legendItem-"]){${GLASS_CSS}border-radius:14px!important;}
+                /* Price Chart "180 Days" dropdown (white in stock theme);
+                   scoped to topRow- so the header dots-menu is untouched */
+                [class*="topRow-"] [class*="dropdownButton-"]{background:${GLASS_BG}!important;border:1px solid ${GLASS_BORDER_COLOR}!important;color:#fff!important;border-radius:8px!important;transition:border-color 0.15s ease!important;}
+                [class*="topRow-"] [class*="dropdownButton-"]:hover{border-color:${t.accent}77!important;}
+                [class*="topRow-"] [class*="dropdownButtonOpen-"]{background:${t.accent}2e!important;border-color:${t.accent}aa!important;color:#fff!important;border-radius:8px 8px 0 0!important;}
+                /* stock list sits at top:calc(100% + 2px) - pin it flush to
+                   the button and drop the seam border */
+                [class*="topRow-"] [class*="dropdownList-"]{${GLASS_CSS}border-radius:0 0 8px 8px!important;border-top:0!important;top:100%!important;margin-top:0!important;overflow:hidden!important;padding:4px!important;z-index:1600!important;}
+                [class*="topRow-"] [class*="dropdownOption-"]{color:#fff!important;background-color:transparent!important;border-radius:6px!important;}
+                [class*="topRow-"] [class*="dropdownOption-"]:hover{background-color:${t.accent}2e!important;}
+                /* light divider line between chart and stats */
+                [class*="body-0-2-"] [class*="divider-0-2-"]{background:rgba(255,255,255,0.12)!important;}
+                /* inner panels stay clear - no glass-on-glass stacking;
+                   background-COLOR only (shorthand wipes preview images) */
+                [class*="itemThumbContainer-"],[class*="itemThumb-"],[class*="itemDetailsContainer-"],[class*="itemDetails-"],[class*="itemHeaderContainer-"],[class*="itemHeaderInfo-"],[class*="itemInteractionContainer-"],[class*="favBtnContainer-"],[class*="favoriteContainer-"],[class*="itemStatusContainer-"]{background-color:transparent!important;box-shadow:none!important;}
+                /* light-theme seam lines */
+                [class*="itemContainer-"] hr,[class*="attrContainer-"],[class*="restrictionsContainer-"]{border-color:rgba(255,255,255,0.08)!important;}
+                [class*="resellerContainer-"]{border-top:1px solid ${GLASS_BORDER_COLOR}!important;}
+                /* green Buy -> accent gradient; white buttons (Edit Avatar,
+                   reseller Buy) -> outlined glass */
+                [class*="newBuyButton-"]{background:linear-gradient(135deg,${t.accent},${itemDark})!important;border:none!important;color:#050508!important;border-radius:8px!important;font-weight:700!important;transition:filter 0.15s ease!important;}
+                [class*="newBuyButton-"]:hover{filter:brightness(1.12)!important;color:#050508!important;}
+                [class*="newCancelButton-"]{background:${GLASS_BG}!important;border:1px solid ${GLASS_BORDER_COLOR}!important;color:#fff!important;border-radius:8px!important;transition:border-color 0.15s ease!important;}
+                [class*="newCancelButton-"]:hover{border-color:${t.accent}77!important;color:#fff!important;}
+                /* the favorites star exists 3x in the DOM; the real one sits
+                   bottom-left under the thumb (directly in itemContainer-).
+                   The copies inside itemDetailsContainer- (one showed up
+                   below Description) are hidden. */
+                [class*="itemDetailsContainer-"] [class*="favBtnContainer-"]{display:none!important;}
+                /* recommended items -> same glass cards as the catalog grid */
+                .section-content[class*="recomCardContainer-"]{${GLASS_CSS}border-radius:12px!important;overflow:hidden!important;transition:transform 0.16s ease,border-color 0.16s ease,box-shadow 0.16s ease!important;}
+                .section-content[class*="recomCardContainer-"]:hover{transform:translateY(-3px)!important;border-color:${t.accent}77!important;box-shadow:0 14px 38px rgba(0,0,0,0.45)!important;}
+                [class*="recomCardContainer-"] [class*="thumbContainer-"]{background-color:transparent!important;}
             `;
         }
         cs.textContent = cssOut;
@@ -2975,6 +4088,57 @@ else window.addEventListener('DOMContentLoaded', init);
         return n.toLocaleString();
     };
 
+    // ── Robux JSS icon fix ─────────────────────────────────────────────────────────────────
+    // Group / JSS-styled robux glyphs use dynamically generated class names
+    // (image-0-2-N) whose sprite is set via runtime JSS stylesheets, so static
+    // CSS selectors never match them. Scan same-origin JSS sheets for the
+    // `img-robux` background and repaint those exact selectors with our icon.
+    // NOTE: keep JS comments OUTSIDE the CSS strings — `//` inside CSS silently
+    // eats the next rule.
+    const applyRobuxJssIconFix = () => {
+        const rbxPath = location.pathname.toLowerCase();
+        const onTrade = /^\/trades\/?$/.test(rbxPath) || rbxPath.indexOf('/my/trades.aspx') === 0 || /^\/users\/\d+\/trade\/?$/.test(rbxPath);
+        if (!(cfg.robuxIcon === 'all' || (cfg.robuxIcon === 'trades' && onTrade))) {
+            document.getElementById('pks-robux-jss-style')?.remove();
+            return;
+        }
+        const RBX_ICON_URL = 'https://cdn.jsdelivr.net/gh/warmpain9/Interium@main/assets/icons/robux_2021.svg';
+        const iconSels = [];
+        const amountSels = [];
+        for (const sheet of document.styleSheets) {
+            let node, rules;
+            try { node = sheet.ownerNode; rules = sheet.cssRules; } catch (e) { continue; }
+            if (!node || (node.id && node.id.indexOf('pks-') === 0)) continue;
+            const sheetIconSels = [];
+            const sheetAmtSels = [];
+            for (const rule of rules) {
+                if (!rule.style || !rule.selectorText) continue;
+                const bg = (rule.style.background || '') + (rule.style.backgroundImage || '');
+                if (bg.indexOf('img-robux') !== -1) sheetIconSels.push(rule.selectorText);
+                const colNorm = (rule.style.color || '').replace(/\s+/g, '').toLowerCase();
+                if (colNorm === '#060' || colNorm === '#006600' || colNorm === 'rgb(0,102,0)') sheetAmtSels.push(rule.selectorText);
+            }
+            if (sheetIconSels.length) {
+                iconSels.push(...sheetIconSels);
+                amountSels.push(...sheetAmtSels);
+            }
+        }
+        let css = '';
+        if (iconSels.length) css += `${iconSels.join(',')}{background:url("${RBX_ICON_URL}") center/contain no-repeat!important;}`;
+        if (amountSels.length) css += `${amountSels.join(',')}{color:#fff!important;}`;
+        if (!iconSels.length && !applyRobuxJssIconFix._retried) {
+            applyRobuxJssIconFix._retried = true;
+            setTimeout(applyRobuxJssIconFix, 1200);
+        }
+        let el = document.getElementById('pks-robux-jss-style');
+        if (!el) {
+            el = document.createElement('style');
+            el.id = 'pks-robux-jss-style';
+        }
+        document.head.appendChild(el);
+        el.textContent = css;
+    };
+
     const applyMisc = () => {
         let miscStyle = document.getElementById('pks-misc-style');
         if (!miscStyle) { miscStyle = document.createElement('style'); miscStyle.id = 'pks-misc-style'; document.head.appendChild(miscStyle); }
@@ -2985,14 +4149,14 @@ else window.addEventListener('DOMContentLoaded', init);
 
         css += `
             [class*="moneyContainer"]{overflow:visible!important;}
-            [class*="moneyContainer"] .col-lg-10{flex:0 0 100%!important;max-width:100%!important;background:rgba(255,255,255,0.05)!important;backdrop-filter:blur(16px) saturate(160%)!important;-webkit-backdrop-filter:blur(16px) saturate(160%)!important;border-radius:16px!important;padding:16px!important;box-shadow:0 8px 30px rgba(0,0,0,0.3)!important;}
+            [class*="moneyContainer"] .col-lg-10{flex:0 0 100%!important;max-width:100%!important;${GLASS_CSS}border-radius:16px!important;padding:16px!important;}
             [class*="moneyContainer"] table{width:100%!important;border-collapse:separate!important;border-spacing:0!important;}
-            [class*="moneyContainer"] thead{background:rgba(255,255,255,0.05)!important;border:none!important;}
+            [class*="moneyContainer"] thead{${GLASS_CSS}border-radius:10px!important;}
             [class*="moneyContainer"] thead th{color:#9aa0c0!important;font-weight:700!important;text-transform:uppercase!important;letter-spacing:0.05em!important;font-size:11px!important;border:none!important;padding:11px 14px!important;}
             [class*="moneyContainer"] thead tr th:first-child{border-top-left-radius:10px!important;border-bottom-left-radius:10px!important;}
             [class*="moneyContainer"] thead tr th:last-child{border-top-right-radius:10px!important;border-bottom-right-radius:10px!important;}
             [class*="moneyContainer"] tbody tr{transition:background 0.15s ease!important;}
-            [class*="moneyContainer"] tbody tr:hover{background:rgba(255,255,255,0.06)!important;}
+            [class*="moneyContainer"] tbody tr:hover{background:${GLASS_BG}!important;}
             [class*="moneyContainer"] tbody td{color:#dfe3f0!important;border:none!important;border-top:1px solid rgba(255,255,255,0.06)!important;padding:12px 14px!important;vertical-align:middle!important;}
             [class*="moneyContainer"] tbody [class*="image-"]{border:1px solid rgba(255,255,255,0.15)!important;}
             [class*="senderName"]{color:#fff!important;font-weight:600!important;}
@@ -3000,45 +4164,265 @@ else window.addEventListener('DOMContentLoaded', init);
             [class*="viewDetails"]:hover{text-decoration:underline!important;}
             [class*="tradeTypeActions"]{color:#cfd3e6!important;}
             [class*="tradeTypeActions"] a{color:${t.accent}!important;}
-            [class*="tradeTypeActions"] select{background:rgba(255,255,255,0.06)!important;color:#fff!important;border:1px solid rgba(255,255,255,0.14)!important;border-radius:8px!important;padding:4px 8px!important;}
+            [class*="tradeTypeActions"] select{${GLASS_CSS}color:#fff!important;border-radius:8px!important;padding:4px 8px!important;}
         `;
+        // ── Modern /trades page glassify (sender/user column + traded items + verdict bar) ──
+        // The WHOLE trade-list panel (tradeList-) is ONE glass surface; individual rows
+        // (tradeRow-) stay transparent — natively background:transparent — with only a subtle
+        // divider + hover, so users are NOT each wrapped in their own separate box.
+        // Item cards reuse the catalog listing-card recipe: glass wrapper + rounded + overflow
+        // hidden + padding, and the inner thumbnail (itemThumb-) gets a faint translucent fill
+        // instead of the site's opaque --white-color-hover, so the cards no longer look crooked.
+        // .pg-mt-verdict = the RAP/Value summary bar the trading runtime injects (was #121212).
+        // Toggleable via the GUI "/trades" section (cfg.tradesGlassify).
+        // PAGE-GATED to /trades: itemCard- is a generic JSS name that ALSO
+        // exists on /users/<id>/inventory (and elsewhere) -- the flat
+        // width:126px card recipe below leaked there and shrank inventory
+        // cards to tiny tiles (cross-page leak, same lesson as the
+        // recommendedGamesContainer scoping fix on /games).
+        if (cfg.tradesGlassify && /^\/trades(\/|$)/i.test(location.pathname)) {
         css += `
-            [class*="modalWrapper"]{position:fixed!important;top:50%!important;left:50%!important;transform:translate(-50%,-50%)!important;z-index:2147483647!important;margin:0!important;max-width:92vw!important;background:rgba(20,20,30,0.5)!important;backdrop-filter:blur(26px) saturate(170%)!important;-webkit-backdrop-filter:blur(26px) saturate(170%)!important;border:none!important;border-radius:16px!important;box-shadow:0 20px 60px rgba(0,0,0,0.6)!important;color:#fff!important;overflow:hidden!important;}
+            [class*="tradeList-"]{${GLASS_CSS}border-radius:14px!important;overflow-x:hidden!important;}
+            [class*="tradeList-"] [class*="tradeRow-"]{background:transparent!important;border:0!important;border-bottom:1px solid rgba(255,255,255,0.08)!important;transition:background 0.15s ease!important;}
+            [class*="tradeList-"] [class*="tradeRow-"]:hover{background:rgba(255,255,255,0.06)!important;}
+            [class*="tradeList-"] [class*="tradeRowSelected"]{background:rgba(255,255,255,0.12)!important;}
+            /* Normalise card + thumb geometry across every /trades layout (the site mixes a
+               fixed 126px thumb with width:100% + aspect-ratio) — one explicit size for all.
+               The size MUST stay 126px (the site's native card size): a 4-item side is
+               4 cards + 3x16px gaps inside the ~565px offer panel, so anything wider
+               (e.g. the old 140px) made the card row overflow past the Total rows and
+               the verdict bar. 4x126 + 48 = 552 <= 565 — fits like the vanilla page.
+               NOTE: we are inside a CSS template literal — only CSS comments are valid here;
+               JS // lines would be parsed as broken selectors and drop the next rule. */
+            [class*="itemCard-"]{${GLASS_CSS}box-sizing:border-box!important;align-self:stretch!important;height:auto!important;justify-content:flex-start!important;align-content:flex-start!important;width:126px!important;max-width:calc(50% - 8px)!important;border-radius:12px!important;padding:8px!important;overflow:hidden!important;transition:transform 0.16s ease,box-shadow 0.16s ease,border-color 0.16s ease!important;}
+            [class*="itemCard-"]:hover{transform:translateY(-3px)!important;box-shadow:0 12px 32px rgba(0,0,0,0.4)!important;border-color:${t.accent}77!important;}
+            [class*="itemCard-"] [class*="thumbWrap-"]{position:relative!important;width:100%!important;height:auto!important;aspect-ratio:1/1!important;}
+            [class*="itemCard-"] [class*="itemThumb-"]{width:100%!important;height:100%!important;background:rgba(255,255,255,0.035)!important;border-radius:10px!important;overflow:hidden!important;border:none!important;box-shadow:none!important;}
+            [class*="itemCard-"] [class*="itemThumb-"] img{background:transparent!important;border-radius:10px!important;object-fit:contain!important;}
+            /* Pekora leaves a hole between short names and the price rows (the name/price area
+               gets sized against the tallest card in the row). Kill every source of that gap:
+               the name hugs its own lines, nothing flex-grows, and the value rows keep a small
+               fixed top margin instead of being pushed toward the card bottom. */
+            [class*="itemCard-"] [class*="itemName-"]{color:#fff!important;font-weight:600!important;display:-webkit-box!important;-webkit-box-orient:vertical!important;-webkit-line-clamp:3!important;line-clamp:3!important;overflow:hidden!important;height:auto!important;min-height:0!important;flex:0 0 auto!important;margin:6px 0 0!important;line-height:1.13!important;}
+            [class*="itemCard-"] [class*="itemValue-"]{margin-top:3px!important;flex:0 0 auto!important;}
+            [class*="itemCard-"] .pg-mt-rap{margin-top:3px!important;}
+            .pg-mt-verdict{${GLASS_CSS}border-radius:10px!important;}
+        `;
+        }
+        // ── Custom Robux icon preset (assets/icons/robux_2021.svg served via jsDelivr) ──
+        // cfg.robuxIcon: 'off' | 'trades' | 'all'.
+        // 'trades' = only /trades, classic trade window /My/Trades.aspx and send-trade /users/<id>/trade;
+        //            the NAVBAR icon stays native there (its counter is natively white, so the
+        //            --robux-color override below does not visibly affect it).
+        // 'all'    = everywhere: catalog, item pages, navbar, trades, send-trade, etc.
+        // While the preset is active, robux amounts render WHITE instead of pekora's native green:
+        // native green comes from --robux-color / .text-robux; Interium runtime RAP spans use .pg-rap-amt.
+        // NOTE: keep JS comments OUTSIDE the template literals below — `//` inside CSS silently eats the next rule.
+        const rbxPath = location.pathname.toLowerCase();
+        const rbxOnTradePage = /^\/trades\/?$/.test(rbxPath) || rbxPath.indexOf('/my/trades.aspx') === 0 || /^\/users\/\d+\/trade\/?$/.test(rbxPath);
+        if (cfg.robuxIcon === 'all' || (cfg.robuxIcon === 'trades' && rbxOnTradePage)) {
+            const RBX_ICON_URL = 'https://cdn.jsdelivr.net/gh/warmpain9/Interium@main/assets/icons/robux_2021.svg';
+            const RBX_ICON_SWAP = `background-image:url("${RBX_ICON_URL}")!important;background-position:center!important;background-repeat:no-repeat!important;background-size:contain!important;`;
+            css += `
+                .icon-robux,.icon-robux-12x12,.icon-robux-16x16,.icon-robux-20x20{${RBX_ICON_SWAP}}
+                .icon-robux-gray,.icon-robux-gray-12x12,.icon-robux-gray-16x16,.icon-robux-gray-20x20{${RBX_ICON_SWAP}opacity:.55!important;}
+                img[src*="img-robux"]{content:url("${RBX_ICON_URL}")!important;}
+                :root{--robux-color:#fff!important;}
+                .text-robux{color:#fff!important;}
+                .pg-rap-amt{color:#fff!important;}
+            `;
+            if (cfg.robuxIcon === 'all') {
+                css += `
+                    .icon-nav-robux{${RBX_ICON_SWAP}}
+                `;
+            }
+        }
+        // ── Send-trade page (/users/<id>/trade) glassify: inventory cards + Your Offer / Your Request panels ──
+        // Classes there: itemGrid- (CSS grid) > itemButton- (card) > itemThumb-/itemImage-/itemName-/itemValue-;
+        // offerPanel- = the two <section>s with "Your Offer" / "Your Request" (titles are inside them);
+        // the Make Offer button lives OUTSIDE offerPanel-, so it is untouched by design.
+        // Cards are equalised per grid row via align-self:stretch (pekora natively leaves them uneven);
+        // itemButton is a <button>, and buttons vertically centre their content when stretched, so we
+        // pin content to the top with a flex column, and drop pekora's min-height:42px on itemName so
+        // the robux line hugs short names (free space goes to the card bottom instead).
+        // Category selects (select- inside inventoryHeader-): glass on the closed control everywhere;
+        // in Chromium with customizable-select support (@supports selector(::picker(select))) the OPEN
+        // dropdown is page-rendered via appearance:base-select, so it gets the real avatar-style glass
+        // (blur + rounded corners + accent hover); older browsers keep the dark-options fallback.
+        // NOTE: keep JS comments OUTSIDE the template literal below — `//` inside CSS silently eats the next rule.
+        // Toggleable via the GUI "/trades" section (cfg.sendTradeGlassify / cfg.tradesDropdownGlass).
+        const rbxOnSendTrade = /^\/users\/\d+\/trade\/?$/.test(rbxPath);
+        const rbxOnTradesList = /^\/trades\/?$/.test(rbxPath);
+        if (rbxOnSendTrade && cfg.sendTradeGlassify) {
+            css += `
+                [class*="itemGrid-"]{align-items:stretch!important;}
+                [class*="itemGrid-"] [class*="itemButton-"]{${GLASS_CSS}box-sizing:border-box!important;align-self:stretch!important;height:auto!important;display:flex!important;flex-direction:column!important;justify-content:flex-start!important;align-items:stretch!important;border-radius:12px!important;padding:8px!important;overflow:hidden!important;transition:transform 0.16s ease,box-shadow 0.16s ease,border-color 0.16s ease!important;}
+                [class*="itemGrid-"] [class*="itemButton-"]:hover{transform:translateY(-3px)!important;box-shadow:0 12px 32px rgba(0,0,0,0.4)!important;border-color:${t.accent}77!important;}
+                [class*="itemGrid-"] [class*="itemThumb-"]{background:rgba(255,255,255,0.035)!important;border:none!important;border-radius:10px!important;overflow:hidden!important;flex:0 0 auto!important;}
+                [class*="itemGrid-"] [class*="itemImage-"]{background:transparent!important;border-radius:10px!important;object-fit:contain!important;}
+                [class*="itemGrid-"] [class*="itemName-"]{min-height:0!important;flex:0 0 auto!important;}
+                [class*="itemGrid-"] [class*="itemValue-"]{flex:0 0 auto!important;}
+                [class*="offerPanel-"]{${GLASS_CSS}border-radius:14px!important;padding:16px!important;}
+                [class*="offerPanel-"] [class*="slot-"]{border-radius:10px!important;}
+            `;
+        }
+        // ── Trade pages: glassy <select> + its open picker (shared recipe) ──
+        // Chromium customizable select (appearance:base-select + ::picker(select)) lets the OPEN
+        // list get real glass too; older browsers keep the dark-options fallback. Select + picker
+        // read as ONE merged card: rounded outer corners, sharp seam at the join (mirrored via
+        // .pks-drop-up when the picker flips above the select). Applied to the send-trade category
+        // select and the /trades trade-type select; toggleable via cfg.tradesDropdownGlass.
+        const pksGlassSelectCss = (S) => `
+            ${S}{${GLASS_CSS}border-radius:8px!important;color:#fff!important;padding:6px 10px!important;cursor:pointer!important;transition:border-color 0.15s ease!important;}
+            ${S}:hover,${S}:focus{border-color:${t.accent}77!important;outline:none!important;}
+            ${S} option{background:#16161f!important;color:#fff!important;}
+            @supports selector(::picker(select)){
+                ${S},${S}::picker(select){appearance:base-select!important;}
+                ${S}:open{border-radius:8px 8px 0 0!important;border-bottom:0!important;}
+                ${S}::picker(select){${GLASS_CSS}border-radius:0 0 8px 8px!important;border-top:0!important;margin-top:var(--pks-drop-shift,0px)!important;padding:5px!important;}
+                ${S}.pks-drop-up:open{border-radius:0 0 8px 8px!important;border-top:0!important;border-bottom:1px solid ${GLASS_BORDER_COLOR}!important;}
+                ${S}.pks-drop-up::picker(select){border-radius:8px 8px 0 0!important;border-top:1px solid ${GLASS_BORDER_COLOR}!important;border-bottom:0!important;margin-bottom:0!important;max-height:var(--pks-drop-max,60vh)!important;overflow-y:auto!important;}
+                ${S} option{background:transparent!important;color:#fff!important;padding:7px 10px!important;border-radius:0!important;cursor:pointer!important;}
+                ${S} option:hover,${S} option:focus{background:${t.accent}2e!important;}
+                ${S} option:checked{background:${t.accent}22!important;}
+            }
+        `;
+        if (cfg.tradesDropdownGlass && rbxOnSendTrade) css += pksGlassSelectCss('[class*="inventoryHeader-"] select');
+        if (cfg.tradesDropdownGlass && rbxOnTradesList) css += pksGlassSelectCss('select[aria-label="Trade type"]');
+        const rbxOnCatalog = /^\/catalog(\/|$)/i.test(rbxPath);
+        if (cfg.miscCatalogDropdownGlass && rbxOnCatalog) css += pksGlassSelectCss('[class*="catalogContainer"] select');
+        if ((cfg.tradesDropdownGlass && (rbxOnSendTrade || rbxOnTradesList)) || (cfg.miscCatalogDropdownGlass && rbxOnCatalog)) {
+            // Flip-detection for the merged-card dropdown: when the picker runs out of room below,
+            // the browser anchors it ABOVE the select, and pure CSS has no "picker flipped" selector.
+            // With appearance:base-select the <option>s are real page DOM rendered inside the picker,
+            // so while the select is :open we compare the first option's rect against the select's rect
+            // each animation frame (scroll can re-flip a live picker) and toggle .pks-drop-up, which
+            // mirrors the border-radius pairing above. The rAF loop only runs while the picker is open.
+            // The picker is a top-layer popover, so the navbar can never paint over it; instead, when
+            // flipped up we clamp its height (--pks-drop-max, read by the CSS above) so it stops at the
+            // navbar's bottom edge and scrolls inside rather than covering the navbar.
+            // In the normal downward direction the opposite can happen: with the picker open, scrolling
+            // the page can drag the anchoring select up BEHIND the navbar, so the picker's top (anchored
+            // to the select's bottom edge) ends up inside the navbar zone. For that case we push the
+            // picker down with a dynamic margin-top (--pks-drop-shift) so its top edge stays at the
+            // navbar's bottom edge (the merged seam is hidden behind the navbar then anyway).
+            if (!window.__pksTradeDropWatch) {
+                window.__pksTradeDropWatch = true;
+                const pksWatchDropSel = (sel) => {
+                    if (sel.__pksDropWatched) return;
+                    sel.__pksDropWatched = true;
+                    let raf = 0;
+                    const tick = () => {
+                        let open = false;
+                        try { open = sel.matches(':open'); } catch (e) { open = false; }
+                        if (!open) { sel.classList.remove('pks-drop-up'); sel.style.removeProperty('--pks-drop-max'); sel.style.removeProperty('--pks-drop-shift'); raf = 0; return; }
+                        const opt = sel.options && sel.options[0];
+                        if (opt) {
+                            const or = opt.getBoundingClientRect();
+                            const sr = sel.getBoundingClientRect();
+                            if (or.height > 0) {
+                                const up = or.top < sr.top;
+                                sel.classList.toggle('pks-drop-up', up);
+                                const nav = document.querySelector('nav.navbar, [class*="navbar-0-2"], .navbar');
+                                const navBottom = nav ? Math.max(0, nav.getBoundingClientRect().bottom) : 0;
+                                if (up) {
+                                    sel.style.setProperty('--pks-drop-max', Math.max(80, Math.floor(sr.top - navBottom)) + 'px');
+                                    sel.style.removeProperty('--pks-drop-shift');
+                                } else {
+                                    sel.style.removeProperty('--pks-drop-max');
+                                    const shift = Math.ceil(navBottom - sr.bottom);
+                                    if (shift > 0) sel.style.setProperty('--pks-drop-shift', shift + 'px');
+                                    else sel.style.removeProperty('--pks-drop-shift');
+                                }
+                            }
+                        }
+                        raf = requestAnimationFrame(tick);
+                    };
+                    const kick = () => { if (!raf) raf = requestAnimationFrame(tick); };
+                    sel.addEventListener('click', kick);
+                    sel.addEventListener('keydown', kick);
+                    sel.addEventListener('focus', kick);
+                };
+                const pksScanDropSels = () => document.querySelectorAll('[class*="inventoryHeader-"] select, select[aria-label="Trade type"], [class*="catalogContainer"] select').forEach(pksWatchDropSel);
+                pksScanDropSels();
+                /* PERF: this observer used to fire pksScanDropSels on EVERY
+                   mutation batch and was re-registered on each style rebuild.
+                   Coalesce scans into one rAF and register exactly once. */
+                try {
+                    if (!window.__pksDropSelObs) {
+                        window.__pksDropSelObs = true;
+                        let dsRaf = 0;
+                        new MutationObserver(() => { if (dsRaf) return; dsRaf = requestAnimationFrame(() => { dsRaf = 0; pksScanDropSels(); }); }).observe(document.documentElement, { childList: true, subtree: true });
+                    }
+                } catch (e) {}
+            }
+        }
+        css += `
+            [class*="modalWrapper"]{position:fixed!important;top:50%!important;left:50%!important;transform:translate(-50%,-50%)!important;z-index:2147483647!important;margin:0!important;max-width:92vw!important;${GLASS_CSS}border-radius:16px!important;color:#fff!important;overflow:hidden!important;}
             [class*="modalWrapper"] [class*="innerSection"]{background:transparent!important;border:none!important;}
             [class*="modalWrapper"] [class*="title-"]{color:#fff!important;font-weight:700!important;}
             [class*="modalWrapper"] p,[class*="modalWrapper"] span{color:#e6e9f5;}
             [class*="modalWrapper"] a{color:${t.accent}!important;}
             [class*="modalWrapper"] [class*="robuxLabel"]{color:#3fd07e!important;}
             [class*="modalWrapper"] [class*="imageWrapper"]{background:transparent!important;}
-            [class*="modalWrapper"] [class*="col-0-2"]{background:rgba(255,255,255,0.05)!important;border:1px solid rgba(255,255,255,0.1)!important;border-radius:10px!important;}
+            [class*="modalWrapper"] [class*="col-0-2"]{${GLASS_CSS}border-radius:10px!important;}
             [class*="modalWrapper"] [class*="divider-right"],[class*="modalWrapper"] [class*="divider-top"]{border-color:rgba(255,255,255,0.14)!important;}
             [class*="modalWrapper"] [class*="closeButton"]{color:#fff!important;cursor:pointer!important;opacity:0.85!important;}
             [class*="modalWrapper"] [class*="closeButton"]:hover{opacity:1!important;}
             /* Profile friend-action buttons (Unfriend / Message / Chat) → modern glass */
             [class*="actionContainer"]{display:flex!important;gap:8px!important;flex-wrap:wrap!important;align-items:center!important;}
             [class*="actionContainer"] [class*="buttonContainer"]{margin:0!important;}
-            [class*="actionContainer"] button{background:rgba(255,255,255,0.06)!important;backdrop-filter:blur(10px) saturate(160%)!important;-webkit-backdrop-filter:blur(10px) saturate(160%)!important;border:1px solid rgba(255,255,255,0.14)!important;border-radius:12px!important;color:#fff!important;font-weight:600!important;letter-spacing:0.02em!important;padding:8px 18px!important;box-shadow:0 4px 16px rgba(0,0,0,0.25)!important;transition:background 0.16s ease,border-color 0.16s ease,transform 0.14s ease,box-shadow 0.16s ease!important;}
+            [class*="actionContainer"] button{${GLASS_CSS}border-radius:12px!important;color:#fff!important;font-weight:600!important;letter-spacing:0.02em!important;padding:8px 18px!important;transition:background 0.16s ease,border-color 0.16s ease,transform 0.14s ease,box-shadow 0.16s ease!important;}
             [class*="actionContainer"] button:hover{background:rgba(255,255,255,0.12)!important;border-color:${t.accent}!important;transform:translateY(-2px)!important;box-shadow:0 8px 24px ${t.accent}55!important;}
             /* Remove the (disabled) Chat button entirely */
             [class*="actionContainer"] [class*="newDisabledCancelButton"]{display:none!important;}
             [class*="actionContainer"] [class*="buttonContainer"]:has([class*="newDisabledCancelButton"]){display:none!important;}
-            /* About / Creations tab bar → transparent frame (scoped to profile, beats glassify) */
-            [class*="buttonCol"]{background:transparent!important;border:none!important;box-shadow:none!important;}
-            [class*="buttonCol"] [class*="vTab-"]{background:transparent!important;border:none!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;}
             /* Auto-remove the OBC flair icon everywhere */
             .icon-obc,[class*="icon-obc"]{display:none!important;}
         `;
-        if (cfg.miscBgUrl?.trim()) {
-            const blur = cfg.miscBgBlur ? `blur(${cfg.miscBgBlurAmount ?? 8}px)` : 'none';
+        {
+            // Background media: image/GIF via CSS background-image, or MP4/WEBM/MOV
+            // via a real <video> element (CSS background-image cannot play video).
+            // imgur .gifv links are normalised to .mp4. ANY direct media URL works,
+            // not just imgur.
+            const syncMiscBgVideo = (src, blurPx) => {
+                let v = document.getElementById('pks-misc-bg-video');
+                if (!src) { if (v) v.remove(); return; }
+                if (!v) {
+                    v = document.createElement('video');
+                    v.id = 'pks-misc-bg-video';
+                    v.autoplay = true; v.loop = true; v.muted = true; v.playsInline = true;
+                    v.setAttribute('muted', ''); v.setAttribute('playsinline', ''); v.setAttribute('loop', '');
+                }
+                v.style.cssText = `position:fixed;top:0;left:0;width:100vw;height:100vh;object-fit:cover;z-index:0;pointer-events:none;${blurPx ? `filter:blur(${blurPx}px);transform:scale(1.1);` : ''}`;
+                if (v.getAttribute('src') !== src) v.setAttribute('src', src);
+                if (v.parentElement !== document.body) document.body.insertBefore(v, document.body.firstChild);
+                v.muted = true; if (v.play) v.play().catch(() => {});
+            };
+            const rawBg = (cfg.miscBgUrl || '').trim().replace(/\.gifv(\?.*)?$/i, '.mp4');
+            const isVideoBg = /\.(mp4|webm|mov)(\?.*)?$/i.test(rawBg);
+            const blurAmt = cfg.miscBgBlur ? (cfg.miscBgBlurAmount ?? 8) : 0;
+            const blur = blurAmt ? `blur(${blurAmt}px)` : 'none';
             const darkOp = cfg.miscBgDarkOverlay ? ((cfg.miscBgDarkOpacity ?? 50) / 100) : 0;
-            css += `body{background-image:url('${cfg.miscBgUrl.trim()}')!important;background-size:cover!important;background-position:center!important;background-attachment:fixed!important;background-repeat:no-repeat!important;}body::before{content:'';position:fixed;inset:0;z-index:0;background:inherit;filter:${blur};pointer-events:none;}body::after{content:'';position:fixed;inset:0;z-index:1;background:rgba(0,0,0,${darkOp});pointer-events:none;}body>*{position:relative;z-index:2;}#pks-panel,#pks-watermark{z-index:2147483647!important;}`;
+            if (rawBg && isVideoBg) {
+                // <video> sits on z-index:0 (via inline style), under the dark
+                // overlay (z-index:1) and page content (z-index:2).
+                css += `body::after{content:'';position:fixed;inset:0;z-index:1;background:rgba(0,0,0,${darkOp});pointer-events:none;}body>*{position:relative;z-index:2;}#pks-panel,#pks-watermark{z-index:2147483647!important;}`;
+            } else if (rawBg) {
+                css += `body{background-image:url('${rawBg.replace(/'/g, "\\'")}')!important;background-size:cover!important;background-position:center!important;background-attachment:fixed!important;background-repeat:no-repeat!important;}body::before{content:'';position:fixed;inset:0;z-index:0;background:inherit;filter:${blur};pointer-events:none;}body::after{content:'';position:fixed;inset:0;z-index:1;background:rgba(0,0,0,${darkOp});pointer-events:none;}body>*{position:relative;z-index:2;}#pks-panel,#pks-watermark{z-index:2147483647!important;}`;
+            }
+            syncMiscBgVideo(isVideoBg ? rawBg : '', blurAmt);
         }
         if (cfg.miscHideAds) css += `[class*="adWrapper"],[class*="adImage"]{display:none!important;}`;
         if (cfg.miscHideAlert) css += `[class*="alertBg"],[class*="alertText"],[class*="alertLink"],[class*="fakeAlert"]{display:none!important;}`;
-        if (cfg.miscHideNavbar) css += `.navbar-wrapper-main,.navbar-0-2-49,nav.navbar,[class*="navBar"]{display:none!important;}.main-0-2-1{padding-top:0!important;}`;
+        // Hide ONLY the top <nav> element. The side nav card (Home/Profile/... links)
+        // is a SIBLING of <nav> inside .navbar-wrapper-main (verified in a saved DOM
+        // dump), so hiding the whole wrapper used to nuke the sidebar together with
+        // the navbar. Never hide .navbar-wrapper-main here.
+        if (cfg.miscHideNavbar) css += `#stylable-nav-bar,nav.navbar,.navbar-0-2-49{display:none!important;}.main-0-2-1{padding-top:0!important;}`;
         if (cfg.miscHideMyFeed) css += `[class*="myFeedContainer"]{display:none!important;}`;
         if (cfg.miscHideBlogNews) css += `[class*="blogNewsContainer"]{display:none!important;}`;
-        if (cfg.miscCatalogHideSidebar) css += `.divider-right,.col-12.col-md-4.col-lg-2,[class*="sideBar"],[class*="sidebar"]{display:none!important;}.col-12.col-md-8.col-lg-10{flex:0 0 100%!important;max-width:100%!important;}`;
+        if (cfg.miscCatalogHideSidebar) css += `[class*="searchOptionsContainer-"]{display:none!important;}[class*="searchResultsContainer-"]{width:100%!important;flex:1 1 100%!important;max-width:100%!important;}`;
         if (cfg.miscProfileNameAnimate) {
             const c1 = cfg.miscProfileNameColor1 || t.accent;
             const c2 = cfg.miscProfileNameColor2 || '#38bdf8';
@@ -3047,6 +4431,7 @@ else window.addEventListener('DOMContentLoaded', init);
         miscStyle.textContent = css;
         applySidebarNavStyle();
         applyPageFrameTransparency();
+        applyRobuxJssIconFix();
         applyPageFont(cfg.miscPageFont || 'Default (Site Font)');
         applyGuiFont(cfg.miscGuiFont || 'Share Tech Mono');
     };
@@ -3060,16 +4445,294 @@ else window.addEventListener('DOMContentLoaded', init);
                 e.preventDefault();
                 const panel = document.getElementById('pks-panel');
                 if (!panel) {
-                    try { GM_setValue(PANEL_HIDDEN_KEY, false); } catch {}
+                    try { _lsSet(PANEL_HIDDEN_KEY, false); } catch {}
                     buildPanel(state.authInfo || {});
                 } else {
                     const willHide = panel.style.display !== 'none';
                     panel.style.display = willHide ? 'none' : '';
-                    try { GM_setValue(PANEL_HIDDEN_KEY, willHide); } catch {}
+                    try { _lsSet(PANEL_HIDDEN_KEY, willHide); } catch {}
                 }
             }
         });
     };
+
+    /* ── Mass Trader tab (ported from Hexium src.js; engine lives in
+       src/trading/interium-trading-*.js as window.InteriumMassTrader). ──
+       Consent-based: it only SENDS trade offers the recipient must manually
+       accept. No auto-accept, no fake balance/verification, no 3rd-party host. */
+    const buildMassTradeUI = () => {
+        const container = document.getElementById('pks-tab-trade');
+        if (!container) return;
+        const MT = window.InteriumMassTrader;
+        const t = getTheme();
+        if (!MT) {
+            container.innerHTML = `<div style="padding:16px;color:${t.sectionText};font-size:11px;line-height:1.6;">Mass Trader engine not attached. Reload the page so the trading runtime can load.</div>`;
+            return;
+        }
+        container.innerHTML = '';
+
+        const bs = { myItems: [], mySelected: [], targetAssetId: null, targetOwners: [], stopped: false, logs: [] };
+        const cs = { myItems: [], mySelected: [], targets: [] };
+
+        const logLine = (elId, msg, type) => {
+            const el = document.getElementById(elId);
+            if (!el) return;
+            const d = document.createElement('div');
+            d.style.cssText = `font-size:10px;padding:3px 6px;border-radius:3px;margin-bottom:2px;background:${type === 'ok' ? 'rgba(0,232,122,0.08)' : type === 'err' ? 'rgba(255,68,102,0.08)' : 'rgba(255,255,255,0.03)'};color:${type === 'ok' ? '#00e87a' : type === 'err' ? '#ff4466' : t.sectionText};`;
+            d.textContent = msg;
+            el.appendChild(d); el.scrollTop = el.scrollHeight;
+        };
+        const mtLog = (msg, type, mode) => logLine(mode === 'blast' ? 'mt-blast-log' : 'mt-custom-log', msg, type);
+
+        const warn = document.createElement('div');
+        warn.style.cssText = `margin-bottom:10px;padding:8px 10px;background:rgba(240,165,0,0.08);border:1px solid rgba(240,165,0,0.35);border-radius:6px;color:#d9a94a;font-size:9px;line-height:1.7;letter-spacing:0.04em;`;
+        warn.innerHTML = 'Sends standard trade offers that the recipient must <b>manually accept</b>. Bulk automated trading may violate Pekora\u2019s rules \u2014 use at your own risk. Interium never auto-accepts or fakes anything.';
+        container.appendChild(warn);
+
+        const tabBar = document.createElement('div');
+        tabBar.style.cssText = `display:flex;gap:0;margin-bottom:12px;border-bottom:1px solid ${t.border};`;
+        ['blast', 'custom'].forEach((mode, idx) => {
+            const btn = document.createElement('button');
+            btn.id = `mt-tab-${mode}`;
+            btn.style.cssText = `all:unset;flex:1;text-align:center;padding:8px;font-size:10px;font-weight:700;letter-spacing:0.08em;cursor:pointer;border-bottom:2px solid ${idx === 0 ? t.accent : 'transparent'};color:${idx === 0 ? t.accent : t.sectionText};transition:color 0.15s,border-color 0.15s;`;
+            btn.textContent = mode === 'blast' ? 'BLAST OWNERS' : 'CUSTOM';
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('[id^="mt-tab-"]').forEach((b) => { b.style.borderBottomColor = 'transparent'; b.style.color = t.sectionText; });
+                document.querySelectorAll('[id^="mt-mode-"]').forEach((p) => { p.style.display = 'none'; });
+                btn.style.borderBottomColor = t.accent; btn.style.color = t.accent;
+                document.getElementById(`mt-mode-${mode}`).style.display = '';
+            });
+            tabBar.appendChild(btn);
+        });
+        container.appendChild(tabBar);
+
+        const blastPanel = document.createElement('div'); blastPanel.id = 'mt-mode-blast';
+        blastPanel.innerHTML = `
+            <div style="margin-bottom:10px;">
+                <div class="pks-section-title">1. Your Items (max 4)</div>
+                <button id="mt-blast-load" class="pks-action-btn" style="width:100%;background:${t.inputBg};color:${t.labelText};border-color:${t.border};padding:7px;font-size:10px;margin-bottom:8px;">Load My Inventory</button>
+                <div id="mt-blast-my-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:3px;max-height:168px;overflow-y:auto;overflow-x:hidden;"></div>
+            </div>
+            <div style="margin-bottom:10px;">
+                <div class="pks-section-title">2. Target Item (Asset ID)</div>
+                <div style="display:flex;gap:6px;margin-bottom:6px;">
+                    <input type="text" id="mt-blast-assetid" placeholder="Asset ID" style="flex:1;background:${t.inputBg};border:1px solid ${t.inputBorder};border-radius:5px;color:${t.valueText};font-size:11px;padding:5px 8px;outline:none;font-family:inherit;">
+                    <button id="mt-blast-find" class="pks-action-btn" style="background:${t.inputBg};color:${t.labelText};border-color:${t.border};padding:5px 10px;font-size:10px;">Find Owners</button>
+                </div>
+                <div id="mt-blast-owner-info" style="font-size:10px;color:${t.sectionText};min-height:14px;"></div>
+            </div>
+            <div style="margin-bottom:10px;">
+                <div class="pks-section-title">3. Send</div>
+                <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
+                    <span style="font-size:10px;color:${t.sectionText};">Delay:</span>
+                    <button id="mt-delay-dec" style="all:unset;width:22px;height:22px;background:${t.inputBg};border:1px solid ${t.border};border-radius:4px;color:${t.valueText};text-align:center;cursor:pointer;font-size:12px;line-height:22px;">\u2212</button>
+                    <span id="mt-delay-val" style="font-size:11px;color:${t.valueText};font-weight:700;min-width:40px;text-align:center;">20s</span>
+                    <button id="mt-delay-inc" style="all:unset;width:22px;height:22px;background:${t.inputBg};border:1px solid ${t.border};border-radius:4px;color:${t.valueText};text-align:center;cursor:pointer;font-size:12px;line-height:22px;">+</button>
+                </div>
+                <div style="display:flex;gap:6px;margin-bottom:6px;">
+                    <button id="mt-blast-send" class="pks-action-btn" style="flex:1;background:${t.accent};color:#050508;padding:8px;" disabled>\u25b6 Send to All Owners</button>
+                    <button id="mt-blast-stop" class="pks-action-btn" style="background:#2a1a1a;color:#ff4466;border-color:#ff446633;padding:8px;display:none;">\u25a0 Stop</button>
+                </div>
+                <div id="mt-blast-progress-wrap" style="display:none;height:4px;background:${t.inputBg};border-radius:2px;overflow:hidden;margin-bottom:6px;"><div id="mt-blast-progress-bar" style="height:100%;width:0%;background:${t.accent};border-radius:2px;transition:width 0.3s;"></div></div>
+                <div id="mt-blast-log" style="max-height:100px;overflow-y:auto;background:${t.inputBg};border:1px solid ${t.border};border-radius:5px;padding:4px;"></div>
+            </div>
+        `;
+        container.appendChild(blastPanel);
+
+        const customPanel = document.createElement('div'); customPanel.id = 'mt-mode-custom'; customPanel.style.display = 'none';
+        customPanel.innerHTML = `
+            <div style="margin-bottom:10px;">
+                <div class="pks-section-title">1. Your Items (max 4)</div>
+                <button id="mt-custom-load" class="pks-action-btn" style="width:100%;background:${t.inputBg};color:${t.labelText};border-color:${t.border};padding:7px;font-size:10px;margin-bottom:8px;">Load My Inventory</button>
+                <div id="mt-custom-my-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:3px;max-height:168px;overflow-y:auto;overflow-x:hidden;"></div>
+            </div>
+            <div style="margin-bottom:10px;">
+                <div class="pks-section-title">2. Add Targets</div>
+                <div style="display:flex;gap:5px;margin-bottom:6px;">
+                    <input type="text" id="mt-custom-user" placeholder="Username or ID" style="flex:1;background:${t.inputBg};border:1px solid ${t.inputBorder};border-radius:5px;color:${t.valueText};font-size:11px;padding:5px 8px;outline:none;font-family:inherit;">
+                    <input type="text" id="mt-custom-asset" placeholder="Asset ID" style="width:90px;background:${t.inputBg};border:1px solid ${t.inputBorder};border-radius:5px;color:${t.valueText};font-size:11px;padding:5px 8px;outline:none;font-family:inherit;">
+                    <button id="mt-custom-add" class="pks-action-btn" style="background:${t.inputBg};color:${t.labelText};border-color:${t.border};padding:5px 10px;font-size:10px;">Add</button>
+                </div>
+                <div id="mt-custom-targets" style="max-height:120px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;"></div>
+            </div>
+            <div>
+                <button id="mt-custom-send" class="pks-action-btn" style="width:100%;background:${t.accent};color:#050508;padding:8px;" disabled>\u25b6 Send All Trades</button>
+                <div id="mt-custom-log" style="max-height:100px;overflow-y:auto;background:${t.inputBg};border:1px solid ${t.border};border-radius:5px;padding:4px;margin-top:6px;"></div>
+            </div>
+        `;
+        container.appendChild(customPanel);
+
+        const itemCard = (item, selected, maxed) => {
+            const card = document.createElement('div');
+            card.style.cssText = `background:${t.inputBg};border:1px solid ${selected ? t.accent : t.border};border-radius:6px;padding:3px;cursor:${maxed ? 'not-allowed' : 'pointer'};opacity:${maxed ? '0.25' : '1'};text-align:center;transition:border-color 0.15s;overflow:hidden;`;
+            const thumb = MT.thumbs[item.assetId] || '';
+            card.innerHTML = `${thumb ? `<img src="${thumb}" style="width:100%;aspect-ratio:1;object-fit:contain;border-radius:4px;background:${t.headerBg};display:block;">` : `<div style="width:100%;aspect-ratio:1;background:${t.headerBg};border-radius:4px;"></div>`}<div style="font-size:8px;color:${t.valueText};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px;">${item.name || 'Item'}</div>`;
+            return card;
+        };
+
+        const renderMyGrid = (gridId, s, sendBtnId, sendReady) => {
+            const grid = document.getElementById(gridId);
+            if (!grid) return;
+            grid.innerHTML = '';
+            s.myItems.forEach((item) => {
+                const sel = s.mySelected.some((x) => x.userAssetId === item.userAssetId);
+                const maxed = s.mySelected.length >= 4 && !sel;
+                const card = itemCard(item, sel, maxed);
+                if (!maxed) card.addEventListener('click', () => {
+                    const idx = s.mySelected.findIndex((x) => x.userAssetId === item.userAssetId);
+                    if (idx >= 0) s.mySelected.splice(idx, 1); else if (s.mySelected.length < 4) s.mySelected.push(item);
+                    renderMyGrid(gridId, s, sendBtnId, sendReady);
+                    sendReady();
+                });
+                grid.appendChild(card);
+            });
+        };
+
+        const loadInventory = async (btnId, s, gridId, sendBtnId, sendReady, mode) => {
+            const btn = document.getElementById(btnId);
+            btn.disabled = true; btn.textContent = 'Loading\u2026';
+            try {
+                const items = await MT.fetchMyInventory();
+                s.myItems = items.map((e) => ({ userAssetId: e.userAssetId || e.id, assetId: e.assetId, name: e.name || ('Asset ' + e.assetId) }));
+                s.mySelected = [];
+                const ids = [...new Set(s.myItems.map((i) => i.assetId).filter(Boolean))];
+                if (ids.length) await MT.getAssetThumbs(ids);
+                renderMyGrid(gridId, s, sendBtnId, sendReady);
+                btn.textContent = `Loaded (${s.myItems.length})`; btn.disabled = false;
+            } catch (e) { btn.textContent = 'Load My Inventory'; btn.disabled = false; mtLog('Error: ' + e.message, 'err', mode); }
+        };
+
+        /* ---- BLAST mode ---- */
+        const blastSendReady = () => { const b = document.getElementById('mt-blast-send'); if (b) b.disabled = !bs.mySelected.length || !bs.targetOwners.length; };
+        document.getElementById('mt-blast-load').addEventListener('click', () => loadInventory('mt-blast-load', bs, 'mt-blast-my-grid', 'mt-blast-send', blastSendReady, 'blast'));
+
+        document.getElementById('mt-blast-find').addEventListener('click', async () => {
+            const assetId = parseInt(document.getElementById('mt-blast-assetid').value.trim(), 10);
+            if (!assetId) { mtLog('Enter an asset ID', 'err', 'blast'); return; }
+            const btn = document.getElementById('mt-blast-find');
+            btn.disabled = true; btn.textContent = '\u2026';
+            const info = document.getElementById('mt-blast-owner-info');
+            if (info) info.textContent = 'Finding owners\u2026';
+            try {
+                const owners = await MT.fetchAssetOwners(assetId);
+                bs.targetAssetId = assetId; bs.targetOwners = owners;
+                if (info) info.textContent = `Found ${owners.length} owners`;
+                mtLog(`Found ${owners.length} owners of asset ${assetId}`, 'ok', 'blast');
+                blastSendReady();
+            } catch (e) { mtLog('Error: ' + e.message, 'err', 'blast'); if (info) info.textContent = ''; }
+            btn.disabled = false; btn.textContent = 'Find Owners';
+        });
+
+        let blastDelay = 20;
+        const updateDelay = () => { const el = document.getElementById('mt-delay-val'); if (el) el.textContent = blastDelay + 's'; };
+        document.getElementById('mt-delay-dec').addEventListener('click', () => { if (blastDelay > 5) blastDelay -= 5; updateDelay(); });
+        document.getElementById('mt-delay-inc').addEventListener('click', () => { if (blastDelay < 120) blastDelay += 5; updateDelay(); });
+
+        document.getElementById('mt-blast-send').addEventListener('click', async () => {
+            if (!bs.mySelected.length || !bs.targetOwners.length) return;
+            bs.stopped = false;
+            const sendBtn = document.getElementById('mt-blast-send');
+            const stopBtn = document.getElementById('mt-blast-stop');
+            const progWrap = document.getElementById('mt-blast-progress-wrap');
+            const progBar = document.getElementById('mt-blast-progress-bar');
+            if (sendBtn) sendBtn.style.display = 'none';
+            if (stopBtn) stopBtn.style.display = '';
+            if (progWrap) progWrap.style.display = 'block';
+            const myId = await MT.ensureMyId();
+            let sent = 0, failed = 0;
+            mtLog(`Blasting to ${bs.targetOwners.length} owners\u2026`, 'info', 'blast');
+            for (let i = 0; i < bs.targetOwners.length; i++) {
+                if (bs.stopped) { mtLog('Stopped.', 'info', 'blast'); break; }
+                if (progBar) progBar.style.width = Math.round((i / bs.targetOwners.length) * 100) + '%';
+                const owner = bs.targetOwners[i];
+                try {
+                    const r = await MT.sendTrade(myId, bs.mySelected.map((x) => x.userAssetId), owner.userId, [owner.userAssetId]);
+                    if (r.ok) { sent++; mtLog(`\u2713 [${i + 1}/${bs.targetOwners.length}] ${owner.username}`, 'ok', 'blast'); }
+                    else throw new Error('HTTP ' + r.status);
+                } catch (e) { failed++; mtLog(`\u2717 ${owner.username}: ${e.message}`, 'err', 'blast'); }
+                if (i < bs.targetOwners.length - 1 && !bs.stopped) await new Promise((res) => setTimeout(res, blastDelay * 1000));
+            }
+            if (progBar) progBar.style.width = '100%';
+            mtLog(`Done! Sent: ${sent} | Failed: ${failed}`, sent > 0 ? 'ok' : 'err', 'blast');
+            notify(`Mass Trader: sent ${sent}${failed ? `, ${failed} failed` : ''}`, sent > 0 ? 'success' : 'error');
+            if (sendBtn) sendBtn.style.display = '';
+            if (stopBtn) stopBtn.style.display = 'none';
+        });
+        document.getElementById('mt-blast-stop').addEventListener('click', () => { bs.stopped = true; });
+
+        /* ---- CUSTOM mode ---- */
+        const customSendReady = () => {
+            const btn = document.getElementById('mt-custom-send');
+            if (!btn) return;
+            const ready = cs.targets.filter((x) => x.status === 'ready').length;
+            btn.disabled = !cs.mySelected.length || !ready;
+            btn.textContent = ready ? `\u25b6 Send ${ready} Trade${ready > 1 ? 's' : ''}` : '\u25b6 Send All Trades';
+        };
+        document.getElementById('mt-custom-load').addEventListener('click', () => loadInventory('mt-custom-load', cs, 'mt-custom-my-grid', 'mt-custom-send', customSendReady, 'custom'));
+
+        const renderTargets = () => {
+            const list = document.getElementById('mt-custom-targets');
+            if (!list) return;
+            list.innerHTML = '';
+            cs.targets.forEach((target, i) => {
+                const row = document.createElement('div');
+                row.style.cssText = `display:flex;align-items:center;gap:6px;padding:5px 8px;background:${t.inputBg};border:1px solid ${t.border};border-radius:5px;font-size:10px;`;
+                const sc = target.status === 'ready' ? '#00e87a' : target.status === 'error' ? '#ff4466' : target.status === 'sent' ? '#38bdf8' : t.sectionText;
+                const si = target.status === 'ready' ? '\u2713' : target.status === 'error' ? '\u2717' : target.status === 'sent' ? '\u2192' : '\u2026';
+                row.innerHTML = `<span style="color:${sc};font-weight:700;flex-shrink:0;">${si}</span><span style="flex:1;color:${t.valueText};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${target.username}</span><span style="color:${t.sectionText};font-size:9px;flex-shrink:0;">${target.assetName || target.assetId}</span>`;
+                if (target.status !== 'sent') {
+                    const rm = document.createElement('button');
+                    rm.style.cssText = 'all:unset;color:#ff4466;cursor:pointer;font-size:12px;padding:0 2px;font-weight:700;flex-shrink:0;';
+                    rm.textContent = '\u00d7';
+                    rm.addEventListener('click', () => { cs.targets.splice(i, 1); renderTargets(); customSendReady(); });
+                    row.appendChild(rm);
+                }
+                list.appendChild(row);
+            });
+        };
+
+        document.getElementById('mt-custom-add').addEventListener('click', async () => {
+            const userRaw = document.getElementById('mt-custom-user').value.trim();
+            const assetRaw = document.getElementById('mt-custom-asset').value.trim();
+            if (!userRaw || !assetRaw || !/^\d+$/.test(assetRaw)) { mtLog('Enter username/ID and asset ID', 'err', 'custom'); return; }
+            const assetId = parseInt(assetRaw, 10);
+            const entry = { userId: null, username: userRaw, assetId, assetName: '', userAssetId: null, status: 'loading' };
+            cs.targets.push(entry); renderTargets();
+            try {
+                const u = await MT.resolveUser(userRaw);
+                entry.userId = u.userId; entry.username = u.username;
+                entry.assetName = await MT.getAssetName(assetId);
+                const uaid = await MT.findUserAsset(entry.userId, assetId);
+                if (uaid) { entry.userAssetId = uaid; entry.status = 'ready'; mtLog(`\u2713 ${entry.username} has ${entry.assetName || assetId}`, 'ok', 'custom'); }
+                else { entry.status = 'error'; mtLog(`\u2717 ${entry.username} doesn\u2019t have item ${assetId}`, 'err', 'custom'); }
+            } catch (e) { entry.status = 'error'; mtLog('Error: ' + e.message, 'err', 'custom'); }
+            renderTargets(); customSendReady();
+            document.getElementById('mt-custom-user').value = '';
+            document.getElementById('mt-custom-asset').value = '';
+        });
+
+        document.getElementById('mt-custom-send').addEventListener('click', async () => {
+            const ready = cs.targets.filter((x) => x.status === 'ready');
+            if (!cs.mySelected.length || !ready.length) return;
+            const myId = await MT.ensureMyId();
+            mtLog(`Sending ${ready.length} trades\u2026`, 'info', 'custom');
+            let sent = 0;
+            for (let i = 0; i < ready.length; i++) {
+                const target = ready[i];
+                try {
+                    const r = await MT.sendTrade(myId, cs.mySelected.map((x) => x.userAssetId), target.userId, [target.userAssetId]);
+                    if (r.ok) { target.status = 'sent'; sent++; mtLog(`Sent to ${target.username}`, 'ok', 'custom'); }
+                    else throw new Error('HTTP ' + r.status);
+                } catch (e) { mtLog(`${target.username}: ${e.message}`, 'err', 'custom'); }
+                renderTargets();
+                if (i < ready.length - 1) await new Promise((res) => setTimeout(res, 20000));
+            }
+            mtLog('Done!', 'ok', 'custom');
+            notify(`Mass Trader: sent ${sent}/${ready.length} trades`, sent > 0 ? 'success' : 'error');
+            customSendReady();
+        });
+    };
+
 
     const buildPanel = (authInfo = {}) => {
         const daysLeft = authInfo.daysLeft;
@@ -3115,6 +4778,10 @@ else window.addEventListener('DOMContentLoaded', init);
             .pks-row { display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;gap:8px;padding:1px 0; }
             .pks-row label { color:#b0b0c0;font-size:11px;flex:1; }
             .pks-row .pks-row-right { display:flex;align-items:center;gap:6px;flex-shrink:0; }
+            .pks-glass-master { display:flex;align-items:center;justify-content:space-between;gap:8px;margin:2px 0 10px;padding:7px 10px;border:1px solid rgba(255,255,255,0.12);border-radius:8px;background:linear-gradient(135deg,rgba(255,255,255,0.07),rgba(255,255,255,0.02));box-shadow:0 2px 10px rgba(0,0,0,0.25),inset 0 1px 0 rgba(255,255,255,0.06);transition:border-color 0.18s; }
+            .pks-glass-master:hover { border-color:rgba(255,255,255,0.22); }
+            .pks-glass-master label { color:#dfe3f5!important;font-size:11px;font-weight:600;letter-spacing:0.05em;flex:1;cursor:pointer; }
+            .pks-glass-master .pks-glass-star { color:#8ea2ff;margin-right:2px; }
             .pks-stat { flex:1;background:linear-gradient(160deg,var(--pks-surface),var(--pks-surface-2));border:1px solid var(--pks-line-soft);border-radius:10px;padding:10px 8px;text-align:center;transition:border-color 0.18s,transform 0.18s; }
             .pks-stat:hover { transform:translateY(-1px);border-color:var(--pks-line); }
             .pks-stat-val { color:#00e87a;font-size:21px;font-weight:700;display:block;line-height:1;letter-spacing:-0.02em; }
@@ -3165,8 +4832,8 @@ else window.addEventListener('DOMContentLoaded', init);
                         <div id="pks-profile-name" style="color:#fff;font-size:13.5px;font-weight:700;letter-spacing:0.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:112px;line-height:1.2;">Loading\u2026</div>
                     </div>
                     <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
-                        <div class="pks-currency-pill" style="padding:3px 9px;font-size:10px;"><span style="color:#00e87a;font-size:7.5px;font-weight:700;">R$</span><span id="pks-profile-robux" style="color:#fff;font-weight:700;">\u2014</span></div>
-                        <div class="pks-currency-pill" style="padding:3px 9px;font-size:10px;"><span style="color:#f0a500;font-size:7.5px;font-weight:700;">TIX</span><span id="pks-profile-tickets" style="color:#fff;font-weight:700;">\u2014</span></div>
+                        <div class="pks-currency-pill" style="padding:3px 9px;font-size:10px;"><svg style="display:inline-block;vertical-align:-1.5px;flex:none;" width="11" height="11" xmlns="http://www.w3.org/2000/svg" viewBox="30 114 24 24"><path fill="#02B757" d="M37,123v2h2.6c0.1-0.5,0.1-1.5,0-2H37z"/><path fill="#02B757" d="M42,114c-6.6,0-12,5.4-12,12c0,6.6,5.4,12,12,12s12-5.4,12-12C54,119.4,48.6,114,42,114z M47,131v1 c0,0.6-0.4,1-1,1s-1-0.4-1-1v-1h-3c-0.2,0-0.4-0.1-0.6-0.2l-4.4-3.5v2.7c0,0.6-0.4,1-1,1s-1-0.4-1-1v-8c0-0.6,0.4-1,1-1h4 c1.1,0,1.7,1.1,1.7,3c0,0.6-0.1,1.2-0.2,1.7c-0.4,1.2-1.2,1.3-1.5,1.3h-0.1l2.5,2H47c0.3,0,0.5-0.5,0.5-1c0-0.4-0.1-1-0.5-1h-2 c-1.4,0-2.5-1.3-2.5-3c0-0.7,0.2-1.4,0.5-1.9c0.5-0.7,1.2-1.1,2-1.1v-1c0-0.6,0.4-1,1-1s1,0.4,1,1v1h1c0.6,0,1,0.4,1,1s-0.4,1-1,1 h-3c-0.1,0-0.2,0-0.3,0.2s-0.2,0.5-0.2,0.8c0,0.4,0.2,1,0.5,1h2c1.4,0,2.5,1.3,2.5,3S48.4,131,47,131z"/></svg><span id="pks-profile-robux" style="color:#fff;font-weight:700;">\u2014</span></div>
+                        <div class="pks-currency-pill" style="padding:3px 9px;font-size:10px;"><svg style="display:inline-block;vertical-align:-1.5px;flex:none;" width="11" height="11" xmlns="http://www.w3.org/2000/svg" viewBox="30 142 24 24"><path fill="#CC9E71" d="M51,149h-2l-2-2v-2l-3-3l-14,14l3,3h2l2,2v2l3,3l14-14L51,149z M44.7,156.7c-0.2,0.2-0.5,0.3-0.7,0.3 s-0.5-0.1-0.7-0.3l-3.3-3.3l-1.3,1.3c-0.2,0.2-0.5,0.3-0.7,0.3s-0.5-0.1-0.7-0.3c-0.4-0.4-0.4-1,0-1.4l4-4c0.4-0.4,1-0.4,1.4,0 s0.4,1,0,1.4l-1.3,1.3l3.3,3.3C45.1,155.7,45.1,156.3,44.7,156.7z"/></svg><span id="pks-profile-tickets" style="color:#fff;font-weight:700;">\u2014</span></div>
                     </div>
                     <div style="display:flex;flex-direction:column;gap:6px;align-items:center;flex-shrink:0;margin-left:3px;">
                         <button id="pks-min-btn" class="pks-win-btn" title="Minimise" style="background:#febc2e;"></button>
@@ -3177,6 +4844,7 @@ else window.addEventListener('DOMContentLoaded', init);
             <div id="pks-body">
                 <div id="pks-tab-bar" style="display:flex;align-items:flex-end;padding:0 2px;background:#0d0d0f;border-bottom:1px solid #1a1a24;overflow-x:auto;scrollbar-width:none;">
                     <button class="pks-tab-btn active" data-tab="hex"><svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:3px;"><path d="M2 5l3 2.2L8 2l3 5.2L14 5l-1.3 8H3.3z"/></svg>PROFILE</button>
+                    <button class="pks-tab-btn" data-tab="trade"><svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="vertical-align:middle;margin-right:3px;"><path d="M7 16V4L3 8m4-4l4 4M9 1v12l4-4m-4 4l4-4"/></svg>TRADE</button>
                     <button class="pks-tab-btn" data-tab="misc"><svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="vertical-align:middle;margin-right:3px;"><circle cx="8" cy="8" r="2"/><path d="M8 2v2M8 12v2M2 8h2M12 8h2"/></svg>MISC</button>
                     <button class="pks-tab-btn" data-tab="settings"><svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="vertical-align:middle;margin-right:3px;"><circle cx="8" cy="8" r="2.5"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.5 3.5l1.4 1.4M11.1 11.1l1.4 1.4M3.5 12.5l1.4-1.4M11.1 4.9l1.4-1.4"/></svg>CFG</button>
                 </div>
@@ -3193,9 +4861,10 @@ else window.addEventListener('DOMContentLoaded', init);
                     <div class="pks-row"><label>Mode</label><div class="pks-mode-pill" id="pks-navbar-mode-pill"><button data-mode="transparent" class="active">Transparent</button><button data-mode="blur">Blur</button><button data-mode="colour">Colour</button></div></div>
                     <div class="pks-row" id="pks-navbar-colour-row"><label style="font-size:10px;color:#555;padding-left:10px;">\u21b3 Colour</label><input type="color" id="cfg-navbarColour"></div>
                     <div class="pks-row"><label style="font-size:10px;color:#555;padding-left:10px;">\u21b3 Opacity</label><div class="pks-row-right"><input type="number" id="cfg-navbarOpacity" min="0" max="100" step="5" style="width:55px;"><span class="pks-unit-label">%</span></div></div>
+                    <div class="pks-row"><label style="font-size:10px;color:#555;padding-left:10px;">\u21b3 Glass gear dropdown (Blur mode)</label><input type="checkbox" id="cfg-navbarDropdownGlass"></div>
                     <div class="pks-section-title">Background Image</div>
                     <div class="pks-row"><label>Image / GIF URL</label></div>
-                    <div style="margin-bottom:8px;"><input type="text" id="cfg-miscBgUrl" placeholder="https://i.imgur.com/\u2026 (press Enter to apply)" style="width:100%;font-size:10px;"></div>
+                    <div style="margin-bottom:8px;"><input type="text" id="cfg-miscBgUrl" placeholder="Direct image / GIF / MP4 URL - any host (press Enter)" style="width:100%;font-size:10px;"></div>
                     <div class="pks-row"><label>Blur background</label><div class="pks-row-right"><input type="checkbox" id="cfg-miscBgBlur"><input type="number" id="cfg-miscBgBlurAmount" min="1" max="30" step="1" style="width:50px;"><span class="pks-unit-label">px</span></div></div>
                     <div class="pks-row"><label>Dark overlay</label><div class="pks-row-right"><input type="checkbox" id="cfg-miscBgDarkOverlay"><input type="number" id="cfg-miscBgDarkOpacity" min="0" max="95" step="5" style="width:50px;"><span class="pks-unit-label">%</span></div></div>
                     <div class="pks-section-title">Effects</div>
@@ -3204,6 +4873,7 @@ else window.addEventListener('DOMContentLoaded', init);
                     <div class="pks-row"><label>Speed</label><div class="pks-row-right"><input type="number" id="cfg-effectSpeed" min="10" max="100" step="5" style="width:55px;"><span class="pks-unit-label">%</span></div></div>
                     <div class="pks-row"><label>Colour (blank = auto)</label><div class="pks-row-right"><input type="color" id="cfg-effectColor"><button id="cfg-effectColorClear" style="all:unset;padding:3px 8px;border:1px solid #252535;border-radius:4px;font-size:9px;color:#555;cursor:pointer;background:#16161f;">CLR</button></div></div>
                     <div class="pks-section-title">Other</div>
+                    <div class="pks-row"><label>Robux icon (2021)</label><select id="cfg-robuxIcon" style="width:130px;"><option value="off">Off</option><option value="trades">Trades only</option><option value="all">Everywhere</option></select></div>
                     <div class="pks-row"><label>Hide ads</label><input type="checkbox" id="cfg-miscHideAds"></div>
                     <div class="pks-row"><label>Remove alert banner</label><input type="checkbox" id="cfg-miscHideAlert"></div>
                     <div class="pks-row"><label>Hide nav bar entirely</label><input type="checkbox" id="cfg-miscHideNavbar"></div>
@@ -3212,31 +4882,63 @@ else window.addEventListener('DOMContentLoaded', init);
                     <div class="pks-row"><label>Page font</label><select id="cfg-miscPageFont" style="width:160px;"><option value="Default (Site Font)">Default (Site Font)</option><option value="Share Tech Mono">Share Tech Mono</option><option value="Inter">Inter</option><option value="Rajdhani">Rajdhani</option><option value="Oxanium">Oxanium</option><option value="Orbitron">Orbitron</option><option value="Space Grotesk">Space Grotesk</option><option value="JetBrains Mono">JetBrains Mono</option><option value="Syne">Syne</option><option value="Exo 2">Exo 2</option><option value="Source Sans Pro Light">Source Sans Pro Light</option></select></div>
                     <div class="pks-row"><label>GUI font</label><select id="cfg-miscGuiFont" style="width:160px;"><option value="Share Tech Mono">Share Tech Mono</option><option value="Inter">Inter</option><option value="Rajdhani">Rajdhani</option><option value="Oxanium">Oxanium</option><option value="Orbitron">Orbitron</option><option value="Space Grotesk">Space Grotesk</option><option value="JetBrains Mono">JetBrains Mono</option><option value="Syne">Syne</option><option value="Exo 2">Exo 2</option></select></div>
                     <div style="margin:14px 0 4px;"><span class="pks-page-badge">/home</span></div>
+                    <div class="pks-glass-master"><label for="pks-glassify-home"><span class="pks-glass-star">\u2726</span> Glassify page</label><input type="checkbox" id="pks-glassify-home"></div>
                     <div class="pks-row"><label>Transparent page frames</label><input type="checkbox" id="cfg-miscHomeFramesTransparent"></div>
                     <div class="pks-row"><label>Hide My Feed</label><input type="checkbox" id="cfg-miscHideMyFeed"></div>
                     <div class="pks-row"><label>Hide Blog / News</label><input type="checkbox" id="cfg-miscHideBlogNews"></div>
-                    <div class="pks-row"><label>Modern game cards</label><input type="checkbox" id="cfg-miscModernGameCards"></div>
+                    <div class="pks-row"><label>Modern game cards (home + games)</label><input type="checkbox" id="cfg-miscModernGameCards"></div>
+                    <div class="pks-row"><label>Transparent friend cards</label><input type="checkbox" id="cfg-miscFriendsFrameTransparent"></div>
+                    <div class="pks-row"><label>Merge friend request cards</label><input type="checkbox" id="cfg-miscFriendRequestMerge"></div>
+                    <div style="margin:14px 0 4px;"><span class="pks-page-badge">/friends</span></div>
+                    <div class="pks-glass-master"><label for="pks-glassify-friends"><span class="pks-glass-star">\u2726</span> Glassify page</label><input type="checkbox" id="pks-glassify-friends"></div>
+                    <div class="pks-row"><label>Glassify friends tabs</label><input type="checkbox" id="cfg-miscFriendsTabsGlassify"></div>
                     <div style="margin:14px 0 4px;"><span class="pks-page-badge">/games</span></div>
+                    <div class="pks-glass-master"><label for="pks-glassify-games"><span class="pks-glass-star">\u2726</span> Glassify page</label><input type="checkbox" id="pks-glassify-games"></div>
                     <div class="pks-row"><label>Glassify game page</label><input type="checkbox" id="cfg-miscGamesGlassify"></div>
                     <div class="pks-row"><label>Hero backdrop (blurred thumb)</label><input type="checkbox" id="cfg-miscGamesHeroBackdrop"></div>
                     <div class="pks-row"><label>Hide comments</label><input type="checkbox" id="cfg-miscGamesHideComments"></div>
                     <div class="pks-row"><label>Hide recommended games</label><input type="checkbox" id="cfg-miscGamesHideRecommended"></div>
+                    <div style="margin:14px 0 4px;"><span class="pks-page-badge">/trades \u2014 trade pages</span></div>
+                    <div class="pks-glass-master"><label for="pks-glassify-trades"><span class="pks-glass-star">\u2726</span> Glassify page</label><input type="checkbox" id="pks-glassify-trades"></div>
+                    <div class="pks-row"><label>Glassify trades list</label><input type="checkbox" id="cfg-tradesGlassify"></div>
+                    <div class="pks-row"><label>Glassify send-trade page</label><input type="checkbox" id="cfg-sendTradeGlassify"></div>
+                    <div class="pks-row"><label>Glassy dropdowns</label><input type="checkbox" id="cfg-tradesDropdownGlass"></div>
                     <div style="margin:14px 0 4px;"><span class="pks-page-badge">/Catalog.aspx</span></div>
+                    <div class="pks-glass-master"><label for="pks-glassify-catalog"><span class="pks-glass-star">\u2726</span> Glassify page</label><input type="checkbox" id="pks-glassify-catalog"></div>
                     <div class="pks-row"><label>Transparent main frame</label><input type="checkbox" id="cfg-miscCatalogFrameTransparent"></div>
                     <div class="pks-row"><label>Hide sidebar</label><input type="checkbox" id="cfg-miscCatalogHideSidebar"></div>
                     <div class="pks-row"><label>Glassify item cards</label><input type="checkbox" id="cfg-miscCatalogItemCards"></div>
+                    <div class="pks-row"><label>Glassy dropdowns</label><input type="checkbox" id="cfg-miscCatalogDropdownGlass"></div>
+                    <div class="pks-row"><label>Glassify item page</label><input type="checkbox" id="cfg-miscItemPageGlass"></div>
+                    <div style="margin:14px 0 4px;"><span class="pks-page-badge">/groups</span></div>
+                    <div class="pks-glass-master"><label for="pks-glassify-groups"><span class="pks-glass-star">\u2726</span> Glassify page</label><input type="checkbox" id="pks-glassify-groups"></div>
+                    <div class="pks-row"><label>Glassify groups page</label><input type="checkbox" id="cfg-miscGroupsGlassify"></div>
+                    <div style="margin:14px 0 4px;"><span class="pks-page-badge">/develop</span></div>
+                    <div class="pks-glass-master"><label for="pks-glassify-develop"><span class="pks-glass-star">\u2726</span> Glassify page</label><input type="checkbox" id="pks-glassify-develop"></div>
+                    <div class="pks-row"><label>Glassify develop page</label><input type="checkbox" id="cfg-miscDevelopGlassify"></div>
+                    <div style="margin:14px 0 4px;"><span class="pks-page-badge">/messages</span></div>
+                    <div class="pks-glass-master"><label for="pks-glassify-messages"><span class="pks-glass-star">\u2726</span> Glassify page</label><input type="checkbox" id="pks-glassify-messages"></div>
+                    <div class="pks-row"><label>Glassify messages page</label><input type="checkbox" id="cfg-miscMessagesGlassify"></div>
+                    <div style="margin:14px 0 4px;"><span class="pks-page-badge">/inventory</span></div>
+                    <div class="pks-glass-master"><label for="pks-glassify-inventory"><span class="pks-glass-star">\u2726</span> Glassify page</label><input type="checkbox" id="pks-glassify-inventory"></div>
+                    <div class="pks-row"><label>Glassify inventory</label><input type="checkbox" id="cfg-miscInventoryGlassify"></div>
                     <div style="margin:14px 0 4px;"><span class="pks-page-badge">/profile</span></div>
-                    <div class="pks-row"><label>Transparent frames</label><input type="checkbox" id="cfg-miscProfileFrameTransparent"></div>
+                    <div class="pks-glass-master"><label for="pks-glassify-profile"><span class="pks-glass-star">\u2726</span> Glassify page</label><input type="checkbox" id="pks-glassify-profile"></div>
+                    <div class="pks-row"><label>Glassify profile</label><input type="checkbox" id="cfg-miscProfileFrameTransparent"></div>
+                    <div class="pks-row"><label>Glassify profile tabs (About / Creations)</label><input type="checkbox" id="cfg-miscProfileTabsGlassify"></div>
                     <div class="pks-row"><label>Animated username colour</label><input type="checkbox" id="cfg-miscProfileNameAnimate"></div>
                     <div class="pks-row"><label style="font-size:10px;color:#555;padding-left:10px;">\u21b3 Colour 1</label><input type="color" id="cfg-miscProfileNameColor1"></div>
                     <div class="pks-row"><label style="font-size:10px;color:#555;padding-left:10px;">\u21b3 Colour 2</label><input type="color" id="cfg-miscProfileNameColor2"></div>
-                    <div style="margin:14px 0 4px;"><span class="pks-page-badge">/friends</span></div>
-                    <div class="pks-row"><label>Transparent friend cards</label><input type="checkbox" id="cfg-miscFriendsFrameTransparent"></div>
                     <div style="margin:14px 0 4px;"><span class="pks-page-badge">/My/Avatar</span></div>
+                    <div class="pks-glass-master"><label for="pks-glassify-avatar"><span class="pks-glass-star">\u2726</span> Glassify page</label><input type="checkbox" id="pks-glassify-avatar"></div>
                     <div class="pks-row"><label>Transparent frames</label><input type="checkbox" id="cfg-miscAvatarFrameTransparent"></div>
+                    <div class="pks-row"><label>Blur category dropdown</label><input type="checkbox" id="cfg-miscAvatarBlurDropdown"></div>
                     <div class="pks-row"><label>Glassify item frames</label><input type="checkbox" id="cfg-avatarGlassify"></div>
+                    <div class="pks-row"><label>Glassify avatar editor</label><input type="checkbox" id="cfg-avatarEditorGlass"></div>
                     <div class="pks-row"><label>Avatar background</label><input type="checkbox" id="cfg-avatarBgEnabled"></div>
                     <div class="pks-row"><label style="font-size:10px;color:#555;padding-left:10px;">↳ Background blur</label><div class="pks-row-right"><input type="number" id="cfg-avatarBgBlur" min="0" max="40" step="1" style="width:55px;"><span class="pks-unit-label">px</span></div></div>
+                    <div class="pks-row"><label style="font-size:10px;color:#555;padding-left:10px;">↳ Custom URL (image / gif / mp4)</label></div>
+                    <div class="pks-row"><input type="text" id="cfg-avatarBgImage" placeholder="https://… .png / .gif / .mp4 — press Enter" style="flex:1;min-width:0;"></div>
                     <div style="margin:14px 0 4px;"><span class="pks-page-badge">Watermark</span></div>
                     <div class="pks-row"><label>Show watermark</label><input type="checkbox" id="cfg-watermarkEnabled"></div>
                     <div class="pks-row"><label>Position</label><select id="cfg-watermarkPosition" style="width:130px;"><option value="bottom-left">Bottom Left</option><option value="bottom-right">Bottom Right</option><option value="bottom-center">Bottom Center</option><option value="top-left">Top Left</option><option value="top-right">Top Right</option><option value="top-center">Top Center</option></select></div>
@@ -3249,11 +4951,12 @@ else window.addEventListener('DOMContentLoaded', init);
                     <div style="margin-top:4px;"><button id="pks-wm-reset-pos" class="pks-action-btn" style="width:100%;background:#16161f;color:#666;border-color:#252535;padding:7px;font-size:10px;">\u21ba Reset watermark position</button></div>
                     <div style="margin-top:8px;"><button id="pks-misc-apply" class="pks-action-btn" style="width:100%;background:#16161f;color:#888;border-color:#2a2a35;padding:8px;">\u21ba Re-apply All Misc Settings</button></div>
                 </div>
+                <div id="pks-tab-trade" style="padding:12px 13px;display:none;max-height:460px;overflow-y:auto;"></div>
                 <div id="pks-tab-hex" style="padding:12px 13px;display:block;max-height:460px;overflow-y:auto;">
                     <div style="margin-bottom:6px;"><span class="pks-page-badge">Profile Banner</span></div>
                     <div class="pks-row"><label>Enable banner</label><input type="checkbox" id="cfg-profileBannerEnabled"></div>
                     <div class="pks-row"><label>Image / GIF URL</label></div>
-                    <div style="margin-bottom:8px;"><input type="text" id="cfg-profileBannerImage" placeholder="https://i.imgur.com/… (press Enter)" style="width:100%;font-size:10px;"></div>
+                    <div style="margin-bottom:8px;"><input type="text" id="cfg-profileBannerImage" placeholder="Direct image / GIF / MP4 URL - any host (press Enter)" style="width:100%;font-size:10px;"></div>
                     <div class="pks-row"><label>Blur</label><div class="pks-row-right"><input type="number" id="cfg-profileBannerBlur" min="0" max="40" step="1" style="width:55px;"><span class="pks-unit-label">px</span></div></div>
                     <div class="pks-row"><label>Brightness</label><div class="pks-row-right"><input type="number" id="cfg-profileBannerBrightness" min="30" max="150" step="5" style="width:55px;"><span class="pks-unit-label">%</span></div></div>
                     <div class="pks-row"><label>Tint colour</label><input type="color" id="cfg-profileBannerTint"></div>
@@ -3386,15 +5089,16 @@ else window.addEventListener('DOMContentLoaded', init);
             'cfg-miscGamesGlassify':'miscGamesGlassify','cfg-miscGamesHeroBackdrop':'miscGamesHeroBackdrop',
             'cfg-miscGamesHideComments':'miscGamesHideComments','cfg-miscGamesHideRecommended':'miscGamesHideRecommended',
             'cfg-miscCatalogFrameTransparent':'miscCatalogFrameTransparent',
-            'cfg-miscCatalogHideSidebar':'miscCatalogHideSidebar','cfg-miscCatalogItemCards':'miscCatalogItemCards',
+            'cfg-miscCatalogHideSidebar':'miscCatalogHideSidebar','cfg-miscCatalogItemCards':'miscCatalogItemCards','cfg-miscCatalogDropdownGlass':'miscCatalogDropdownGlass','cfg-miscItemPageGlass':'miscItemPageGlass','cfg-miscGroupsGlassify':'miscGroupsGlassify',
             'cfg-miscProfileFrameTransparent':'miscProfileFrameTransparent',
             'cfg-miscProfileNameAnimate':'miscProfileNameAnimate',
             'cfg-miscProfileNameColor1':'miscProfileNameColor1','cfg-miscProfileNameColor2':'miscProfileNameColor2',
-            'cfg-miscFriendsFrameTransparent':'miscFriendsFrameTransparent',
-            'cfg-miscAvatarFrameTransparent':'miscAvatarFrameTransparent','cfg-avatarGlassify':'avatarGlassify',
+            'cfg-miscFriendsFrameTransparent':'miscFriendsFrameTransparent','cfg-miscFriendRequestMerge':'miscFriendRequestMerge','cfg-miscMessagesGlassify':'miscMessagesGlassify','cfg-miscInventoryGlassify':'miscInventoryGlassify','cfg-miscDevelopGlassify':'miscDevelopGlassify','cfg-miscProfileTabsGlassify':'miscProfileTabsGlassify','cfg-miscFriendsTabsGlassify':'miscFriendsTabsGlassify','cfg-navbarDropdownGlass':'navbarDropdownGlass',
+            'cfg-miscAvatarFrameTransparent':'miscAvatarFrameTransparent','cfg-avatarGlassify':'avatarGlassify','cfg-avatarEditorGlass':'avatarEditorGlass',
+            'cfg-miscAvatarBlurDropdown':'miscAvatarBlurDropdown',
             'cfg-avatarBgEnabled':'avatarBgEnabled','cfg-avatarBgBlur':'avatarBgBlur',
             'cfg-tradesBgColor':'tradesBgColor','cfg-tradesOpacity':'tradesOpacity','cfg-tradesBlur':'tradesBlur','cfg-tradesAccent':'tradesAccent',
-            'cfg-profileBannerEnabled':'profileBannerEnabled','cfg-profileBannerImage':'profileBannerImage','cfg-profileBannerBlur':'profileBannerBlur','cfg-profileBannerTint':'profileBannerTint','cfg-profileBannerTintOpacity':'profileBannerTintOpacity','cfg-profileBannerBrightness':'profileBannerBrightness','cfg-hideHexBadge':'hideHexBadge','cfg-profileBannerTintGradient':'profileBannerTintGradient','cfg-profileBannerTint2':'profileBannerTint2','cfg-profileBannerTintAngle':'profileBannerTintAngle','cfg-tradesGlassCards':'tradesGlassCards','cfg-tradesMetric':'tradesMetric','cfg-tradesPillOpacity':'tradesPillOpacity',
+            'cfg-profileBannerEnabled':'profileBannerEnabled','cfg-profileBannerImage':'profileBannerImage','cfg-profileBannerBlur':'profileBannerBlur','cfg-profileBannerTint':'profileBannerTint','cfg-profileBannerTintOpacity':'profileBannerTintOpacity','cfg-profileBannerBrightness':'profileBannerBrightness','cfg-hideHexBadge':'hideHexBadge','cfg-profileBannerTintGradient':'profileBannerTintGradient','cfg-profileBannerTint2':'profileBannerTint2','cfg-profileBannerTintAngle':'profileBannerTintAngle','cfg-tradesGlassCards':'tradesGlassCards','cfg-tradesMetric':'tradesMetric','cfg-tradesPillOpacity':'tradesPillOpacity','cfg-robuxIcon':'robuxIcon','cfg-tradesGlassify':'tradesGlassify','cfg-sendTradeGlassify':'sendTradeGlassify','cfg-tradesDropdownGlass':'tradesDropdownGlass',
             'cfg-watermarkEnabled':'watermarkEnabled','cfg-watermarkPosition':'watermarkPosition',
             'cfg-watermarkAccentColor':'watermarkAccentColor','cfg-watermarkScale':'watermarkScale','cfg-watermarkOpacity':'watermarkOpacity',
             'cfg-watermarkShowTime':'watermarkShowTime','cfg-watermarkShowPing':'watermarkShowPing','cfg-watermarkShowUser':'watermarkShowUser',
@@ -3432,7 +5136,7 @@ else window.addEventListener('DOMContentLoaded', init);
         const reapplyAll = () => {
             applyThemeToDom(); applyMisc(); applyCardStyle(); updateWatermark();
             applySidebarNavStyle(); applySidebarDirect(); applyPageFrameTransparency(); updateModeVisibility();
-            applyEffects(); applyAvatarGlass(); applyAvatarBg();
+            applyEffects(); applyAvatarGlass(); applyAvatarEditorGlass(); applyAvatarBg();
             if (isTradePage()) applyTradeStyle();
             applyTradesCustom();
             applyProfileBannerForPage();
@@ -3458,10 +5162,73 @@ else window.addEventListener('DOMContentLoaded', init);
             if (id === 'cfg-miscGuiFont')  applyGuiFont(el.value);
         });
 
+        // \u2500\u2500 Per-page "Glassify page" master switches \u2500\u2500
+        // One switch per page badge that flips EVERY glassify / glass-surface
+        // key of that page at once. Masters are not cfg keys themselves:
+        // their state is derived from the group (checked = all on,
+        // indeterminate = mixed), and the granular checkboxes stay in sync
+        // in both directions.
+        const GLASSIFY_PAGE_GROUPS = {
+            home:      { label: '/home',      keys: ['miscHomeFramesTransparent', 'miscModernGameCards', 'miscFriendsFrameTransparent'] },
+            friends:   { label: '/friends',   keys: ['miscFriendsTabsGlassify'] },
+            games:     { label: '/games',     keys: ['miscGamesGlassify', 'miscGamesHeroBackdrop', 'miscModernGameCards'] },
+            trades:    { label: '/trades',    keys: ['tradesGlassify', 'sendTradeGlassify', 'tradesDropdownGlass', 'tradesGlassCards'] },
+            catalog:   { label: '/catalog',   keys: ['miscCatalogFrameTransparent', 'miscCatalogItemCards', 'miscCatalogDropdownGlass', 'miscItemPageGlass'] },
+            groups:    { label: '/groups',    keys: ['miscGroupsGlassify'] },
+            develop:   { label: '/develop',   keys: ['miscDevelopGlassify'] },
+            messages:  { label: '/messages',  keys: ['miscMessagesGlassify'] },
+            inventory: { label: '/inventory', keys: ['miscInventoryGlassify'] },
+            profile:   { label: '/profile',   keys: ['miscProfileFrameTransparent', 'miscProfileTabsGlassify'] },
+            avatar:    { label: '/my/avatar', keys: ['miscAvatarFrameTransparent', 'miscAvatarBlurDropdown', 'avatarGlassify', 'avatarEditorGlass'] },
+        };
+        const syncGlassMasters = () => {
+            for (const [pid, group] of Object.entries(GLASSIFY_PAGE_GROUPS)) {
+                const box = document.getElementById('pks-glassify-' + pid); if (!box) continue;
+                const on = group.keys.filter(k => !!cfg[k]).length;
+                box.checked = on === group.keys.length;
+                box.indeterminate = on > 0 && on < group.keys.length;
+            }
+        };
+        syncGlassMasters();
+        for (const [pid, group] of Object.entries(GLASSIFY_PAGE_GROUPS)) {
+            document.getElementById('pks-glassify-' + pid)?.addEventListener('change', (e) => {
+                const on = e.target.checked;
+                e.target.indeterminate = false;
+                for (const k of group.keys) {
+                    cfg[k] = on;
+                    const box = document.getElementById('cfg-' + k);
+                    if (box && box.type === 'checkbox') box.checked = on;
+                }
+                saveCfg(cfg); reapplyAll(); syncGlassMasters();
+                notify((on ? 'Glassified ' : 'Un-glassified ') + group.label, 'info');
+            });
+        }
+        // Keep master states honest when any granular toggle changes. This
+        // listener is registered AFTER the generic fieldMap handler above,
+        // so cfg is already updated when it runs.
+        panel.addEventListener('change', (e) => {
+            if (e.target?.id && fieldMap[e.target.id]) syncGlassMasters();
+        });
+
         const bgUrlInput = document.getElementById('cfg-miscBgUrl');
         if (bgUrlInput) {
             bgUrlInput.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter') { cfg.miscBgUrl = bgUrlInput.value; saveCfg(cfg); applyMisc(); notify('Background image applied', 'info'); }
+            });
+        }
+
+        const avBgInput = document.getElementById('cfg-avatarBgImage');
+        if (avBgInput) {
+            avBgInput.value = cfg.avatarBgImage || '';
+            avBgInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    cfg.avatarBgImage = avBgInput.value.trim();
+                    cfg.avatarBgEnabled = !!cfg.avatarBgImage;
+                    const cb = document.getElementById('cfg-avatarBgEnabled'); if (cb) cb.checked = cfg.avatarBgEnabled;
+                    saveCfg(cfg); applyAvatarBg();
+                    const avCard = document.getElementById('pks-avatar-tools'); if (avCard) { avCard.remove(); injectAvatarBgStrip(); }
+                    notify(cfg.avatarBgEnabled ? 'Avatar background applied' : 'Avatar background cleared', 'info');
+                }
             });
         }
 
@@ -3548,7 +5315,8 @@ else window.addEventListener('DOMContentLoaded', init);
         });
         renderLarpFakeList();
 
-        const TABS = ['hex','misc','settings'];
+        const TABS = ['hex','trade','misc','settings'];
+        try { buildMassTradeUI(); } catch (e) { console.warn('[Interium] Mass Trader UI failed to build', e); }
         panel.querySelectorAll('.pks-tab-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 panel.querySelectorAll('.pks-tab-btn').forEach(b => b.classList.remove('active'));
@@ -3683,7 +5451,7 @@ else window.addEventListener('DOMContentLoaded', init);
         applyGuiFont(cfg.miscGuiFont || 'Share Tech Mono');
         if (isTradePage()) applyTradeStyle();
         fetchProfile().then(trySetAvatar);
-        setInterval(() => fetchProfile().then(trySetAvatar), 30000);
+        setInterval(() => { if (!document.hidden) fetchProfile().then(trySetAvatar); }, 30000); /* PERF: no profile polling from background tabs */
         panelLog('Panel ready. Configure intervals and press START.', 'info');
     };
 
@@ -3693,27 +5461,90 @@ else window.addEventListener('DOMContentLoaded', init);
     const isCatalogItemPage = () => /\/catalog\/\d+/i.test(location.pathname);
     const currentCatalogAssetId = () => { const m = location.pathname.match(/\/catalog\/(\d+)/i); return m ? m[1] : null; };
 
-    const AVATAR_BG_PRESETS = [
-    ];
+    const AVATAR_BG_BASE = 'https://cdn.jsdelivr.net/gh/warmpain9/Interium@main/assets/avatar-bgs/';
+    const AVATAR_BG_PRESET_CANDIDATES = (() => {
+        const exts = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
+        const out = [];
+        for (let i = 1; i <= 32; i++) for (const e of exts) out.push(`${AVATAR_BG_BASE}${i}.${e}`);
+        return out;
+    })();
 
     const applyAvatarBg = () => {
         let el = document.getElementById('pks-avatar-bg-style');
         if (!el) { el = document.createElement('style'); el.id = 'pks-avatar-bg-style'; document.head.appendChild(el); }
-        if (!cfg.avatarBgEnabled || !cfg.avatarBgImage?.trim()) { el.textContent = ''; return; }
-        const url  = cfg.avatarBgImage.trim().replace(/'/g, "\\'");
+        const vid = document.getElementById('pks-avatar-bg-video');
+        const raw = (cfg.avatarBgImage || '').trim().replace(/\.gifv(\?.*)?$/i, '.mp4'); // imgur .gifv -> direct .mp4
+        if (!cfg.avatarBgEnabled || !raw) { el.textContent = ''; vid?.remove(); applyAvatarControls(); return; }
+        const url  = raw.replace(/'/g, "\\'");
         const blur = Math.max(0, cfg.avatarBgBlur ?? 0);
-        el.textContent = `
-            [class*="avatarThumbContainer"]{position:relative!important;overflow:hidden!important;}
-            [class*="avatarThumbContainer"]::before{content:'';position:absolute;inset:0;background-image:url('${url}');background-size:cover;background-position:center;background-repeat:no-repeat;${blur ? `filter:blur(${blur}px);transform:scale(1.12);` : ''}z-index:0;pointer-events:none;}
-            [class*="avatarThumbContainer"] > *{position:relative;z-index:1;}
+        const isVideo = /\.(mp4|webm|mov)(\?.*)?$/i.test(raw);
+        if (isVideo) {
+            /* Do NOT touch the frame's children: forcing position:relative on
+               them yanked the site's absolutely-positioned 3D button into the
+               flow (it drifted to the top-left). Instead the bg sits on a
+               NEGATIVE z-index layer; isolation:isolate makes the frame a
+               stacking context so z-index:-1 stays above the frame's own
+               background but below ALL of its content. */
+            el.textContent = `
+            [class*="avatarThumbContainer"]{position:relative!important;overflow:hidden!important;isolation:isolate!important;}
+            #pks-avatar-bg-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:-1;pointer-events:none;${blur ? `filter:blur(${blur}px);transform:scale(1.12);` : ''}}
         `;
+            const frame = document.querySelector('[class*="avatarThumbContainer"]');
+            if (frame) {
+                let v = vid;
+                if (!v) {
+                    v = document.createElement('video');
+                    v.id = 'pks-avatar-bg-video';
+                    v.autoplay = true; v.loop = true; v.muted = true; v.playsInline = true;
+                }
+                // Inline styles: the video must never participate in layout,
+                // even if the injected stylesheet loses a specificity fight.
+                v.style.cssText = `position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:-1;pointer-events:none;${blur ? `filter:blur(${blur}px);transform:scale(1.12);` : ''}`;
+                if (v.getAttribute('src') !== raw) v.setAttribute('src', raw);
+                // append as LAST child (not prepend): the site styles the avatar
+                // renderer via structural selectors like :first-child, and a
+                // prepended element broke the preview layout.
+                if (v.parentElement !== frame) frame.appendChild(v);
+                v.muted = true;
+                v.play?.().catch(() => {});
+            }
+        } else {
+            vid?.remove();
+            /* Same as the video branch: children stay UNTOUCHED (the old
+               "> *{position:relative;z-index:1}" lift hijacked the site's
+               absolutely-positioned 3D button into the flow -> it drifted to
+               the top-left whenever a bg was applied). The ::before bg lives
+               on z-index:-1 under an isolated stacking context instead. */
+            el.textContent = `
+            [class*="avatarThumbContainer"]{position:relative!important;overflow:hidden!important;isolation:isolate!important;}
+            [class*="avatarThumbContainer"]::before{content:'';position:absolute;inset:0;background-image:url('${url}');background-size:cover;background-position:center;background-repeat:no-repeat;${blur ? `filter:blur(${blur}px);transform:scale(1.12);` : ''}z-index:-1;pointer-events:none;}
+        `;
+        }
+        // Keep the frame's position/isolation anchor fresh right after a
+        // background is applied (no pill pinning happens anymore).
+        applyAvatarControls();
     };
 
     const applyAvatarGlass = () => {
         let el = document.getElementById('pks-avatar-glass-style');
         if (!el) { el = document.createElement('style'); el.id = 'pks-avatar-glass-style'; document.head.appendChild(el); }
         el.textContent = cfg.avatarGlassify
-            ? `[class*="avatarCardContainer"]{background:rgba(255,255,255,0.05)!important;backdrop-filter:blur(14px) saturate(160%)!important;-webkit-backdrop-filter:blur(14px) saturate(160%)!important;border:1px solid rgba(255,255,255,0.14)!important;border-radius:12px!important;box-shadow:0 8px 28px rgba(0,0,0,0.25)!important;overflow:hidden!important;}[class*="avatarCardImage"]{background:transparent!important;}`
+            ? `[class*="avatarCardContainer"]{${GLASS_CSS}border-radius:12px!important;overflow:hidden!important;}[class*="avatarCardImage"]{background:transparent!important;}`
+            : '';
+    };
+
+    // Standalone "Glassify avatar editor" (Hexium game-page glass recipe,
+    // applied ONLY to the avatar editor block on /My/Avatar).
+    const applyAvatarEditorGlass = () => {
+        let el = document.getElementById('pks-avatar-editor-glass-style');
+        if (!el) { el = document.createElement('style'); el.id = 'pks-avatar-editor-glass-style'; document.head.appendChild(el); }
+        el.textContent = (cfg.avatarEditorGlass && isAvatarPage())
+            ? `[class*="contentContainer"],[class*="subSectionContainer"]{${GLASS_CSS}border-radius:16px!important;padding:16px!important;}
+[class*="buttonCol-"],[class*="submenuContainer-"][class~="section-content"]{${GLASS_CSS}}
+[class*="buttonCol-"]{border-radius:12px 12px 0 0!important;border-bottom:0!important;}
+[class*="submenuContainer-"][class~="section-content"]{border-radius:0 0 12px 12px!important;border-top:0!important;margin-top:0!important;}
+[class*="buttonCol-"] [class*="vTab-"],[class*="buttonCol-"] [class*="vTabLabel-"],[class*="buttonCol-"] [class*="vTabUnselected-"]{background:transparent!important;background-color:transparent!important;}
+p[class*="vTabUnselected-"]{box-shadow:none!important;}`
             : '';
     };
 
@@ -3722,21 +5553,99 @@ else window.addEventListener('DOMContentLoaded', init);
         if (!document.getElementById('pks-avatar-controls-style')) {
             const st = document.createElement('style');
             st.id = 'pks-avatar-controls-style';
-            st.textContent = `[class*="thumbnail3DButtonContainer"]{display:none!important;}`;
+            // Hexium look: hide the site 3D toggle button; give the avatar
+            // preview frame an always-on glass outline that survives re-renders.
+            st.textContent = '';
             document.head.appendChild(st);
         }
-        const frame = document.querySelector('[class*="avatarThumbContainer"]');
-        if (!frame) return;
+        // Pinning the site's 2D/3D pill into the preview frame (Hexium look)
+        // kept breaking on React re-renders when a custom image/gif was
+        // applied (the pill drifted up-left). Per user request the pill now
+        // stays exactly where the site renders it: no re-parenting and no
+        // inline pinning at all. The frame only keeps position:relative as
+        // the anchor for the background image/video overlay.
+        const frames = [...document.querySelectorAll('[class*="avatarThumbContainer"]')];
+        if (!frames.length) return;
+        const frame = frames.find(f => f.getClientRects().length > 0 && f.offsetWidth > 80) || frames[0];
         frame.style.setProperty('position', 'relative', 'important');
-        const pill = [...document.querySelectorAll('[class*="pillToggle"]')].find(p => p.querySelector('input[name="avatarType"]'));
-        if (pill && pill.parentElement !== frame) {
-            pill.style.setProperty('position', 'absolute', 'important');
-            pill.style.setProperty('top', '8px', 'important');
-            pill.style.setProperty('right', '8px', 'important');
-            pill.style.setProperty('z-index', '30', 'important');
-            pill.style.setProperty('margin', '0', 'important');
-            frame.appendChild(pill);
-        }
+    };
+
+    // Hexium-style avatar Background card: glass panel under the preview
+    // with a 5-column grid of preset tiles + custom URL input.
+    const injectAvatarBgStrip = () => {
+        if (!isAvatarPage()) return;
+        if (document.getElementById('pks-avatar-tools')) return;
+        const anchor = document.querySelector('[class*="avatarThumbContainer"]');
+        if (!anchor || !anchor.parentElement) return;
+        const card = document.createElement('div');
+        card.id = 'pks-avatar-tools';
+        card.style.cssText = `margin-top:14px;padding:14px;border-radius:14px;background:${GLASS_BG};backdrop-filter:${GLASS_FILTER};-webkit-backdrop-filter:${GLASS_FILTER};border:1px solid ${GLASS_BORDER_COLOR};box-shadow:${GLASS_SHADOW};font-family:var(--pks-font),'Share Tech Mono',monospace;color:#d0d0e0;position:relative;z-index:2;`;
+        card.innerHTML = `
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                <span style="font-size:12px;font-weight:700;letter-spacing:0.12em;color:#fff;text-transform:uppercase;">Background</span>
+            </div>
+            <div id="pks-av-bg-hint" style="font-size:10px;color:#777;margin-bottom:10px;">Choose a background below.</div>
+            <div id="pks-av-bg-grid" style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:8px;max-height:240px;overflow-y:auto;"></div>
+            <input type="text" id="pks-av-bgimg" placeholder="Custom URL: image / gif / mp4 (press Enter)" style="width:100%;box-sizing:border-box;background:#16161f;border:1px solid #2a2a3a;border-radius:7px;color:#e6e6f2;font-size:12px;padding:7px 9px;outline:none;font-family:inherit;">
+        `;
+        anchor.parentElement.insertBefore(card, anchor.nextSibling);
+
+        const grid = card.querySelector('#pks-av-bg-grid');
+        const hint = card.querySelector('#pks-av-bg-hint');
+        const loaded = [];
+        const presetNum = (u) => parseInt((u.match(/(\d+)\.\w+$/) || [])[1]) || 0;
+        const renderBgGrid = () => {
+            grid.innerHTML = '';
+            const off = !cfg.avatarBgEnabled || !cfg.avatarBgImage;
+            const none = document.createElement('div');
+            none.title = 'No background';
+            none.textContent = 'OFF';
+            none.style.cssText = `aspect-ratio:1;border-radius:8px;background:#16161f;border:2px solid ${off ? '#fff' : '#2a2a3a'};cursor:pointer;display:flex;align-items:center;justify-content:center;color:#777;font-size:9px;font-weight:700;`;
+            none.addEventListener('click', () => {
+                cfg.avatarBgEnabled = false; saveCfg(cfg); applyAvatarBg(); renderBgGrid();
+                const cb = document.getElementById('cfg-avatarBgEnabled'); if (cb) cb.checked = false;
+            });
+            grid.appendChild(none);
+            loaded.forEach(url => {
+                const sel = cfg.avatarBgEnabled && cfg.avatarBgImage === url;
+                const tile = document.createElement('div');
+                tile.style.cssText = `aspect-ratio:1;border-radius:8px;background-image:url('${url}');background-size:cover;background-position:center;border:2px solid ${sel ? '#fff' : 'transparent'};cursor:pointer;box-shadow:${sel ? '0 0 0 1px #fff,0 0 10px #ffffff66' : '0 1px 4px rgba(0,0,0,0.4)'};transition:transform 0.12s;`;
+                tile.addEventListener('mouseenter', () => { tile.style.transform = 'scale(1.07)'; });
+                tile.addEventListener('mouseleave', () => { tile.style.transform = 'scale(1)'; });
+                tile.addEventListener('click', () => {
+                    cfg.avatarBgImage = url; cfg.avatarBgEnabled = true; saveCfg(cfg);
+                    applyAvatarBg(); renderBgGrid();
+                    const cb = document.getElementById('cfg-avatarBgEnabled'); if (cb) cb.checked = true;
+                    const inp = document.getElementById('cfg-avatarBgImage'); if (inp) inp.value = url;
+                });
+                grid.appendChild(tile);
+            });
+        };
+        renderBgGrid();
+
+        // Probe the repo folder; only files that actually exist become tiles.
+        let pending = AVATAR_BG_PRESET_CANDIDATES.length;
+        const done = () => {
+            console.info(`[Interium] avatar bg presets: ${loaded.length} found at ${AVATAR_BG_BASE}`);
+            if (!loaded.length) { hint.textContent = 'No preset images found - is assets/avatar-bgs/ pushed to GitHub?'; hint.style.color = '#c96'; }
+        };
+        AVATAR_BG_PRESET_CANDIDATES.forEach(url => {
+            const probe = new Image();
+            probe.onload = () => { loaded.push(url); loaded.sort((a, b) => presetNum(a) - presetNum(b)); renderBgGrid(); if (--pending === 0) done(); };
+            probe.onerror = () => { if (--pending === 0) done(); };
+            probe.src = url;
+        });
+
+        const bgImg = card.querySelector('#pks-av-bgimg');
+        if (cfg.avatarBgImage && !AVATAR_BG_PRESET_CANDIDATES.includes(cfg.avatarBgImage)) bgImg.value = cfg.avatarBgImage;
+        bgImg.addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter') return;
+            cfg.avatarBgImage = bgImg.value.trim();
+            cfg.avatarBgEnabled = !!cfg.avatarBgImage;
+            saveCfg(cfg); applyAvatarBg(); renderBgGrid();
+            const cb = document.getElementById('cfg-avatarBgEnabled'); if (cb) cb.checked = cfg.avatarBgEnabled;
+            notify(cfg.avatarBgEnabled ? 'Avatar background applied' : 'Avatar background cleared', 'info');
+        });
     };
 
     const isFriendsPage = () => /\/friends/i.test(location.pathname);
@@ -3834,7 +5743,13 @@ else window.addEventListener('DOMContentLoaded', init);
             const t = getTheme();
             const heads = [...document.querySelectorAll('h2')];
             const reqH2 = heads.find(h => /FRIEND REQUESTS/i.test(h.textContent || ''));
-            if (reqH2 && !reqH2.querySelector('#pks-bulk-ignore'))
+            const activeTabName = (document.querySelector('[class*="entryActive"]')?.textContent || '').trim().toLowerCase();
+            const onRequestsTab = activeTabName ? activeTabName === 'friend requests' : !!reqH2;
+            // The site reuses the same <h2> element across tab switches, so the
+            // button used to survive into Friends / Followers / Followings.
+            const oldBulk = document.getElementById('pks-bulk-ignore');
+            if (oldBulk && (!onRequestsTab || !reqH2)) oldBulk.remove();
+            if (onRequestsTab && reqH2 && !reqH2.querySelector('#pks-bulk-ignore'))
                 reqH2.appendChild(mkBulkBtn('pks-bulk-ignore', 'Bulk Ignore', t, (b) => doBulk(b, 'Bulk Ignore', collectRequestIds, declineFriend, 'requests')));
             const activeTab = (document.querySelector('[class*="entryActive"]')?.textContent || '').trim().toLowerCase();
             if (activeTab === 'friends') addFriendRemoveButtons();
@@ -3863,26 +5778,39 @@ else window.addEventListener('DOMContentLoaded', init);
     const monitorDOM = () => {
         if (state.dom.observer) state.dom.observer.disconnect();
         let debounce = null;
+        const runDomPass = () => {
+            if (cfg.sidebarEnabled) applySidebarDirect();
+            if (cfg.miscFriendsFrameTransparent) applyFriendsTransparencyDirect();
+            applyRequestCardMergeDirect();
+            if (cfg.miscProfileFrameTransparent) applyWearingGlassDirect();
+            injectSidebarLinks();
+            applyAgeOverride();
+            ensureTradesOverlay();
+            removeNagAlerts();
+            injectProfileTradeButton();
+            applyAvatarControls(); injectAvatarBgStrip(); applyAvatarGlass(); applyAvatarEditorGlass(); if (cfg.avatarBgEnabled) applyAvatarBg();
+            applyBadges();
+            applyProfileBannerForPage();
+        };
+        state.dom.runPass = runDomPass;
         state.dom.observer = new MutationObserver(() => {
             if (debounce) return;
-            debounce = setTimeout(() => {
-                debounce = null;
-                if (cfg.sidebarEnabled) applySidebarDirect();
-                injectSidebarLinks();
-                applyAgeOverride();
-                ensureTradesOverlay();
-                removeNagAlerts();
-                injectProfileTradeButton();
-                applyAvatarControls();
-                applyBadges();
-                applyProfileBannerForPage();
-            }, 60);
+            /* PERF: the restyle pass is visual-only work -- skip it entirely
+               in background tabs and run ONE catch-up pass on refocus. */
+            if (document.hidden) { state.dom.hiddenSkip = true; return; }
+            debounce = setTimeout(() => { debounce = null; runDomPass(); }, 60);
         });
         state.dom.observer.observe(document.body, { childList:true, subtree:true });
+        if (!state.dom.visWired) {
+            state.dom.visWired = true;
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden && state.dom.hiddenSkip) { state.dom.hiddenSkip = false; state.dom.runPass?.(); }
+            });
+        }
         applyAgeOverride();
         removeNagAlerts();
         injectProfileTradeButton();
-        applyAvatarControls();
+        applyAvatarControls(); injectAvatarBgStrip(); applyAvatarGlass(); applyAvatarEditorGlass(); if (cfg.avatarBgEnabled) applyAvatarBg();
         applyBadges();
         applyProfileBannerForPage();
     };
@@ -3893,6 +5821,7 @@ else window.addEventListener('DOMContentLoaded', init);
         const onNav = () => {
             const url = location.href; if (url === state.session.lastUrl) return;
             state.session.lastUrl = url;
+            applyMisc(); applyAvatarEditorGlass();
             _tradeWindowInjected = false;
             _tradesPageInjected = false;
             _tradesInjecting = false;
@@ -3907,6 +5836,8 @@ else window.addEventListener('DOMContentLoaded', init);
             if (/\/My\/Trades\.aspx/i.test(location.pathname)) ensureTradesOverlay();
             setTimeout(() => {
                 applyPageFrameTransparency();
+                applyRobuxJssIconFix(); /* JSS sheets (group robux glyphs) mount after nav */
+                applyCardStyle(); /* page-gated blocks (item page glass) must rebuild on SPA nav */
                 applySidebarNavStyle();
                 applySidebarDirect();
                 if (isTradePage()) applyTradeStyle();
@@ -3931,7 +5862,7 @@ else window.addEventListener('DOMContentLoaded', init);
             state.authInfo = authInfo || {};
             buildPanel(authInfo);
             try {
-                if (GM_getValue(PANEL_HIDDEN_KEY, false)) {
+                if (_lsGet(PANEL_HIDDEN_KEY, false)) {
                     const p = document.getElementById('pks-panel');
                     if (p) p.style.display = 'none';
                 }
@@ -3953,7 +5884,7 @@ else window.addEventListener('DOMContentLoaded', init);
 
 
         console.log('%cINTERIUM UI', 'color:#a855f7;font-weight:900;font-size:14px;letter-spacing:2px;');
-        console.log('[Interium] UI module loaded — trading features live in the trading module.');
+        console.log('[Interium] UI runtime loaded — trading features live in the trading runtime.');
 
         monitorNavigation();
     };
