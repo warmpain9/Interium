@@ -158,6 +158,11 @@ return items;
 /* the page itself uses; this module only reads and annotates, never clicks or sends.      */
 const _pgMt = { listType:'', listAt:0, listRows:[], details:new Map(), inflight:'', lastSig:'' };
 const PG_KOROMONS_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1094 1466.2" width="13" height="17" style="flex:none;display:inline-block;vertical-align:-2px;"><path fill="#0084dd" d="M1094 521.6 0 0v469.5l141-67.4 250 119.2L0 707.8v369.7l815.6 388.7L315 893l779-371.4z"/></svg>';
+const PG_EXT_ARROW = (c) => '<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="'+c+'" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 16 16 8"/><path d="M9 8h7v7"/></svg>';
+const PG_EXT_ICON = (href, tip, color, cls) => '<a href="'+href+'" target="_blank" rel="noopener noreferrer" title="'+tip+'" class="pg-ext-ic '+cls+'" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;margin-left:5px;border-radius:4px;border:1px solid '+color+';color:'+color+' !important;text-decoration:none;flex:none;vertical-align:middle;line-height:0;cursor:pointer;">'+PG_EXT_ARROW(color)+'</a>';
+const PG_KORO_ITEM_URL = (aid) => 'https://www.koromons.net/item?id='+encodeURIComponent(String(aid));
+const PG_CATALOG_URL = (aid) => '/catalog/'+encodeURIComponent(String(aid))+'/--';
+try{ if(!document.getElementById('pg-ext-ic-guard')){ const _g=document.createElement('meta'); _g.id='pg-ext-ic-guard'; (document.head||document.documentElement).appendChild(_g); document.addEventListener('click',(e)=>{ try{ if(e.target&&e.target.closest&&e.target.closest('.pg-ext-ic')) e.stopPropagation(); }catch(_e){} }, true); } }catch(_e){}
 const pgMtClear = () => {
 	document.querySelectorAll('.pg-mt-rap,.pg-mt-total,.pg-mt-total2,.pg-mt-verdict,.pg-mt-tag').forEach(n=>n.remove());
 	document.querySelectorAll('[class*="totalRow-"] > span').forEach(sp=>{ if(/^\s*total rap:?\s*$/i.test(sp.textContent||'')) sp.textContent='Total Value:'; });
@@ -223,17 +228,16 @@ const pgMtAnnotateSection = (sec, offer) => {
 		rapTotal+=rap; if(val>0){ valTotal+=val; valKnown++; rapOfValued+=rap; }
 		if(aid!=null && card.getAttribute('data-pg-aid')!==String(aid)){
 			card.setAttribute('data-pg-aid',String(aid));
-			card.style.cursor='pointer';
-			card.addEventListener('click',(e)=>{
-				if(e.target.closest('a,button,.pg-mt-tag,.pg-mt-rap')) return;
-				window.open('/catalog/'+String(aid)+'/--','_blank');
-			});
+			const rapHost=card.querySelector('[class*="itemValue-"]')||nameEl;
+			if(rapHost && rapHost.parentNode && !rapHost.parentNode.querySelector('.pg-ext-cat')){
+				rapHost.insertAdjacentHTML('afterend', PG_EXT_ICON(PG_CATALOG_URL(aid),'Open on Pekora catalog','#3fb950','pg-ext-cat'));
+			}
 		}
 		let line=card.querySelector('.pg-mt-rap');
 		if(val>0){
 			if(!line){ line=document.createElement('div'); line.className='pg-mt-rap'; card.appendChild(line); }
 			line.style.cssText='margin-top:3px;font-size:14px;line-height:1.3;font-weight:700;display:inline-flex;align-items:center;gap:5px;color:#0084dd !important;';
-			line.innerHTML=PG_KOROMONS_SVG+'<span style="color:#0084dd !important;">'+val.toLocaleString()+'</span>';
+			line.innerHTML=PG_KOROMONS_SVG+'<span style="color:#0084dd !important;">'+val.toLocaleString()+'</span>'+PG_EXT_ICON(PG_KORO_ITEM_URL(aid),'View on Koromon’s','#0084dd','pg-ext-koro');
 		} else if(line){ line.remove(); }
 		const tags=aid!=null?koromonsTagsCache.get(String(aid)):null;
 		const thumbWrap=card.querySelector('[class*="thumbWrap-"]')||card.querySelector('[class*="thumb-"]')||card;
@@ -343,6 +347,14 @@ const applyModernTradeStats = () => {
 					const dv=rv-gv, pv=gv>0?Math.round(dv/gv*100):0;
 					htmlStats+=mkStat(dv,pv,'Value');
 				}
+				if(give.count>0&&recv.count>0){
+					// Value that also counts unvalued items at their RAP (Value for valued items + RAP
+					// for unvalued ones), mirroring the per-side "(+ unvalued)" total. After the pure Value stat.
+					const gm=give.valTotal+(give.rapTotal-give.rapOfValued)+give.robux;
+					const rm=recv.valTotal+(recv.rapTotal-recv.rapOfValued)+Math.floor(recv.robux*0.7);
+					const dm=rm-gm, pm=gm>0?Math.round(dm/gm*100):0;
+					htmlStats+=mkStat(dm,pm,'Value (+ unvalued)');
+				}
 				verdict.innerHTML=htmlStats;
 			} else if(verdict){ verdict.remove(); }
 			_pgMt.lastSig=sig;
@@ -391,9 +403,12 @@ const pgTwDecorate = (thumbEl, anchorEl, it, mode, nameEl) => {
 			}
 			if(line.getAttribute('data-pg-val')!==valTxt){
 				line.setAttribute('data-pg-val', valTxt);
-				line.innerHTML=PG_KOROMONS_SVG+'<span style="color:#0084dd !important;">'+valTxt+'</span>';
+				line.innerHTML=PG_KOROMONS_SVG+'<span style="color:#0084dd !important;">'+valTxt+'</span>'+PG_EXT_ICON(PG_KORO_ITEM_URL(aid),'View on Koromon’s','#0084dd','pg-ext-koro');
 			}
 		} else if(line){ line.remove(); }
+	}
+	if(aid!=null && anchorEl && anchorEl.parentNode && !anchorEl.parentNode.querySelector('.pg-ext-cat')){
+		anchorEl.insertAdjacentHTML('afterend', PG_EXT_ICON(PG_CATALOG_URL(aid),'Open on Pekora catalog','#3fb950','pg-ext-cat'));
 	}
 	return { aid, val };
 };
@@ -1439,6 +1454,9 @@ else window.addEventListener('DOMContentLoaded', init);
         return isProjectedStack(stack) ? '<div class="pk-projected-badge" title="Possible projected item"><svg width="16" height="16" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path d="M63.37 53.52C53.982 36.37 44.59 19.22 35.2 2.07a3.687 3.687 0 00-6.522 0C19.289 19.22 9.892 36.37.508 53.52c-1.453 2.649.399 6.083 3.258 6.083h56.35c1.584 0 2.648-.853 3.203-2.01.698-1.102.885-2.565.055-4.075" fill="#ffdd15"/><path d="M28.917 34.477l-.889-13.262c-.166-2.583-.246-4.439-.246-5.565 0-1.534.4-2.727 1.202-3.588.805-.856 1.863-1.286 3.175-1.286 1.583 0 2.646.551 3.178 1.646.537 1.102.809 2.684.809 4.751 0 1.215-.066 2.453-.198 3.708l-1.19 13.649c-.129 1.626-.404 2.872-.827 3.739-.426.871-1.128 1.301-2.109 1.301-.992 0-1.69-.419-2.072-1.257-.393-.841-.668-2.12-.833-3.836m3.072 18.217c-1.125 0-2.106-.362-2.947-1.093-.841-.728-1.26-1.748-1.26-3.058 0-1.143.4-2.12 1.202-2.921.805-.806 1.786-1.206 2.951-1.206s2.153.4 2.977 1.206c.815.801 1.234 1.778 1.234 2.921 0 1.29-.419 2.308-1.246 3.044a4.245 4.245 0 01-2.911 1.107" fill="#1f2e35"/></svg></div>' : '';
     }
 
+    const EXT_ARROW = (c) => `<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 16 16 8"/><path d="M9 8h7v7"/></svg>`;
+    const extIcon = (href, tip, color, cls) => `<a href="${href}" target="_blank" rel="noopener noreferrer" title="${tip}" class="pg-ext-ic ${cls}" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;margin-left:5px;border-radius:4px;border:1px solid ${color};color:${color}!important;text-decoration:none;flex:none;vertical-align:middle;line-height:0;cursor:pointer;">${EXT_ARROW(color)}</a>`;
+    try{ if(!document.getElementById('pg-ext-ic-guard')){ const _g=document.createElement('meta'); _g.id='pg-ext-ic-guard'; (document.head||document.documentElement).appendChild(_g); document.addEventListener('click',(e)=>{ try{ if(e.target&&e.target.closest&&e.target.closest('.pg-ext-ic')) e.stopPropagation(); }catch(_e){} }, true); } }catch(_e){}
     function cardHTML(stack, index) {
         const mine = state.mine.has(String(stack.uid));
         const d = demandInfo(stack.demand);
@@ -1454,8 +1472,8 @@ else window.addEventListener('DOMContentLoaded', init);
                 </a>
                 <div class="pk-name" title="${esc(stack.name)}">${esc(stack.name)}${state.stacked && stack.count > 1 ? ` <span class="pk-name-count">×${stack.count}</span>` : ''}</div>
                 ${demandHTML}
-                <div class="pk-line"><b>RAP:</b> ${fmt(stack.rapEach)}</div>
-                <div class="pk-line"><b>Value:</b> <span class="pk-value">${fmt(stack.valueEach)}</span></div>
+                <div class="pk-line"><b>RAP:</b> ${fmt(stack.rapEach)}${extIcon("/catalog/"+esc(stack.assetId)+"/--","Open on Pekora catalog","#3fb950","pg-ext-cat")}</div>
+                <div class="pk-line"><b>Value:</b> <span class="pk-value">${fmt(stack.valueEach)}</span>${stack.valueEach>0?extIcon("https://www.koromons.net/item?id="+esc(stack.assetId),"View on Koromon’s","#0084dd","pg-ext-koro"):""}</div>
                 ${state.stacked && stack.count > 1 ? `<div class="pk-line"><b>Total:</b> <span class="pk-total">${fmt(stack.valueTotal)}</span></div>` : ''}
                 <div class="pk-serial" style="color:${serialStyle}!important">${esc(serialText(stack))}</div>
                 <div class="pk-card-actions">

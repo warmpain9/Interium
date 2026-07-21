@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Interium Loader
 // @namespace    https://github.com/warmpain9/Interium
-// @version      2.65.0
+// @version      2.67.0
 // @description  CSP-safe loader: Tampermonkey attaches the Interium trading + UI runtimes from GitHub (via GitHub raw) using @require.
 // @author       Interium contributors
 // @license      MIT
@@ -11,7 +11,7 @@
 // @noframes
 // @grant        none
 // @require      https://raw.githubusercontent.com/warmpain9/Interium/main/src/core/core.js
-// @require      https://raw.githubusercontent.com/warmpain9/Interium/main/src/trading/interium-trading-18.js
+// @require      https://raw.githubusercontent.com/warmpain9/Interium/main/src/trading/interium-trading-20.js
 // @require      https://raw.githubusercontent.com/warmpain9/Interium/main/src/ui/interium-ui-46.js
 // @updateURL    https://raw.githubusercontent.com/warmpain9/Interium/main/loader/interium-loader.user.js
 // @downloadURL  https://raw.githubusercontent.com/warmpain9/Interium/main/loader/interium-loader.user.js
@@ -39,4 +39,4 @@
  * Tampermonkey auto-updates the loader from @updateURL and re-downloads the
  * @require'd runtime along with it - users never reinstall anything.
  */
-console.info('[Interium] Loader v2.65.0 - core + trading + UI runtimes attached via @require (CSP-safe).');
+console.info('[Interium] Loader v2.67.0 - core + trading + UI runtimes attached via @require (CSP-safe).');
