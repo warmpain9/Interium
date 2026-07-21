@@ -18,7 +18,7 @@
 
     if (window.InteriumCore) return; // never double-init
 
-    const VERSION = '2.24.0';
+    const VERSION = '2.25.0';
 
     // ── Unified glass recipe (single source of truth) ──
     const GLASS_BG = 'rgba(255,255,255,0.05)';
@@ -52,6 +52,56 @@
     });
 
     console.info(`[Interium Core] v${VERSION} ready.`);
+
+    // ── Koromon's value cache warmer (v2.25.0) ──
+    // The /internal/collectibles page ships a strict connect-src CSP that blocks koromons.net,
+    // GitHub raw and every other external host, so its own value refresh can never fetch there
+    // and its localStorage caches stay empty -> collectibles falls back to RAP. This warmer runs
+    // on the OTHER pekora pages (where external fetch is allowed) and seeds the exact cache keys
+    // the collectibles suite reads, so real Koromon's values/demand render instead of RAP.
+    (function warmKoromonsCaches() {
+        try {
+            if (/^\/internal\/collectibles/i.test(location.pathname)) return; // its CSP blocks us anyway
+            const ITEMS_URL = 'https://www.koromons.net/api/items';
+            const FALLBACK_URL = 'https://raw.githubusercontent.com/unitedbygrief/koronevalues/refs/heads/main/valu.json';
+            const VALUES_CACHE_KEY = 'pk_v50_koromons_items_v3_cache';
+            const DEMAND_CACHE_KEY = 'pk_v50_koromons_demand_cache';
+            const MIN_REFETCH_MS = 1000 * 60 * 30; // at most one warm per ~30 min of browsing
+
+            try {
+                const raw = localStorage.getItem(VALUES_CACHE_KEY);
+                if (raw) {
+                    const c = JSON.parse(raw);
+                    if (c && Array.isArray(c.items) && c.items.length && (Date.now() - Number(c.t || 0)) < MIN_REFETCH_MS) return;
+                }
+            } catch (_) {}
+
+            const toItems = (d) => Array.isArray(d) ? d
+                : (d && Array.isArray(d.items)) ? d.items
+                : (d && Array.isArray(d.data)) ? d.data
+                : null;
+
+            const getJson = (url) => fetch(url, { headers: { accept: 'application/json' } })
+                .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status + ' for ' + url); return r.json(); });
+
+            const getItems = () => getJson(ITEMS_URL)
+                .then((d) => { const rows = toItems(d); if (rows && rows.length) return rows; throw new Error('koromons api/items empty'); })
+                .catch((e) => {
+                    console.warn('[Interium Core] warmer: api/items failed, trying valu.json fallback:', (e && e.message) || e);
+                    return getJson(FALLBACK_URL).then((d) => { const rows = toItems(d); if (rows && rows.length) return rows; throw new Error('valu.json fallback empty'); });
+                });
+
+            getItems().then((rows) => {
+                const payload = JSON.stringify({ t: Date.now(), items: rows });
+                try { localStorage.setItem(VALUES_CACHE_KEY, payload); } catch (_) {}
+                try { localStorage.setItem(DEMAND_CACHE_KEY, payload); } catch (_) {}
+                console.info('[Interium Core] warmer: seeded ' + rows.length + ' Koromon\u2019s items into collectibles caches.');
+            }).catch((e) => {
+                console.warn('[Interium Core] warmer: could not seed value cache (page CSP may block external fetch):', (e && e.message) || e);
+            });
+        } catch (_) {}
+    })();
+
 })();
 
 /* Interium exact Trading Interium 1.1.0 runtime.
@@ -1055,11 +1105,12 @@ else window.addEventListener('DOMContentLoaded', init);
 
     function hydrateCachedValues() {
         const cached = readJson(localStorage.getItem(VALUES_CACHE_KEY), null);
-        if (!cached || !Array.isArray(cached.items)) return false;
-        const age = Date.now() - Number(cached.t || 0);
-        if (age < 0 || age > VALUES_CACHE_MAX_AGE_MS) return false;
+        if (!cached || !Array.isArray(cached.items) || !cached.items.length) return false;
+        // Index whatever we have so real values render even if the cache is stale (last-good
+        // fallback); the freshness result only decides whether the caller still tries a live refresh.
         indexValueItems(cached.items);
-        return true;
+        const age = Date.now() - Number(cached.t || 0);
+        return age >= 0 && age <= VALUES_CACHE_MAX_AGE_MS;
     }
 
     async function refreshValues() {
@@ -1081,11 +1132,11 @@ else window.addEventListener('DOMContentLoaded', init);
 
     function hydrateCachedKoromonsDemand() {
         const cached = readJson(localStorage.getItem(KOROMONS_DEMAND_CACHE_KEY), null);
-        if (!cached || !Array.isArray(cached.items)) return false;
-        const age = Date.now() - Number(cached.t || 0);
-        if (age < 0 || age > KOROMONS_DEMAND_CACHE_MAX_AGE_MS) return false;
+        if (!cached || !Array.isArray(cached.items) || !cached.items.length) return false;
+        // Index stale demand data too (last-good fallback) so demand badges don't fall back to blank.
         indexKoromonsDemand(cached.items);
-        return true;
+        const age = Date.now() - Number(cached.t || 0);
+        return age >= 0 && age <= KOROMONS_DEMAND_CACHE_MAX_AGE_MS;
     }
 
     async function refreshKoromonsDemand() {
