@@ -52,6 +52,19 @@ return items;
 /* the page itself uses; this module only reads and annotates, never clicks or sends.      */
 const _pgMt = { listType:'', listAt:0, listRows:[], details:new Map(), inflight:'', lastSig:'' };
 const PG_KOROMONS_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1094 1466.2" width="13" height="17" style="flex:none;display:inline-block;vertical-align:-2px;"><path fill="#0084dd" d="M1094 521.6 0 0v469.5l141-67.4 250 119.2L0 707.8v369.7l815.6 388.7L315 893l779-371.4z"/></svg>';
+const PG_EXT_ARROW = (c) => '<svg xmlns="http://www.w3.org/2000/svg" height="15" width="15" viewBox="0 -960 960 960" fill="'+c+'" style="flex:none;"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h280v80H200v560h560v-280h80v280q0 33-23.5 56.5T760-120H200Zm188-212-56-56 372-372H560v-80h280v280h-80v-144L388-332Z"/></svg>';
+const PG_EXT_ICON = (href, tip, color, cls) => '<a href="'+href+'" target="_blank" rel="noopener noreferrer" title="'+tip+'" class="pg-ext-ic '+cls+'" style="display:inline-flex;align-items:center;margin-left:4px;opacity:.7;text-decoration:none;vertical-align:middle;line-height:0;cursor:pointer;">'+PG_EXT_ARROW(color)+'</a>';
+const PG_VBG_KEY='interium_verdict_bg_v1';
+const PG_VBG_MODES=['default','transparent','glassify'];
+const PG_PILL_BASE='height:30px;padding:5px 12px;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;border-radius:0;color:#fff;';
+const pgVbgGet=()=>{ try{ const m=localStorage.getItem(PG_VBG_KEY); return PG_VBG_MODES.indexOf(m)>=0?m:'default'; }catch(_){ return 'default'; } };
+const pgVbgCss=(m)=> m==='transparent' ? 'background-color:transparent;' : (m==='glassify' ? 'background-color:rgba(255,255,255,0.05);backdrop-filter:blur(14px) saturate(160%);-webkit-backdrop-filter:blur(14px) saturate(160%);' : 'background-color:rgb(45,47,48);');
+const pgVbgToggleHtml=(m)=>'<button class="pg-mt-bgtoggle" title="Pill background: '+m+' (click to cycle: default / transparent / glassify)" style="margin-left:auto;height:26px;padding:0 10px;border:1px solid rgba(255,255,255,0.18);background:transparent;color:#bbb;font-size:11px;font-weight:700;cursor:pointer;border-radius:0;display:inline-flex;align-items:center;gap:5px;white-space:nowrap;line-height:1;">▧ '+m+'</button>';
+const pgApplyVerdictBg=(box,m)=>{ box.querySelectorAll('.pg-mt-pill').forEach(el=>{ el.style.cssText=PG_PILL_BASE+pgVbgCss(m); }); const t=box.querySelector('.pg-mt-bgtoggle'); if(t){ t.textContent='▧ '+m; t.title='Pill background: '+m+' (click to cycle: default / transparent / glassify)'; } };
+const pgWireVerdictBg=(box)=>{ const t=box.querySelector('.pg-mt-bgtoggle'); if(!t||t._pgWired) return; t._pgWired=true; t.addEventListener('click',(e)=>{ e.preventDefault(); e.stopPropagation(); const cur=pgVbgGet(); const nm=PG_VBG_MODES[(PG_VBG_MODES.indexOf(cur)+1)%PG_VBG_MODES.length]; try{ localStorage.setItem(PG_VBG_KEY,nm); }catch(_){}; pgApplyVerdictBg(box,nm); }); };
+const PG_KORO_ITEM_URL = (aid) => 'https://www.koromons.net/item?id='+encodeURIComponent(String(aid));
+const PG_CATALOG_URL = (aid) => '/catalog/'+encodeURIComponent(String(aid))+'/--';
+try{ if(!document.getElementById('pg-ext-ic-guard')){ const _g=document.createElement('meta'); _g.id='pg-ext-ic-guard'; (document.head||document.documentElement).appendChild(_g); document.addEventListener('click',(e)=>{ try{ if(e.target&&e.target.closest&&e.target.closest('.pg-ext-ic')) e.stopPropagation(); }catch(_e){} }, true); } }catch(_e){}
 const pgMtClear = () => {
 	document.querySelectorAll('.pg-mt-rap,.pg-mt-total,.pg-mt-total2,.pg-mt-verdict,.pg-mt-tag').forEach(n=>n.remove());
 	document.querySelectorAll('[class*="totalRow-"] > span').forEach(sp=>{ if(/^\s*total rap:?\s*$/i.test(sp.textContent||'')) sp.textContent='Total Value:'; });
@@ -117,17 +130,16 @@ const pgMtAnnotateSection = (sec, offer) => {
 		rapTotal+=rap; if(val>0){ valTotal+=val; valKnown++; rapOfValued+=rap; }
 		if(aid!=null && card.getAttribute('data-pg-aid')!==String(aid)){
 			card.setAttribute('data-pg-aid',String(aid));
-			card.style.cursor='pointer';
-			card.addEventListener('click',(e)=>{
-				if(e.target.closest('a,button,.pg-mt-tag,.pg-mt-rap')) return;
-				window.open('/catalog/'+String(aid)+'/--','_blank');
-			});
+			const rapHost=card.querySelector('[class*="itemValue-"]')||nameEl;
+			if(rapHost && rapHost.parentNode && !rapHost.parentNode.querySelector('.pg-ext-cat')){
+				rapHost.insertAdjacentHTML('afterend', PG_EXT_ICON(PG_CATALOG_URL(aid),'Open on Pekora catalog','currentColor','pg-ext-cat'));
+			}
 		}
 		let line=card.querySelector('.pg-mt-rap');
 		if(val>0){
 			if(!line){ line=document.createElement('div'); line.className='pg-mt-rap'; card.appendChild(line); }
 			line.style.cssText='margin-top:3px;font-size:14px;line-height:1.3;font-weight:700;display:inline-flex;align-items:center;gap:5px;color:#0084dd !important;';
-			line.innerHTML=PG_KOROMONS_SVG+'<span style="color:#0084dd !important;">'+val.toLocaleString()+'</span>';
+			line.innerHTML=PG_KOROMONS_SVG+'<span style="color:#0084dd !important;">'+val.toLocaleString()+'</span>'+PG_EXT_ICON(PG_KORO_ITEM_URL(aid),'View on Koromon’s','#0084dd','pg-ext-koro');
 		} else if(line){ line.remove(); }
 		const tags=aid!=null?koromonsTagsCache.get(String(aid)):null;
 		const thumbWrap=card.querySelector('[class*="thumbWrap-"]')||card.querySelector('[class*="thumb-"]')||card;
@@ -220,24 +232,35 @@ const applyModernTradeStats = () => {
 				const recvTotal=recv.rapTotal+Math.floor(recv.robux*0.7);
 				const delta=recvTotal-giveTotal;
 				const pct=giveTotal>0?Math.round(delta/giveTotal*100):0;
+				const vbgMode=pgVbgGet();
 				const mkStat=(d,p,label)=>{
-					const up=d>0, even=d===0;
-					const c=even?'#d0d0d0':(up?'rgb(32,215,66)':'rgb(255,90,90)');
-					const path=up?'M15 20H9v-8H4.16L12 4.16L19.84 12H15v8Z':'M9 4h6v8h5.84L12 19.84L4.16 12H9V4Z';
-					const ar=even?'<span style="color:'+c+';font-size:17px;font-weight:900;line-height:1;">=</span>':'<svg xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;" width="20" height="20" viewBox="0 0 24 24"><path fill="'+c+'" d="'+path+'"></path></svg>';
-					return '<span style="display:inline-flex;align-items:center;gap:6px;">'+ar+'<span style="color:#fff;font-size:15px;font-weight:900;">'+(d>0?'+':'')+d.toLocaleString()+' '+label+'</span><span style="color:'+c+';font-size:14px;font-weight:800;">('+(p>0?'+':'')+p+'%)</span></span>';
+					const even=d===0, up=d>0;
+					const c=even?'#9aa0aa':(up?'rgb(43,191,90)':'rgb(215,32,32)');
+					const sign=d>0?'+':(d<0?'-':'');
+					const path=up?'M9 4h6v8h4.84L12 19.84L4.16 12H9V4Z':'M15 20H9v-8H4.16L12 4.16L19.84 12H15v8Z';
+					const ar=even?'':'<svg xmlns="http://www.w3.org/2000/svg" style="transform:scale(1.2);margin-right:4px;color:'+c+' !important;flex:none;" width="22" height="22" viewBox="0 0 24 24"><g transform="translate(0 24) scale(1 -1)"><path fill="currentColor" d="'+path+'"></path></g></svg>';
+					return '<div class="pg-mt-pill" style="'+PG_PILL_BASE+pgVbgCss(vbgMode)+'"><span style="display:flex;align-items:center;color:#fff;">'+ar+'<span style="color:#fff;font-size:15px;font-weight:800;">'+sign+Math.abs(d).toLocaleString()+' '+label+'</span><span style="color:'+c+';font-size:14px;font-weight:800;margin-left:6px;">('+sign+Math.abs(p)+'%)</span></span></div>';
 				};
 				if(!verdict){ verdict=document.createElement('div'); verdict.className='pg-mt-verdict'; }
 				if(secRecv){ if(verdict.parentNode!==main||verdict.nextElementSibling!==secRecv) main.insertBefore(verdict,secRecv); }
 				else { const actions=main.querySelector('[class*="actions-"]'); if(actions) main.insertBefore(verdict,actions); else main.appendChild(verdict); }
-				verdict.style.cssText='margin:14px 0;max-width:565px;padding:10px 14px;border-radius:10px;background:#121212;border:1px solid #343434;display:flex;align-items:center;justify-content:space-around;gap:24px;flex-wrap:wrap;';
+				verdict.style.cssText='margin:14px 0;max-width:600px;display:flex;align-items:center;justify-content:flex-start;gap:10px;flex-wrap:wrap;';
 				let htmlStats=mkStat(delta,pct,'RAP');
 				if(give.valKnown===give.count&&recv.valKnown===recv.count&&give.count>0&&recv.count>0){
 					const gv=give.valTotal+give.robux, rv=recv.valTotal+Math.floor(recv.robux*0.7);
 					const dv=rv-gv, pv=gv>0?Math.round(dv/gv*100):0;
 					htmlStats+=mkStat(dv,pv,'Value');
 				}
-				verdict.innerHTML=htmlStats;
+				if(give.count>0&&recv.count>0){
+					// Value that also counts unvalued items at their RAP (Value for valued items + RAP
+					// for unvalued ones), mirroring the per-side "(+ unvalued)" total. After the pure Value stat.
+					const gm=give.valTotal+(give.rapTotal-give.rapOfValued)+give.robux;
+					const rm=recv.valTotal+(recv.rapTotal-recv.rapOfValued)+Math.floor(recv.robux*0.7);
+					const dm=rm-gm, pm=gm>0?Math.round(dm/gm*100):0;
+					htmlStats+=mkStat(dm,pm,'Value (+ unvalued)');
+				}
+				verdict.innerHTML=htmlStats+pgVbgToggleHtml(vbgMode);
+				pgWireVerdictBg(verdict);
 			} else if(verdict){ verdict.remove(); }
 			_pgMt.lastSig=sig;
 		}catch(e){ console.warn('[Interium] modern trades stats:',e); }
@@ -285,9 +308,12 @@ const pgTwDecorate = (thumbEl, anchorEl, it, mode, nameEl) => {
 			}
 			if(line.getAttribute('data-pg-val')!==valTxt){
 				line.setAttribute('data-pg-val', valTxt);
-				line.innerHTML=PG_KOROMONS_SVG+'<span style="color:#0084dd !important;">'+valTxt+'</span>';
+				line.innerHTML=PG_KOROMONS_SVG+'<span style="color:#0084dd !important;">'+valTxt+'</span>'+PG_EXT_ICON(PG_KORO_ITEM_URL(aid),'View on Koromon’s','#0084dd','pg-ext-koro');
 			}
 		} else if(line){ line.remove(); }
+	}
+	if(aid!=null && anchorEl && anchorEl.parentNode && !anchorEl.parentNode.querySelector('.pg-ext-cat')){
+		anchorEl.insertAdjacentHTML('afterend', PG_EXT_ICON(PG_CATALOG_URL(aid),'Open on Pekora catalog','currentColor','pg-ext-cat'));
 	}
 	return { aid, val };
 };
@@ -1333,6 +1359,9 @@ else window.addEventListener('DOMContentLoaded', init);
         return isProjectedStack(stack) ? '<div class="pk-projected-badge" title="Possible projected item"><svg width="16" height="16" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path d="M63.37 53.52C53.982 36.37 44.59 19.22 35.2 2.07a3.687 3.687 0 00-6.522 0C19.289 19.22 9.892 36.37.508 53.52c-1.453 2.649.399 6.083 3.258 6.083h56.35c1.584 0 2.648-.853 3.203-2.01.698-1.102.885-2.565.055-4.075" fill="#ffdd15"/><path d="M28.917 34.477l-.889-13.262c-.166-2.583-.246-4.439-.246-5.565 0-1.534.4-2.727 1.202-3.588.805-.856 1.863-1.286 3.175-1.286 1.583 0 2.646.551 3.178 1.646.537 1.102.809 2.684.809 4.751 0 1.215-.066 2.453-.198 3.708l-1.19 13.649c-.129 1.626-.404 2.872-.827 3.739-.426.871-1.128 1.301-2.109 1.301-.992 0-1.69-.419-2.072-1.257-.393-.841-.668-2.12-.833-3.836m3.072 18.217c-1.125 0-2.106-.362-2.947-1.093-.841-.728-1.26-1.748-1.26-3.058 0-1.143.4-2.12 1.202-2.921.805-.806 1.786-1.206 2.951-1.206s2.153.4 2.977 1.206c.815.801 1.234 1.778 1.234 2.921 0 1.29-.419 2.308-1.246 3.044a4.245 4.245 0 01-2.911 1.107" fill="#1f2e35"/></svg></div>' : '';
     }
 
+    const EXT_ARROW = (c) => `<svg xmlns="http://www.w3.org/2000/svg" height="15" width="15" viewBox="0 -960 960 960" fill="${c}" style="flex:none;"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h280v80H200v560h560v-280h80v280q0 33-23.5 56.5T760-120H200Zm188-212-56-56 372-372H560v-80h280v280h-80v-144L388-332Z"/></svg>`;
+    const extIcon = (href, tip, color, cls) => `<a href="${href}" target="_blank" rel="noopener noreferrer" title="${tip}" class="pg-ext-ic ${cls}" style="display:inline-flex;align-items:center;margin-left:4px;opacity:.7;text-decoration:none;vertical-align:middle;line-height:0;cursor:pointer;">${EXT_ARROW(color)}</a>`;
+    try{ if(!document.getElementById('pg-ext-ic-guard')){ const _g=document.createElement('meta'); _g.id='pg-ext-ic-guard'; (document.head||document.documentElement).appendChild(_g); document.addEventListener('click',(e)=>{ try{ if(e.target&&e.target.closest&&e.target.closest('.pg-ext-ic')) e.stopPropagation(); }catch(_e){} }, true); } }catch(_e){}
     function cardHTML(stack, index) {
         const mine = state.mine.has(String(stack.uid));
         const d = demandInfo(stack.demand);
@@ -1348,8 +1377,8 @@ else window.addEventListener('DOMContentLoaded', init);
                 </a>
                 <div class="pk-name" title="${esc(stack.name)}">${esc(stack.name)}${state.stacked && stack.count > 1 ? ` <span class="pk-name-count">×${stack.count}</span>` : ''}</div>
                 ${demandHTML}
-                <div class="pk-line"><b>RAP:</b> ${fmt(stack.rapEach)}</div>
-                <div class="pk-line"><b>Value:</b> <span class="pk-value">${fmt(stack.valueEach)}</span></div>
+                <div class="pk-line"><b>RAP:</b> ${fmt(stack.rapEach)}${extIcon("/catalog/"+esc(stack.assetId)+"/--","Open on Pekora catalog","currentColor","pg-ext-cat")}</div>
+                <div class="pk-line"><b>Value:</b> <span class="pk-value">${fmt(stack.valueEach)}</span>${stack.valueEach>0?extIcon("https://www.koromons.net/item?id="+esc(stack.assetId),"View on Koromon’s","#0084dd","pg-ext-koro"):""}</div>
                 ${state.stacked && stack.count > 1 ? `<div class="pk-line"><b>Total:</b> <span class="pk-total">${fmt(stack.valueTotal)}</span></div>` : ''}
                 <div class="pk-serial" style="color:${serialStyle}!important">${esc(serialText(stack))}</div>
                 <div class="pk-card-actions">
