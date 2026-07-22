@@ -172,7 +172,7 @@ const pgMtAnnotateSection = (sec, offer) => {
 		const mixedTotal=valTotal+rapUnvalued;
 		const l=document.createElement('span'); l.textContent='Total Value:';
 		const stack=document.createElement('span'); stack.style.cssText='display:inline-flex;flex-direction:column;align-items:flex-end;gap:4px;white-space:nowrap;';
-		stack.innerHTML='<span style="display:inline-flex;align-items:center;gap:6px;font-weight:700;color:#0084dd !important;'+valFont+'">'+PG_KOROMONS_SVG+'<span style="color:#0084dd !important;">'+(valKnown>0?valTotal.toLocaleString():'\u2014')+'</span></span><span style="position:relative;display:inline-flex;align-items:center;gap:6px;font-weight:700;color:#0084dd !important;'+valFont+'">'+PG_KOROMONS_SVG+'<span style="color:#0084dd !important;">'+(valKnown<count?mixedTotal.toLocaleString():'\u2014')+'</span><span style="position:absolute;left:100%;bottom:2px;padding-left:6px;color:#0084dd !important;font-weight:500;font-size:11px;opacity:.85;white-space:nowrap;">(unvalued)</span></span>';
+		stack.innerHTML='<span style="display:inline-flex;align-items:center;gap:6px;font-weight:700;color:#0084dd !important;'+valFont+'">'+PG_KOROMONS_SVG+'<span style="color:#0084dd !important;">'+(valKnown>0?valTotal.toLocaleString():'\u2014')+'</span></span><span style="position:relative;display:inline-flex;align-items:center;gap:6px;font-weight:700;color:#0084dd !important;'+valFont+'">'+PG_KOROMONS_SVG+'<span style="color:#0084dd !important;">'+(valKnown<cards.length?mixedTotal.toLocaleString():'\u2014')+'</span><span style="position:absolute;left:100%;bottom:2px;padding-left:6px;color:#0084dd !important;font-weight:500;font-size:11px;opacity:.85;white-space:nowrap;">(unvalued)</span></span>';
 		t.appendChild(l); t.appendChild(stack);
 		const t2=sec.querySelector('.pg-mt-total2'); if(t2) t2.remove();
 	}
@@ -699,6 +699,7 @@ const init = () => {
 	obs.observe(document.body || document.documentElement, { childList: true, subtree: true });
 	setInterval(annotateThumbs, 1500);
 	setInterval(() => { try{ applyTradeWindowStats(); }catch(_e){} }, 1000);
+	setInterval(() => { try{ applyModernTradeStats(); }catch(_e){} }, 1500);
 	setInterval(primeFromUrl, 2500);
 	annotateThumbs();
 };
