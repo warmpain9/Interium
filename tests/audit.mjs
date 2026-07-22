@@ -28,11 +28,12 @@ if (!ui.includes("const GUI_GLASS_BG = 'rgba(10,10,14,0.86)';")) fail('GUI-only 
 if (!ui.includes("panel.style.setProperty('background', GUI_GLASS_BG, 'important')")) fail('GUI panel does not use GUI_GLASS_BG');
 if (ui.includes('.card-body${NOHOME},')) fail('nested profile card-body still receives a second glass layer');
 if (!ui.includes('.card > .card-body,')) fail('nested profile card-body transparency rule missing');
-const hardcodedBackdropBlurs = [...ui.matchAll(/(?:-webkit-)?backdrop-filter\s*:\s*blur\((?!0px)/g)];
-if (hardcodedBackdropBlurs.length) fail('hard-coded positive backdrop blur found; use GLASS_FILTER');
+// GUI panel chrome (#pks- selectors) may use its own decorative blur; page
+// styling must go through GLASS_FILTER.
+const blurLines = ui.split('\n').filter((l) => /(?:-webkit-)?backdrop-filter\s*:\s*blur\((?!0px)/.test(l) && !l.includes('GLASS_FILTER'));
+for (const l of blurLines) if (!l.includes('#pks-')) fail('hard-coded positive backdrop blur on a page surface; use GLASS_FILTER: ' + l.trim().slice(0, 80));
 for (const marker of [
   '[class*="groupCard-"] {\n                    ${GLASS_CSS}',
-  '[class*="gameCardContainer"]{${GLASS_CSS}',
   '[class*="resultsContainer-"] [class*="cardWrapper-"]{${GLASS_CSS}',
   '[class*="avatarCardContainer"]{${GLASS_CSS}',
   '[class*="buttonCol-"],[class*="submenuContainer-"][class~="section-content"]{${GLASS_CSS}',

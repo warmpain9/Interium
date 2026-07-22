@@ -1,13 +1,9 @@
 // ==Interium Core==
-// src/core/core.js - shared foundation for the Interium runtimes.
-// Loaded FIRST (see @require order in loader/interium-loader.user.js),
+
 // before src/trading/*.js and src/ui/*.js.
 //
 // What lives here:
-//   - project version + module registry (each runtime announces itself)
-//   - the unified glass recipe used across the whole UI
-//   - asset URL helper for repo assets/ on jsDelivr (icons/, avatar-bgs/)
-// Runtimes keep working even if they don't use the core yet; new features
+
 // should read shared values from window.InteriumCore instead of copying them.
 
 (function () {
@@ -15,9 +11,9 @@
 
     if (window.InteriumCore) return; // never double-init
 
-    const VERSION = '2.25.0';
+    const VERSION = '1.0.0';
 
-    // ── Unified glass recipe (single source of truth) ──
+    
     const GLASS_BG = 'rgba(255,255,255,0.05)';
     const GLASS_FILTER = 'blur(14px) saturate(160%)';
     const GLASS_BORDER_COLOR = 'rgba(255,255,255,0.12)';
@@ -50,12 +46,12 @@
 
     console.info(`[Interium Core] v${VERSION} ready.`);
 
-    // ── Koromon's value cache warmer (v2.25.0) ──
-    // The /internal/collectibles page ships a strict connect-src CSP that blocks koromons.net,
-    // GitHub raw and every other external host, so its own value refresh can never fetch there
-    // and its localStorage caches stay empty -> collectibles falls back to RAP. This warmer runs
-    // on the OTHER pekora pages (where external fetch is allowed) and seeds the exact cache keys
-    // the collectibles suite reads, so real Koromon's values/demand render instead of RAP.
+    
+    
+    
+    
+    
+    
     (function warmKoromonsCaches() {
         try {
             if (/^\/internal\/collectibles/i.test(location.pathname)) return; // its CSP blocks us anyway

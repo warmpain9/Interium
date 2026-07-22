@@ -1,12 +1,11 @@
-/* Interium exact Trading Interium 1.1.0 runtime.
+/* Interium exact Trading Interium 1.0.0 runtime.
  * Unofficial community software; not affiliated with Pekora.
  */
 /* INTERIUM_MAIN */
-console.info('[Interium] Working 1.1.1 runtime started at', document.readyState);
+console.info('[Interium] Trading runtime v1.0.0 started at', document.readyState);
 
 (function () {
 	'use strict';
-/* ---- resilience: stub endpoints staff disabled (503) so pekora's own UI still renders ---- */
 const pcsStubFor = (u) => {
 u = String(u || '');
 if (u.indexOf('/economy/v1/users/') !== -1 && u.indexOf('/currency') !== -1) return { robux: 0, tickets: 0 };
@@ -29,8 +28,6 @@ return response;
 }
 } catch (e) {}
 
-
-/* ---- fixed feature flags: this build is trading-only, everything on ---- */
 const cfg = { modernTradeRap:true, tradeValues:true, koroProfileBlock:true, collectiblesSuite:true };
 const mtApi = (path, opts) => fetch('https://www.pekora.zip/apisite' + path, Object.assign({ credentials:'include' }, opts || {}));
 let _pgMyIdCache = null;
@@ -46,18 +43,38 @@ if(!d.nextPageCursor) break; cursor=d.nextPageCursor;
 }
 return items;
 };
-/* ------------------------------------------------ modern /trades page stats (read-only) */
-/* Annotates the new React trades page (/trades) with per-item RAP + Koromon’s Value, side  */
-/* RAP totals and a win/loss verdict. Data comes from the same authenticated trade APIs    */
-/* the page itself uses; this module only reads and annotates, never clicks or sends.      */
 const _pgMt = { listType:'', listAt:0, listRows:[], details:new Map(), inflight:'', lastSig:'' };
 const PG_KOROMONS_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1094 1466.2" width="13" height="17" style="flex:none;display:inline-block;vertical-align:-2px;"><path fill="#0084dd" d="M1094 521.6 0 0v469.5l141-67.4 250 119.2L0 707.8v369.7l815.6 388.7L315 893l779-371.4z"/></svg>';
+const PG_EXT_ARROW = (c) => '<svg xmlns="http://www.w3.org/2000/svg" height="21px" viewBox="0 -960 960 960" width="21px" fill="'+c+'" style="width:21px;height:21px;min-width:21px;min-height:21px;flex:none;"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h280v80H200v560h560v-280h80v280q0 33-23.5 56.5T760-120H200Zm188-212-56-56 372-372H560v-80h280v280h-80v-144L388-332Z"/></svg>';
+
+const PG_EXT_ICON = (href, tip, color, cls) => '<a href="'+href+'" target="_blank" rel="noopener noreferrer" class="'+cls+'" style="display:inline-flex;align-items:center;margin-left:0;opacity:0.7;">'+PG_EXT_ARROW(color)+'</a>';
+const PG_VBG_KEY='interium_verdict_bg_v1';
+const PG_VBG_MODES=['default','transparent','glassify'];
+const PG_PILL_BASE='height:30px;color:#ffffff !important;align-items:center;padding:5px 12px;cursor:default;flex-grow:0;flex-shrink:0;width:fit-content;display:flex;justify-content:center;font-size:20px;white-space:nowrap;border-radius:0;';
+const pgVbgGet=()=>{ try{ const m=localStorage.getItem(PG_VBG_KEY); return PG_VBG_MODES.indexOf(m)>=0?m:'default'; }catch(_){ return 'default'; } };
+const pgVbgCss=(m)=> m==='transparent' ? 'background-color:transparent;' : (m==='glassify' ? 'background-color:rgba(255,255,255,0.05);backdrop-filter:blur(14px) saturate(160%);-webkit-backdrop-filter:blur(14px) saturate(160%);' : 'background-color:rgb(45,47,48) !important;');
+const pgVbgToggleHtml=(m)=>'<button class="pg-mt-bgtoggle" title="Pill background: '+m+' (click to cycle: default / transparent / glassify)" style="height:26px;padding:0 10px;border:1px solid rgba(255,255,255,0.18);background:transparent;color:#bbb;font-size:11px;font-weight:700;cursor:pointer;border-radius:0;display:inline-flex;align-items:center;gap:5px;white-space:nowrap;line-height:1;">▧ '+m+'</button>';
+const pgApplyVerdictBg=(box,m)=>{ box.querySelectorAll('.pg-mt-pill').forEach(el=>{ el.style.cssText=PG_PILL_BASE+pgVbgCss(m); }); const t=box.querySelector('.pg-mt-bgtoggle'); if(t){ t.textContent='▧ '+m; t.title='Pill background: '+m+' (click to cycle: default / transparent / glassify)'; } };
+const pgWireVerdictBg=(box)=>{ const t=box.querySelector('.pg-mt-bgtoggle'); if(!t||t._pgWired) return; t._pgWired=true; t.addEventListener('click',(e)=>{ e.preventDefault(); e.stopPropagation(); const cur=pgVbgGet(); const nm=PG_VBG_MODES[(PG_VBG_MODES.indexOf(cur)+1)%PG_VBG_MODES.length]; try{ localStorage.setItem(PG_VBG_KEY,nm); }catch(_){}; pgApplyVerdictBg(box,nm); }); };
+
+const pgMkStatPill=(d,p,label,vbgMode)=>{
+	const isGain=d>=0;
+	const arrowColor=isGain?'rgb(43, 191, 90)':'rgb(215, 32, 32)';
+	const sign=isGain?'+':'-';
+	const arrowPath=isGain?'<path fill="currentColor" d="M9 4h6v8h4.84L12 19.84L4.16 12H9V4Z"></path>':'<path fill="currentColor" d="M15 20H9v-8H4.16L12 4.16L19.84 12H15v8Z"></path>';
+	return '<div class="pg-mt-pill" style="'+PG_PILL_BASE+pgVbgCss(vbgMode)+'"><span style="display:flex;align-items:center;color:#ffffff !important;"><svg xmlns="http://www.w3.org/2000/svg" style="transform:scale(1.3);margin-right:3px;color:'+arrowColor+' !important;" width="24" height="24" viewBox="0 0 24 24"><g transform="translate(0 24) scale(1 -1)">'+arrowPath+'</g></svg><span style="color:#ffffff !important;">'+sign+Math.abs(d).toLocaleString()+' '+label+' ('+sign+Math.abs(p).toFixed(0)+'%)</span></span></div>';
+};
+
+const PG_KORO_ITEM_URL = (aid) => 'https://www.koromons.net/item?id='+encodeURIComponent(String(aid));
+const PG_CATALOG_URL = (aid) => '/catalog/'+encodeURIComponent(String(aid))+'/--';
 const pgMtClear = () => {
-	document.querySelectorAll('.pg-mt-rap,.pg-mt-total,.pg-mt-total2,.pg-mt-verdict,.pg-mt-tag').forEach(n=>n.remove());
+	document.querySelectorAll('.pg-mt-rap,.pg-mt-total,.pg-mt-total2,.pg-mt-verdict,.pg-mt-tag,.pg-ext-cat').forEach(n=>n.remove());
 	document.querySelectorAll('[class*="totalRow-"] > span').forEach(sp=>{ if(/^\s*total rap:?\s*$/i.test(sp.textContent||'')) sp.textContent='Total Value:'; });
 };
 const pgMtItems = (o) => Array.isArray(o?.userAssets) ? o.userAssets : (Array.isArray(o?.items) ? o.items : []);
 const pgMtRapOf = (it) => Number(it?.recentAveragePrice ?? it?.rap ?? it?.averagePrice ?? 0) || 0;
+
+const pgFontCssOf = (el) => { try { if(!el) return ''; const sp=el.querySelectorAll('span'); const n=sp.length?sp[sp.length-1]:el; const cs=getComputedStyle(n); return 'font-family:'+String(cs.fontFamily||'').replace(/"/g,"'")+';font-size:'+cs.fontSize+';font-weight:'+cs.fontWeight+';'; } catch(_e){ return ''; } };
 const pgMtAssetIdOf = (it) => it?.assetId ?? it?.assetID ?? it?.asset?.id ?? it?.id ?? null;
 const pgMtNameOf = (it) => String(it?.name ?? it?.asset?.name ?? '').trim();
 const pgMtPartnerOf = (t) => { const u=(t&&(t.user||t.partner||t.userFacingUser))||{}; return String(u.name||u.displayName||''); };
@@ -115,19 +132,12 @@ const pgMtAnnotateSection = (sec, offer) => {
 		const aid=it?pgMtAssetIdOf(it):null;
 		const val=aid!=null?Number(koromonsValueCache.get(String(aid))||0):0;
 		rapTotal+=rap; if(val>0){ valTotal+=val; valKnown++; rapOfValued+=rap; }
-		if(aid!=null && card.getAttribute('data-pg-aid')!==String(aid)){
-			card.setAttribute('data-pg-aid',String(aid));
-			card.style.cursor='pointer';
-			card.addEventListener('click',(e)=>{
-				if(e.target.closest('a,button,.pg-mt-tag,.pg-mt-rap')) return;
-				window.open('/catalog/'+String(aid)+'/--','_blank');
-			});
-		}
 		let line=card.querySelector('.pg-mt-rap');
-		if(val>0){
+		const dispVal=val>0?val:rap;
+		if(dispVal>0 && aid!=null){
 			if(!line){ line=document.createElement('div'); line.className='pg-mt-rap'; card.appendChild(line); }
-			line.style.cssText='margin-top:3px;font-size:14px;line-height:1.3;font-weight:700;display:inline-flex;align-items:center;gap:5px;color:#0084dd !important;';
-			line.innerHTML=PG_KOROMONS_SVG+'<span style="color:#0084dd !important;">'+val.toLocaleString()+'</span>';
+			line.style.cssText='margin-top:3px;font-size:14px;line-height:1.3;font-weight:700;display:inline-flex;align-items:center;gap:5px;color:#0084dd !important;'+pgFontCssOf(card.querySelector('[class*="itemValue-"]'));
+			line.innerHTML=PG_KOROMONS_SVG+'<span style="color:#0084dd !important;">'+dispVal.toLocaleString()+'</span>'+PG_EXT_ICON(PG_KORO_ITEM_URL(aid),'View on Koromon’s','currentColor','pg-ext-koro');
 		} else if(line){ line.remove(); }
 		const tags=aid!=null?koromonsTagsCache.get(String(aid)):null;
 		const thumbWrap=card.querySelector('[class*="thumbWrap-"]')||card.querySelector('[class*="thumb-"]')||card;
@@ -145,6 +155,7 @@ const pgMtAnnotateSection = (sec, offer) => {
 	const totalRow=sec.querySelector('[class*="totalRow-"]');
 	if(totalRow){
 		const nativeValEl=totalRow.querySelector('[class*="totalValue-"]');
+		const valFont=pgFontCssOf(nativeValEl);
 		if(nativeValEl && robux>0){
 			const nSpans=nativeValEl.querySelectorAll('span');
 			const numSpan=nSpans.length?nSpans[nSpans.length-1]:null;
@@ -160,15 +171,10 @@ const pgMtAnnotateSection = (sec, offer) => {
 		const rapUnvalued=rapTotal-rapOfValued;
 		const mixedTotal=valTotal+rapUnvalued;
 		const l=document.createElement('span'); l.textContent='Total Value:';
-		const v=document.createElement('span'); v.style.cssText='display:inline-flex;align-items:center;gap:6px;font-weight:700;color:#0084dd !important;';
-		v.innerHTML=PG_KOROMONS_SVG+'<span style="color:#0084dd !important;">'+(valKnown>0?valTotal.toLocaleString():'\u2014')+'</span>';
-		t.appendChild(l); t.appendChild(v);
-		let t2=sec.querySelector('.pg-mt-total2');
-		if(!t2){ t2=document.createElement('div'); t2.className='pg-mt-total2'; t.parentNode.insertBefore(t2,t.nextSibling); }
-		t2.style.cssText=t.style.cssText; t2.style.justifyContent='flex-end'; t2.textContent='';
-		const v2=document.createElement('span'); v2.style.cssText='display:inline-flex;flex-direction:column;align-items:flex-end;gap:2px;';
-		v2.innerHTML='<span style="display:inline-flex;align-items:center;gap:6px;font-weight:700;color:#0084dd !important;">'+PG_KOROMONS_SVG+'<span style="color:#0084dd !important;">'+(valKnown>0?mixedTotal.toLocaleString():rapTotal.toLocaleString())+'</span></span><span style="color:#0084dd !important;font-weight:500;font-size:11px;opacity:.85;">(+ unvalued)</span>';
-		t2.appendChild(v2);
+		const stack=document.createElement('span'); stack.style.cssText='display:inline-flex;flex-direction:column;align-items:flex-end;gap:4px;white-space:nowrap;';
+		stack.innerHTML='<span style="display:inline-flex;align-items:center;gap:6px;font-weight:700;color:#0084dd !important;'+valFont+'">'+PG_KOROMONS_SVG+'<span style="color:#0084dd !important;">'+(valKnown>0?valTotal.toLocaleString():'\u2014')+'</span></span><span style="position:relative;display:inline-flex;align-items:center;gap:6px;font-weight:700;color:#0084dd !important;'+valFont+'">'+PG_KOROMONS_SVG+'<span style="color:#0084dd !important;">'+(valKnown<count?mixedTotal.toLocaleString():'\u2014')+'</span><span style="position:absolute;left:100%;bottom:2px;padding-left:6px;color:#0084dd !important;font-weight:500;font-size:11px;opacity:.85;white-space:nowrap;">(unvalued)</span></span>';
+		t.appendChild(l); t.appendChild(stack);
+		const t2=sec.querySelector('.pg-mt-total2'); if(t2) t2.remove();
 	}
 	return { rapTotal, valTotal, valKnown, rapOfValued, count:cards.length, robux };
 };
@@ -220,24 +226,38 @@ const applyModernTradeStats = () => {
 				const recvTotal=recv.rapTotal+Math.floor(recv.robux*0.7);
 				const delta=recvTotal-giveTotal;
 				const pct=giveTotal>0?Math.round(delta/giveTotal*100):0;
-				const mkStat=(d,p,label)=>{
-					const up=d>0, even=d===0;
-					const c=even?'#d0d0d0':(up?'rgb(32,215,66)':'rgb(255,90,90)');
-					const path=up?'M15 20H9v-8H4.16L12 4.16L19.84 12H15v8Z':'M9 4h6v8h5.84L12 19.84L4.16 12H9V4Z';
-					const ar=even?'<span style="color:'+c+';font-size:17px;font-weight:900;line-height:1;">=</span>':'<svg xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;" width="20" height="20" viewBox="0 0 24 24"><path fill="'+c+'" d="'+path+'"></path></svg>';
-					return '<span style="display:inline-flex;align-items:center;gap:6px;">'+ar+'<span style="color:#fff;font-size:15px;font-weight:900;">'+(d>0?'+':'')+d.toLocaleString()+' '+label+'</span><span style="color:'+c+';font-size:14px;font-weight:800;">('+(p>0?'+':'')+p+'%)</span></span>';
-				};
+				const vbgMode=pgVbgGet();
+				const mkStat=(d,p,label)=>pgMkStatPill(d,p,label,vbgMode);
 				if(!verdict){ verdict=document.createElement('div'); verdict.className='pg-mt-verdict'; }
 				if(secRecv){ if(verdict.parentNode!==main||verdict.nextElementSibling!==secRecv) main.insertBefore(verdict,secRecv); }
 				else { const actions=main.querySelector('[class*="actions-"]'); if(actions) main.insertBefore(verdict,actions); else main.appendChild(verdict); }
-				verdict.style.cssText='margin:14px 0;max-width:565px;padding:10px 14px;border-radius:10px;background:#121212;border:1px solid #343434;display:flex;align-items:center;justify-content:space-around;gap:24px;flex-wrap:wrap;';
+				verdict.style.cssText='position:relative;display:flex;flex-direction:column;gap:6px;box-sizing:border-box;padding:1px;margin:8px 0;';
 				let htmlStats=mkStat(delta,pct,'RAP');
-				if(give.valKnown===give.count&&recv.valKnown===recv.count&&give.count>0&&recv.count>0){
+				if(give.count>0&&recv.count>0&&give.valKnown>0&&recv.valKnown>0){
 					const gv=give.valTotal+give.robux, rv=recv.valTotal+Math.floor(recv.robux*0.7);
 					const dv=rv-gv, pv=gv>0?Math.round(dv/gv*100):0;
 					htmlStats+=mkStat(dv,pv,'Value');
 				}
-				verdict.innerHTML=htmlStats;
+				if(give.count>0&&recv.count>0&&(give.valKnown<give.count||recv.valKnown<recv.count)){
+					// Value that also counts unvalued items at their RAP (Value for valued items + RAP
+					// for unvalued ones), mirroring the per-side "(unvalued)" total. After the pure Value stat.
+					const gm=give.valTotal+(give.rapTotal-give.rapOfValued)+give.robux;
+					const rm=recv.valTotal+(recv.rapTotal-recv.rapOfValued)+Math.floor(recv.robux*0.7);
+					const dm=rm-gm, pm=gm>0?Math.round(dm/gm*100):0;
+					htmlStats+=mkStat(dm,pm,'Value (unvalued)');
+				}
+				verdict.innerHTML='<div class="pg-mt-pillrow" style="display:flex;flex-wrap:wrap;gap:10px 12px;justify-content:center;align-items:center;">'+htmlStats+'</div><div style="display:flex;justify-content:flex-end;">'+pgVbgToggleHtml(vbgMode)+'</div>';
+				// Align the verdict bar with the section's totalRow (same trick as the reference
+				
+				try{
+					const refRow=(secGive&&secGive.querySelector('[class*="totalRow-"]'))||(secRecv&&secRecv.querySelector('[class*="totalRow-"]'))||null;
+					if(refRow&&verdict.parentElement){
+						const rr=refRow.getBoundingClientRect();
+						const pr=verdict.parentElement.getBoundingClientRect();
+						if(rr.width>0){ verdict.style.width=rr.width+'px'; verdict.style.marginLeft=(rr.left-pr.left)+'px'; }
+					}
+				}catch(_e){}
+				pgWireVerdictBg(verdict);
 			} else if(verdict){ verdict.remove(); }
 			_pgMt.lastSig=sig;
 		}catch(e){ console.warn('[Interium] modern trades stats:',e); }
@@ -273,19 +293,21 @@ const pgTwDecorate = (thumbEl, anchorEl, it, mode, nameEl) => {
 		} else if(tagEl){ tagEl.remove(); }
 	}
 	if(anchorEl && anchorEl.parentNode){
+		const rap=it?(Number(it.rap||0)||0):0;
+		const dispVal=val>0?val:rap;
 		let line=anchorEl.parentNode.querySelector('.pg-tw-koroval');
-		if(val>0){
-			const valTxt=val.toLocaleString();
+		if(dispVal>0 && aid!=null){
+			const valTxt=dispVal.toLocaleString();
 			if(!line){
 				line=document.createElement('div'); line.className='pg-tw-koroval';
-				line.style.cssText='margin-top:2px;font-size:'+(mode==='child'?'11px':'13px')+';font-weight:700;display:flex;align-items:center;gap:4px;color:#0084dd !important;line-height:1.15;';
+				line.style.cssText='margin-top:2px;font-size:'+(mode==='child'?'11px':'13px')+';font-weight:700;display:flex;align-items:center;gap:4px;color:#0084dd !important;line-height:1.15;'+(anchorEl&&/slotValue-|itemValue-/.test(String(anchorEl.className||''))?pgFontCssOf(anchorEl):'');
 				anchorEl.insertAdjacentElement('afterend', line);
 			} else if(line.previousElementSibling!==anchorEl){
 				anchorEl.insertAdjacentElement('afterend', line);
 			}
 			if(line.getAttribute('data-pg-val')!==valTxt){
 				line.setAttribute('data-pg-val', valTxt);
-				line.innerHTML=PG_KOROMONS_SVG+'<span style="color:#0084dd !important;">'+valTxt+'</span>';
+				line.innerHTML=PG_KOROMONS_SVG+'<span style="color:#0084dd !important;">'+valTxt+'</span>'+PG_EXT_ICON(PG_KORO_ITEM_URL(aid),'View on Koromon’s','currentColor','pg-ext-koro');
 			}
 		} else if(line){ line.remove(); }
 	}
@@ -294,8 +316,9 @@ const pgTwDecorate = (thumbEl, anchorEl, it, mode, nameEl) => {
 const applyTradeWindowStats = () => {
 	const onPage = /^\/users\/\d+\/trade\/?$/i.test(location.pathname);
 	if(!onPage){
-		if(document.querySelector('.pg-tw-koroval,.pg-tw-tag,.pg-tw-total-value,.pg-tw-total-value2')){
-			document.querySelectorAll('.pg-tw-koroval,.pg-tw-tag,.pg-tw-total-value,.pg-tw-total-value2').forEach(n=>n.remove());
+		if(document.querySelector('.pg-tw-koroval,.pg-tw-tag,.pg-tw-total-value,.pg-tw-total-value2,.pg-tw-verdict')){
+			document.querySelectorAll('.pg-tw-koroval,.pg-tw-tag,.pg-tw-total-value,.pg-tw-total-value2,.pg-tw-verdict,.pg-ext-cat').forEach(n=>n.remove());
+			document.querySelectorAll('[class*="offerPanel-"]').forEach(p=>p.style.removeProperty('margin-top'));
 			document.querySelectorAll('[class*="offerPanel-"] [class*="totalRow-"] > span[data-pg-tw-renamed]').forEach(sp=>{ sp.textContent='Total Value:'; sp.removeAttribute('data-pg-tw-renamed'); });
 		}
 		pgTwState.myItems=null; pgTwState.theirItems=null; pgTwState.partnerId=null; pgTwState.loading=false;
@@ -342,6 +365,7 @@ const applyTradeWindowStats = () => {
 		});
 	});
 	const panels=Array.from(document.querySelectorAll('section[class*="offerPanel-"]'));
+	const twAgg=[];
 	panels.forEach((panel,i)=>{
 		const panelTitle=((panel.querySelector('[class*="sectionTitle-"]')||{}).textContent||'').trim().toLowerCase();
 		const panelIsMine=panelTitle?panelTitle.indexOf('offer')>=0:i===0;
@@ -365,7 +389,9 @@ const applyTradeWindowStats = () => {
 			if(label && !label.hasAttribute('data-pg-tw-renamed')){ label.textContent='Total RAP:'; label.setAttribute('data-pg-tw-renamed','1'); }
 			const robuxInput=panel.querySelector('[class*="robuxInput-"]');
 			const robux=robuxInput?Math.max(0,Number(String(robuxInput.value||'').replace(/[^0-9]/g,''))||0):0;
+			twAgg.push({mine:panelIsMine,rapTotal:rapSum,valTotal:valSum,valKnown:valKnown,count:total,rapOfValued:rapOfValued2,robux:robux});
 			const nativeValEl=totalRow.querySelector('[class*="totalValue-"]');
+			const twValFont=pgFontCssOf(nativeValEl);
 			if(nativeValEl){
 				const nSpans=nativeValEl.querySelectorAll('span');
 				const numSpan=nSpans.length?nSpans[nSpans.length-1]:null;
@@ -383,28 +409,64 @@ const applyTradeWindowStats = () => {
 			const rapUnvalued2=rapSum-rapOfValued2;
 			const mixedTotal2=valSum+rapUnvalued2;
 			const valTxt=valKnown>0?valSum.toLocaleString():(total>0?'\u2014':'0');
-			const mixTxt=valKnown>0?mixedTotal2.toLocaleString():rapSum.toLocaleString();
-			if(vt.getAttribute('data-pg-val')!==valTxt){
-				vt.setAttribute('data-pg-val', valTxt);
-				vt.innerHTML='<span>Total Value:</span><span style="display:inline-flex;align-items:center;gap:6px;font-weight:700;color:#0084dd !important;">'+PG_KOROMONS_SVG+'<span style="color:#0084dd !important;">'+valTxt+'</span></span>';
+			const mixTxt=valKnown<total?mixedTotal2.toLocaleString():'\u2014';
+			const totSig=valTxt+'|'+mixTxt;
+			if(vt.getAttribute('data-pg-val')!==totSig){
+				vt.setAttribute('data-pg-val', totSig);
+				vt.innerHTML='<span>Total Value:</span><span style="display:inline-flex;flex-direction:column;align-items:flex-end;gap:4px;white-space:nowrap;"><span style="display:inline-flex;align-items:center;gap:6px;font-weight:700;color:#0084dd !important;'+twValFont+'">'+PG_KOROMONS_SVG+'<span style="color:#0084dd !important;">'+valTxt+'</span></span><span style="display:inline-flex;flex-direction:column;align-items:flex-end;gap:2px;white-space:nowrap;"><span style="display:inline-flex;align-items:center;gap:6px;font-weight:700;color:#0084dd !important;'+twValFont+'">'+PG_KOROMONS_SVG+'<span style="color:#0084dd !important;">'+mixTxt+'</span></span><span style="color:#0084dd !important;font-weight:500;font-size:11px;opacity:.85;">(unvalued)</span></span></span>';
 			}
-			let vt2=panel.querySelector('.pg-tw-total-value2');
-			if(!vt2){
-				vt2=document.createElement('div'); vt2.className='pg-tw-total-value2';
-				vt2.style.cssText='display:flex;justify-content:flex-end;align-items:center;gap:16px;margin-top:4px;font-size:16px;font-weight:500;';
-				vt.parentNode.insertBefore(vt2, vt.nextSibling);
-			}
-			if(vt2.getAttribute('data-pg-mix')!==mixTxt){
-				vt2.setAttribute('data-pg-mix', mixTxt);
-				vt2.innerHTML='<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;"><span style="display:inline-flex;align-items:center;gap:6px;font-weight:700;color:#0084dd !important;">'+PG_KOROMONS_SVG+'<span style="color:#0084dd !important;">'+mixTxt+'</span></span><span style="color:#0084dd !important;font-weight:500;font-size:11px;opacity:.85;">(+ unvalued)</span></div>';
-			}
+			const vt2=panel.querySelector('.pg-tw-total-value2'); if(vt2) vt2.remove();
 		}
 	});
+	
+	
+	try{
+		let bar=document.querySelector('.pg-tw-verdict');
+		const give=twAgg.find(a=>a.mine)||null, recv=twAgg.find(a=>!a.mine)||null;
+		if(!give||!recv||(give.count===0&&recv.count===0&&give.robux===0&&recv.robux===0)){ if(bar) bar.remove(); }
+		else{
+			const vbgMode=pgVbgGet();
+			const giveTotal=give.rapTotal+give.robux;
+			const recvTotal=recv.rapTotal+Math.floor(recv.robux*0.7);
+			const delta=recvTotal-giveTotal;
+			const pct=giveTotal>0?Math.round(delta/giveTotal*100):0;
+			let htmlStats=pgMkStatPill(delta,pct,'RAP',vbgMode);
+			if(give.count>0&&recv.count>0&&give.valKnown>0&&recv.valKnown>0){
+				const gv=give.valTotal+give.robux, rv=recv.valTotal+Math.floor(recv.robux*0.7);
+				const dv=rv-gv, pv=gv>0?Math.round(dv/gv*100):0;
+				htmlStats+=pgMkStatPill(dv,pv,'Value',vbgMode);
+			}
+			if(give.count>0&&recv.count>0&&(give.valKnown<give.count||recv.valKnown<recv.count)){
+				const gm=give.valTotal+(give.rapTotal-give.rapOfValued)+give.robux;
+				const rm=recv.valTotal+(recv.rapTotal-recv.rapOfValued)+Math.floor(recv.robux*0.7);
+				const dm=rm-gm, pm=gm>0?Math.round(dm/gm*100):0;
+				htmlStats+=pgMkStatPill(dm,pm,'Value (unvalued)',vbgMode);
+			}
+			const html='<div class="pg-mt-pillrow" style="display:flex;flex-wrap:wrap;gap:10px 12px;justify-content:center;align-items:center;">'+htmlStats+'</div><div style="display:flex;justify-content:flex-end;">'+pgVbgToggleHtml(vbgMode)+'</div>';
+			if(!bar){ bar=document.createElement('div'); bar.className='pg-tw-verdict'; bar.style.cssText='position:relative;display:flex;flex-direction:column;gap:6px;box-sizing:border-box;padding:1px;margin:8px 0;'; }
+			
+			
+			
+			const host=panels[0]||null;
+			if(host){
+				const anchor=host.querySelector('.pg-tw-total-value')||host.querySelector('[class*="totalRow-"]');
+				if(anchor&&anchor.parentNode){ if(anchor.nextElementSibling!==bar) anchor.parentNode.insertBefore(bar,anchor.nextSibling); }
+				else if(bar.parentNode!==host){ host.appendChild(bar); }
+			}
+			bar.style.width=''; bar.style.marginLeft=''; bar.style.marginBottom='0px';
+			
+			
+			const requestPanel=panels[1]||null;
+			if(requestPanel){
+				requestPanel.style.marginTop='0px';
+				const gap=Math.round(requestPanel.getBoundingClientRect().top-bar.getBoundingClientRect().bottom);
+				if(gap>8) requestPanel.style.marginTop=(-(gap-8))+'px';
+			}
+			if(bar.getAttribute('data-pg-sig')!==html){ bar.setAttribute('data-pg-sig',html); bar.innerHTML=html; pgWireVerdictBg(bar); }
+		}
+	}catch(_e){}
 };
-	/* ---------------------------------------------- Koromon’s Value badges */
-	/* Public read-only item values. No RAP fallback: large limiteds are judged */
-	/* by Value, and missing Koromon’s entries simply receive no badge.          */
-	const KOROMONS_VALUES_URL = 'https://www.koromons.net/api/items';
+				const KOROMONS_VALUES_URL = 'https://www.koromons.net/api/items';
 	const KOROMONS_VALUES_CACHE_KEY = 'pcs_koromons_values_v1';
 	const KOROMONS_VALUES_TTL = 1000 * 60 * 60 * 6;
 	const koromonsValueCache = new Map();
@@ -441,10 +503,7 @@ const applyTradeWindowStats = () => {
 			return { hit:true, fresh:age >= 0 && age <= KOROMONS_VALUES_TTL };
 		} catch (_) { return { hit:false, fresh:false }; }
 	};
-	/* HTTP helper: plain page-context fetch. koromons.net serves open CORS headers (verified:
-	   fetch from the page returns 200 without any extension), so no GM_xmlhttpRequest privilege
-	   is needed and console/local mode gets live data too. */
-	const pgGetJson = (url, timeoutMs = 10000) => new Promise((resolve, reject) => {
+		const pgGetJson = (url, timeoutMs = 10000) => new Promise((resolve, reject) => {
 		const ctl = typeof AbortController === 'function' ? new AbortController() : null;
 		const timer = setTimeout(() => { try { if (ctl) ctl.abort(); } catch(_) {} reject(new Error('Koromon’s request timed out')); }, timeoutMs);
 		fetch(url, { headers:{accept:'application/json'}, signal: ctl ? ctl.signal : undefined })
@@ -459,7 +518,7 @@ const applyTradeWindowStats = () => {
 		if (rows && rows.length) return rows;
 		throw new Error('Koromon’s api/items returned no items');
 	}).catch((e) => {
-		// api/items unavailable -> fall back to the GitHub valu.json snapshot so values still render.
+		
 		console.warn('[Interium] Koromon’s api/items unavailable, using valu.json fallback:', (e && e.message) || e);
 		return pgGetJson(INTERIUM_VALUES_FALLBACK_URL, 10000).then(d => {
 			const rows = asItemArray(d);
@@ -477,15 +536,14 @@ const applyTradeWindowStats = () => {
 			try { localStorage.setItem(KOROMONS_VALUES_CACHE_KEY,JSON.stringify({t:Date.now(),items:rows})); } catch(_) {}
 			return koromonsValueCache;
 		}).catch(() => {
-			// Mark this page-load attempt as settled even without cache. Otherwise annotateThumbs
-			// recursively attaches to the same resolved promise forever and starves the page.
+			
+			
 			koromonsValuesLoaded = true;
 			return koromonsValueCache;
 		});
 		return koromonsValuesPromise;
 	};
-	/* ------------------------------ Koromon’s leaderboard cache + profile block (v1.0.11) */
-	const KOROMONS_LB_URL = 'https://www.koromons.net/api/leaderboard';
+		const KOROMONS_LB_URL = 'https://www.koromons.net/api/leaderboard';
 	const KOROMONS_LB_CACHE_KEY = 'pcs_koromons_lb_v1';
 	const KOROMONS_LB_TTL = 1000 * 60 * 30;
 	let koromonsLbRows = null;
@@ -648,18 +706,13 @@ if (document.body) init();
 else window.addEventListener('DOMContentLoaded', init);
 })();
 
-/* ================================================================
-   INTEGRATED MODULE: Pekora Collectibles Stacker + Values 4.0 (kiwis v5.0)
-   Clean source replacement from viewrap-audit.txt. Only Interium toggle
-   gating and non-blocking cached values loading are adapted for integration.
-   ================================================================ */
 (function () {
     'use strict';
     if (!/^\/internal\/collectibles/i.test(location.pathname)) return;
     console.info('[Interium] Collectibles suite: page detected, starting.');
     try {
-        // Stale legacy flag check (pcs_cfg_v1 was written by older builds via GM_setValue;
-        // now we read it directly from localStorage with the same prefix the polyfill used).
+        
+        
         const _pcsRaw = localStorage.getItem('interium_local_pcs_cfg_v1');
         const _pcsCfg = _pcsRaw ? JSON.parse(_pcsRaw) : null;
         if (_pcsCfg && _pcsCfg.collectiblesSuite === false) {
@@ -788,16 +841,16 @@ else window.addEventListener('DOMContentLoaded', init);
     }
 
     function gmGetJson(url) {
-        // Plain page-context fetch: koromons.net serves open CORS headers, so no GM privilege
-        // is needed and console/local mode works too. (Name kept for call-site compatibility.)
+        
+        
         return fetch(url, { headers: { Accept: 'application/json' } })
             .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
     }
 
     const INTERIUM_VALUES_FALLBACK_URL = 'https://raw.githubusercontent.com/unitedbygrief/koronevalues/refs/heads/main/valu.json';
-    // Fetch an item array from the primary Koromon's endpoint; if that is down or returns
-    // nothing, transparently fall back to the GitHub valu.json snapshot so the collectibles
-    // page keeps showing values/demand while koromons.net is unavailable.
+    
+    
+    
     async function gmGetItemsWithFallback(primaryUrl) {
         const toRows = (d) => Array.isArray(d) ? d : (Array.isArray(d?.items) ? d.items : (Array.isArray(d?.data) ? d.data : null));
         try {
@@ -892,9 +945,9 @@ else window.addEventListener('DOMContentLoaded', init);
 
     function rawDemandFromValueItem(obj) {
         if (!obj || typeof obj !== 'object') return '';
-        // Koromon’s exposes demand directly as obj.Demand, e.g. "High", "Decent",
-        // "Low", "Terrible". Untracked items use "None"/"Unassigned" and must
-        // never render a pill. Trend (e.g. "Stable") must never be read here.
+        
+        
+        
         const scanDemand = (node, depth = 0) => {
             if (!node || typeof node !== 'object' || depth > 3) return '';
             for (const [key, value] of Object.entries(node)) {
@@ -999,11 +1052,12 @@ else window.addEventListener('DOMContentLoaded', init);
 
     function hydrateCachedValues() {
         const cached = readJson(localStorage.getItem(VALUES_CACHE_KEY), null);
-        if (!cached || !Array.isArray(cached.items)) return false;
-        const age = Date.now() - Number(cached.t || 0);
-        if (age < 0 || age > VALUES_CACHE_MAX_AGE_MS) return false;
+        if (!cached || !Array.isArray(cached.items) || !cached.items.length) return false;
+        
+        
         indexValueItems(cached.items);
-        return true;
+        const age = Date.now() - Number(cached.t || 0);
+        return age >= 0 && age <= VALUES_CACHE_MAX_AGE_MS;
     }
 
     async function refreshValues() {
@@ -1025,11 +1079,11 @@ else window.addEventListener('DOMContentLoaded', init);
 
     function hydrateCachedKoromonsDemand() {
         const cached = readJson(localStorage.getItem(KOROMONS_DEMAND_CACHE_KEY), null);
-        if (!cached || !Array.isArray(cached.items)) return false;
-        const age = Date.now() - Number(cached.t || 0);
-        if (age < 0 || age > KOROMONS_DEMAND_CACHE_MAX_AGE_MS) return false;
+        if (!cached || !Array.isArray(cached.items) || !cached.items.length) return false;
+        
         indexKoromonsDemand(cached.items);
-        return true;
+        const age = Date.now() - Number(cached.t || 0);
+        return age >= 0 && age <= KOROMONS_DEMAND_CACHE_MAX_AGE_MS;
     }
 
     async function refreshKoromonsDemand() {
@@ -1332,6 +1386,7 @@ else window.addEventListener('DOMContentLoaded', init);
         return isProjectedStack(stack) ? '<div class="pk-projected-badge" title="Possible projected item"><svg width="16" height="16" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path d="M63.37 53.52C53.982 36.37 44.59 19.22 35.2 2.07a3.687 3.687 0 00-6.522 0C19.289 19.22 9.892 36.37.508 53.52c-1.453 2.649.399 6.083 3.258 6.083h56.35c1.584 0 2.648-.853 3.203-2.01.698-1.102.885-2.565.055-4.075" fill="#ffdd15"/><path d="M28.917 34.477l-.889-13.262c-.166-2.583-.246-4.439-.246-5.565 0-1.534.4-2.727 1.202-3.588.805-.856 1.863-1.286 3.175-1.286 1.583 0 2.646.551 3.178 1.646.537 1.102.809 2.684.809 4.751 0 1.215-.066 2.453-.198 3.708l-1.19 13.649c-.129 1.626-.404 2.872-.827 3.739-.426.871-1.128 1.301-2.109 1.301-.992 0-1.69-.419-2.072-1.257-.393-.841-.668-2.12-.833-3.836m3.072 18.217c-1.125 0-2.106-.362-2.947-1.093-.841-.728-1.26-1.748-1.26-3.058 0-1.143.4-2.12 1.202-2.921.805-.806 1.786-1.206 2.951-1.206s2.153.4 2.977 1.206c.815.801 1.234 1.778 1.234 2.921 0 1.29-.419 2.308-1.246 3.044a4.245 4.245 0 01-2.911 1.107" fill="#1f2e35"/></svg></div>' : '';
     }
 
+    try{ if(!document.getElementById('pg-ext-ic-guard')){ const _g=document.createElement('meta'); _g.id='pg-ext-ic-guard'; (document.head||document.documentElement).appendChild(_g); document.addEventListener('click',(e)=>{ try{ if(e.target&&e.target.closest&&e.target.closest('.pg-ext-ic')) e.stopPropagation(); }catch(_e){} }, true); } }catch(_e){}
     function cardHTML(stack, index) {
         const mine = state.mine.has(String(stack.uid));
         const d = demandInfo(stack.demand);
@@ -1423,8 +1478,8 @@ else window.addEventListener('DOMContentLoaded', init);
         return totalsFor(new Set(), state.theirItems);
     }
 
-    // The calculator panel lives on document.body and is created lazily, so
-    // the Item Calculator button works even if the grid re-render bailed out
+    
+    
     // or a site re-render removed the panel.
     function ensureCalcPanel() {
         let calc = document.querySelector('#pk-calc-panel');
@@ -1463,7 +1518,7 @@ else window.addEventListener('DOMContentLoaded', init);
     function updateCalc() {
         const panel = ensureCalcPanel();
         if (!panel) return;
-        // Toggle visibility first: even if totals computation ever fails,
+        
         // the panel still opens/closes on click.
         document.body.classList.toggle('pk-calc-open', state.calcOpen);
         const mine = totalsFor(state.mine, state.mineItems);
@@ -1562,11 +1617,10 @@ else window.addEventListener('DOMContentLoaded', init);
         });
     }
 
-
-    // Toolbar events are delegated at the document level so every button
-    // keeps working even if the site re-renders/replaces the toolbar DOM
-    // (a React re-render keeps the visible buttons but silently strips
-    // directly-attached listeners - the exact "button does nothing" bug).
+    
+    
+    
+    
     let _toolbarHandlersInstalled = false;
     function installToolbarHandlers() {
         if (_toolbarHandlersInstalled) return;
@@ -1861,7 +1915,6 @@ else window.addEventListener('DOMContentLoaded', init);
         document.head.appendChild(style);
     }
 
-
     function waitForInventoryShell(timeoutMs = 15000) {
         return new Promise(resolve => {
             const started = Date.now();
@@ -1944,14 +1997,6 @@ else window.addEventListener('DOMContentLoaded', init);
     else startBootWatcher();
 })();
 
-/* ================================================================
-   INTERIUM MASS TRADER ENGINE (ported from the supplied Hexium src.js)
-   Consent-based automation: it only SENDS standard trade offers that the
-   recipient must MANUALLY accept in Pekora's own UI. It never accepts,
-   declines, or auto-confirms trades, never fakes balances/verification,
-   and contacts no third-party backend. CSRF is taken ONLY from Pekora's
-   own x-csrf-token challenge header - the browser cookie store is never read.
-   ================================================================ */
 (function () {
     'use strict';
     if (window.InteriumMassTrader) return;
@@ -1960,10 +2005,7 @@ else window.addEventListener('DOMContentLoaded', init);
     const api = (path, opts) => fetch(API + path, Object.assign({ credentials: 'include' }, opts || {}));
 
     let _csrf = null;
-    /* POST helper. The CSRF token is obtained ONLY from Pekora's 403 challenge
-       response header (never from the browser cookie store), so Interium's privacy
-       policy - and its audit test - still hold. */
-    const postJson = async (path, body) => {
+        const postJson = async (path, body) => {
         const doPost = (token) => api(path, {
             method: 'POST',
             headers: Object.assign({ 'Content-Type': 'application/json' }, token ? { 'x-csrf-token': token } : {}),
@@ -2064,9 +2106,7 @@ else window.addEventListener('DOMContentLoaded', init);
         return null;
     };
 
-    /* Sends ONE standard trade offer. The recipient must manually accept it in
-       Pekora's own trades UI - this helper never accepts/declines/auto-confirms. */
-    const sendTrade = (myId, myUserAssetIds, partnerId, partnerUserAssetIds) => postJson('/trades/v1/trades/send', {
+        const sendTrade = (myId, myUserAssetIds, partnerId, partnerUserAssetIds) => postJson('/trades/v1/trades/send', {
         offers: [
             { userId: parseInt(myId, 10), userAssetIds: myUserAssetIds },
             { userId: parseInt(partnerId, 10), userAssetIds: partnerUserAssetIds },

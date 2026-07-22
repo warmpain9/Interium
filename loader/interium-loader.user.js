@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Interium Loader
 // @namespace    https://github.com/warmpain9/Interium
-// @version      2.69.0
+// @version      1.0.0
 // @description  CSP-safe loader: Tampermonkey attaches the Interium trading + UI runtimes from GitHub (via GitHub raw) using @require.
 // @author       Interium contributors
 // @license      MIT
@@ -11,8 +11,8 @@
 // @noframes
 // @grant        none
 // @require      https://raw.githubusercontent.com/warmpain9/Interium/main/src/core/core.js
-// @require      https://raw.githubusercontent.com/warmpain9/Interium/main/src/trading/interium-trading-22.js
-// @require      https://raw.githubusercontent.com/warmpain9/Interium/main/src/ui/interium-ui-46.js
+// @require      https://raw.githubusercontent.com/warmpain9/Interium/main/src/trading/interium-trading.js
+// @require      https://raw.githubusercontent.com/warmpain9/Interium/main/src/ui/interium-ui.js
 // @updateURL    https://raw.githubusercontent.com/warmpain9/Interium/main/loader/interium-loader.user.js
 // @downloadURL  https://raw.githubusercontent.com/warmpain9/Interium/main/loader/interium-loader.user.js
 // @homepageURL  https://github.com/warmpain9/Interium
@@ -29,14 +29,12 @@
  *
  * How updates ship:
  * 1. Commit the changed runtime file on main:
- *      - trading (rank, collectibles, koromons values) -> src/trading/interium-trading-<n>.js
- *      - UI (panel, themes, watermark, styling)        -> src/ui/interium-ui-<n>.js
- *    IMPORTANT: RENAME the file, bumping <n> (ui-28 -> ui-29 -> ui-30 ...).
- *    A new filename is a new URL, so neither GitHub raw nor Tampermonkey can
- *    ever serve a stale cached copy of the runtime.
- * 2. Point the @require above at the new filename, bump @version in THIS
- *    file and commit it too.
- * Tampermonkey auto-updates the loader from @updateURL and re-downloads the
- * @require'd runtime along with it - users never reinstall anything.
+ *      - trading (rank, collectibles, koromons values) -> src/trading/interium-trading.js
+ *      - UI (panel, themes, watermark, styling)        -> src/ui/interium-ui.js
+ * 2. Bump @version in THIS file and commit it too.
+ * IMPORTANT: the runtime filenames are stable (no version suffix). GitHub
+ * raw caches a URL for ~5 minutes, and Tampermonkey re-downloads @require'd
+ * URLs when the loader updates - so ALWAYS bump @version here with every
+ * runtime change, otherwise users keep running stale cached runtimes.
  */
-console.info('[Interium] Loader v2.69.0 - core + trading + UI runtimes attached via @require (CSP-safe).');
+console.info('[Interium] Loader v1.0.0 - core + trading + UI runtimes attached via @require (CSP-safe).');

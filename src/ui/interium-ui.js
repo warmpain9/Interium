@@ -1,23 +1,15 @@
-// ─────────────────────────────────────────────────────────────────────
+
 // Interium UI runtime — themes, panel, watermark, page styling
-// Ported from the Interium 1.0.5 GUI with these changes:
-//   • Trading-specific UI is handled by the separate
+
 //     dist/interium-trading-*.js runtime.
-//   • Auto-refresher / auto-clicker code is not part of this UI runtime
-//   • "LARP" fake-balance / fake-verify / fake-item tools are not part of this UI runtime
-//   • Calls to the private hexium.zxwxtt.workers.dev server are not part of this build
-//     (no auth gate, announcements, badges or remote profile saves)
-// The only network requests made here go to pekora.zip itself (your own
-// profile info + avatar headshot for the panel header). Settings are
-// stored locally in Tampermonkey storage under "interium_ui_cfg_v1".
-// ─────────────────────────────────────────────────────────────────────
+
 (function () {
     'use strict';
 
-    // ── Local / standalone fallback ───────────────────────────────────
-    // Under Tampermonkey the GM_* storage APIs exist and are used as-is.
-    // When the script runs WITHOUT a userscript manager (e.g. pasted into the
-    // Settings are stored directly in localStorage (no GM storage needed).
+    
+    
+    
+    
     const _LS = window.localStorage;
     const _lsGet = (k, d) => { try { const s = _LS.getItem('interium_cfg_' + k); return s === null ? d : JSON.parse(s); } catch { return d; } };
     const _lsSet = (k, v) => { try { _LS.setItem('interium_cfg_' + k, JSON.stringify(v)); } catch {} };
@@ -128,11 +120,7 @@
         notificationPosition:  'bottom-right',
         theme:                 'purple',
         guiScale:              100,
-        hotkeyRefresher:       'F',
-        hotkeyHardRefresh:     'R',
         hotkeyToggleGui:       'Insert',
-        clickInterval:         1500,
-        hardRefreshInterval:   60000,
         miscBgUrl:                  '',
         miscBgBlur:                 false,
         miscBgBlurAmount:           8,
@@ -190,14 +178,6 @@
         profileBannerTint2:         '#3f2550',
         profileBannerTintAngle:     135,
         profileBannerBrightness:    100,
-        hideHexBadge:               false,
-        tradesBgColor:              '#262626',
-        tradesOpacity:              100,
-        tradesBlur:                 0,
-        tradesAccent:               '#ffffff',
-        tradesGlassCards:           false,
-        tradesMetric:               'value',
-        tradesPillOpacity:          5,
         robuxIcon:                  'off',
         tradesGlassify:             true,
         sendTradeGlassify:          true,
@@ -223,17 +203,11 @@
         effectIntensity:        50,
         effectSpeed:            50,
         effectColor:            '',
-        larpEnabled:            false,
-        larpVerify:             false,
-        larpRobux:              0,
-        larpTix:                0,
         avatarBgEnabled:        false,
         avatarBgImage:          '',
         avatarBgBlur:           0,
         avatarGlassify:         false,
         avatarEditorGlass:      true,
-        avatarFakeItems:        [],
-        avatarFakeQty:          {},
         anonymous:             false,
     };
 
@@ -328,13 +302,13 @@
         applyGuiFont(cfg.miscGuiFont || 'Share Tech Mono');
     };
 
-    // ── Unified glass recipe ────────────���������������������──────�����─────���────────────────
-    // Every blur / glassify surface (navbar, sidebar, cards, frames,
-    // dropdowns, chips) uses these EXACT values so the glass effect looks
-    // identical everywhere. Tweak here to retune all glass at once.
+    
+    
+    
+    
     const GLASS_BG = 'rgba(255,255,255,0.05)';
-    // GUI-only tint: deliberately darker than site glass. Do not reuse this
-    // outside #pks-panel; profile/catalog/avatar surfaces stay on GLASS_BG.
+    
+    
     const GUI_GLASS_BG = 'rgba(10,10,14,0.86)';
     const GLASS_FILTER = 'blur(14px) saturate(160%)';
     const GLASS_BORDER_COLOR = 'rgba(255,255,255,0.12)';
@@ -372,22 +346,22 @@
             if (cfg.navbarMode === 'transparent') {
                 css += `.navbar-0-2-49,nav.navbar.navbar-0-2-49,.navbar-wrapper-main .navbar{background:transparent!important;border-bottom:1px solid rgba(255,255,255,0.06)!important;box-shadow:none!important;}`;
             } else if (cfg.navbarMode === 'blur') {
-                // Glass goes on a ::before layer, NOT the navbar element itself, so the
-                // navbar is not a "backdrop root" and the nested account dropdown
-                // (Settings/Help/Logout) keeps its own blur instead of going transparent.
-                // transform:translateZ(0) re-creates the stacking context + containing
-                // block that the old backdrop-filter gave the navbar; that layer isolation
-                // is what keeps the dropdown from being clipped into a scroll box. transform
-                // is NOT a backdrop-root trigger, so the dropdown blur still works.
+                
+                
+                
+                
+                
+                
+                
                 const NAV = '.navbar-0-2-49,nav.navbar.navbar-0-2-49,.navbar-wrapper-main .navbar';
                 css += `${NAV}{background:transparent!important;border:none!important;border-bottom:1px solid ${GLASS_BORDER_COLOR}!important;box-shadow:${GLASS_SHADOW}!important;transform:translateZ(0)!important;}`;
                 css += `${NAV}::before{content:''!important;position:absolute!important;inset:0!important;z-index:-1!important;pointer-events:none!important;background:${GLASS_BG}!important;backdrop-filter:${GLASS_FILTER}!important;-webkit-backdrop-filter:${GLASS_FILTER}!important;}`;
                 if (cfg.navbarDropdownGlass) {
-                    // Gear/account dropdown (Settings / Help / Logout) rendered inside the
-                    // navbar wrapper gets the same glass as the bar itself. Menu classes
-                    // from the live DOM: dropdownWrapper- anchors dropdownNew-/dropdownClass-.
-                    // The bar's blur lives on a ::before layer (see above), so the nav is not
-                    // a backdrop root and the dropdown's own backdrop-filter still works.
+                    
+                    
+                    
+                    
+                    
                     const DD = '.navbar-wrapper-main [class*="dropdownNew"],.navbar-wrapper-main [class*="dropdownClass"]';
                     css += `${DD}{${GLASS_CSS}border-radius:12px!important;overflow:hidden!important;}`;
                     css += `.navbar-wrapper-main [class*="dropdownNew"] a,.navbar-wrapper-main [class*="dropdownClass"] a,.navbar-wrapper-main [class*="dropdownNew"] p,.navbar-wrapper-main [class*="dropdownClass"] p{background:transparent!important;color:#fff!important;}`;
@@ -416,8 +390,8 @@
                 return null;
             })();
         if (!card) return;
-        // Always clear our previous inline styling first, so turning the
-        // sidebar OFF (or switching modes) actually reverts it.
+        
+        
         ['background', 'backdrop-filter', '-webkit-backdrop-filter', 'border-color', 'box-shadow']
             .forEach(prop => card.style.removeProperty(prop));
         if (!cfg.sidebarEnabled) return;
@@ -428,7 +402,7 @@
             card.style.setProperty('border-color', 'rgba(255,255,255,0.07)', 'important');
             card.style.setProperty('box-shadow', 'none', 'important');
         } else if (cfg.sidebarMode === 'blur') {
-            // Unified glass recipe - identical to every other glass surface.
+            
             card.style.setProperty('background', GLASS_BG, 'important');
             card.style.setProperty('backdrop-filter', GLASS_FILTER, 'important');
             card.style.setProperty('-webkit-backdrop-filter', GLASS_FILTER, 'important');
@@ -442,7 +416,6 @@
             card.style.setProperty('box-shadow', 'none', 'important');
         }
     };
-
 
     const SIDEBAR_LINKS = [
         { href: '/internal/robuxexchange', name: 'Robux Exchange' },
@@ -470,10 +443,10 @@
         });
     };
 
-    // Friends glass: applies the SAME unified glass recipe as "Transparent
-    // page frames" to friends sections, via inline styles so no site CSS can
-    // override it. Covers the Friends page and profile friends strips, on
-    // both live-site markup (friendEntry/friendWrapper) and older builds
+    
+    
+    
+    
     // (listItemFriend/sideRow).
     const FRIENDS_INLINE_PROPS = ['background', 'background-color', 'backdrop-filter', '-webkit-backdrop-filter', 'box-shadow', 'border', 'border-radius', 'color'];
     const applyFriendsTransparencyDirect = () => {
@@ -489,7 +462,7 @@
         // Friends page cards -> glass
         document.querySelectorAll('[class*="friendCard-"],[class*="manageRequestCard-"]').forEach(el => glass.add(el));
         document.querySelectorAll('[class*="friendsContainer-"],[class*="friendCardWrapper-"]').forEach(el => clear.add(el));
-        // Profile friends strip: find entries, glass their section container
+        
         document.querySelectorAll('[class*="friendEntry"],[class*="friendWrapper"],[class*="listItemFriend-"]').forEach(li => {
             clear.add(li);
             const box = li.closest('.section-content,[class*="card-0-2-"],.card');
@@ -522,13 +495,13 @@
         }
     };
 
-    // Friend-request cards: the avatar/name card has no stable class we know,
-    // so CSS guessing failed twice. Find it deterministically in the live DOM:
-    // the element right above each manageRequestCard- strip (its previous
-    // sibling, or the sibling of its friendCardWrapper-). Give it sharp BOTTOM
-    // corners + zero seam gap via inline !important styles. GUI-gated:
-    // "Merge friend request cards" (miscFriendRequestMerge); toggle-off
-    // path removes exactly the inline props the merge sets.
+    
+    
+    
+    
+    
+    
+    
     const applyRequestCardMergeDirect = () => {
         const on = !!cfg.miscFriendRequestMerge;
         document.querySelectorAll('[class*="manageRequestCard-"]').forEach(mc => {
@@ -538,7 +511,7 @@
             if (!on) {
                 /* Toggle off: undo exactly the inline props the merge sets. */
                 ['border-radius','border-bottom','margin-bottom','box-shadow'].forEach(p => top.style.removeProperty(p));
-                mc.style.removeProperty('margin-top');
+                ['margin-top','border-radius','border-top','box-shadow'].forEach(p => mc.style.removeProperty(p));
                 if (wrap) { wrap.style.removeProperty('margin-top'); wrap.style.removeProperty('padding-top'); }
                 return;
             }
@@ -548,13 +521,16 @@
             set(top, 'margin-bottom', '0');
             set(top, 'box-shadow', 'none');
             set(mc, 'margin-top', '0');
+            set(mc, 'border-radius', '0 0 10px 10px');
+            set(mc, 'border-top', 'none');
+            set(mc, 'box-shadow', 'none');
             if (wrap) { set(wrap, 'margin-top', '0'); set(wrap, 'padding-top', '0'); }
         });
     };
 
-    // "Currently Wearing" glass: the section has no stable class hooks, so we
-    // find it by its header text and glass the panels below it via inline
-    // styles (same recipe as the friends glass). Gated by "Glassify profile".
+    
+    
+    
     let lastWearingLogCount = -1;
     const applyWearingGlassDirect = () => {
         if (!cfg.miscProfileFrameTransparent) {
@@ -573,8 +549,8 @@
             p.style.setProperty('border-radius', radius || '16px', 'important');
             p.style.setProperty('box-shadow', GLASS_SHADOW, 'important');
         };
-        // The section container/card must NOT paint its own glass under the
-        // panels - stacked layers read brighter than every other glass surface.
+        
+        
         const clearHost = (el) => {
             el.setAttribute('data-interium-wearing', '1');
             el.style.setProperty('background', 'transparent', 'important');
@@ -585,33 +561,33 @@
             el.style.setProperty('box-shadow', 'none', 'important');
         };
         const isMatch = el => /currently\s+wearing/i.test(el.textContent || '');
-        // Tag-agnostic header lookup: the DEEPEST elements whose (short) text
-        // is the section title - works whatever tag/class the site uses.
+        
+        
         const headers = [...document.querySelectorAll('body *')].filter(el => el instanceof HTMLElement && (el.textContent || '').length < 80 && isMatch(el) && ![...el.children].some(isMatch));
         let panelCount = 0;
         headers.forEach(h => {
-            // Exact Pekora profile DOM (from a live dump): the H3 header sits in
-            // <div class="col-12">, and its siblings inside <div class="flex
-            // marginStuff"> are the two panels <div class="col-12 col-lg-6">
+            
+            
+            
             // (3D viewer | wearing items).
             const headCol = h.closest('[class*="col-12"]') || h;
             const wrap = headCol.parentElement;
             if (!wrap) return;
             const panels = [...wrap.children].filter(c => c instanceof HTMLElement && c !== headCol && !c.contains(h) && c.offsetHeight >= 120);
             panels.forEach((p, i) => {
-                // ONE-card effect: only the outer corners are rounded; the
-                // inner meeting edges stay sharp on both sides.
+                
+                
                 glassPanel(p, panels.length < 2 ? '16px' : (i === 0 ? '16px 0 0 16px' : (i === panels.length - 1 ? '0 16px 16px 0' : '0')));
-                // No border on the inner meeting edges - two adjacent 1px
-                // borders otherwise render as a bright seam line.
+                
+                
                 if (panels.length > 1 && i < panels.length - 1) p.style.setProperty('border-right', 'none', 'important');
                 if (panels.length > 1 && i > 0) p.style.setProperty('border-left', 'none', 'important');
-                // No drop shadow on merged panels: each panel's soft glass
-                // shadow paints over its neighbour at the seam and ruins the
-                // one-card look. Inline !important beats every stylesheet.
+                
+                
+                
                 if (panels.length > 1) p.style.setProperty('box-shadow', 'none', 'important');
-                // If the panel's own paint lives on a full-size inner wrapper,
-                // clear it so it neither covers nor stacks over the glass.
+                
+                
                 [...p.children].forEach(inner => {
                     if (inner instanceof HTMLElement && inner.offsetHeight >= p.offsetHeight - 24) clearHost(inner);
                 });
@@ -637,24 +613,18 @@
         css += `[class*="dropdownWrapper"]{position:relative!important;z-index:1500!important;}[class*="dropdownNew"],[class*="dropdownClass"]{z-index:1500!important;}`;
         css += `[class*="userStatus"],[class*="statHeader"],[class*="statText"]{font-weight:700!important;}`;
         const FRAME_CSS = `background:transparent!important;backdrop-filter:blur(0px)!important;border-color:rgba(255,255,255,0.06)!important;box-shadow:none!important;`;
-        /* PAGE-GATED (leak audit): each block below only builds its CSS on
-           the page it belongs to. Generic JSS names (buttonCol-, card-0-2-,
-           thumbnailWrapper, favoriteButton, containerHeader...) exist on many
-           pages, so ungated rules leaked across pages (e.g. profile glass
-           restyled the avatar category strip). applyPageFrameTransparency is
-           re-run on every SPA navigation, so the gates stay in sync. */
-        if (cfg.miscHomeFramesTransparent && isHomePage()) {
+                if (cfg.miscHomeFramesTransparent && isHomePage()) {
             css += `[class*="myFeedContainer-"],[class*="blogNewsContainer-"],[class*="homeGamesContainer-"]{${FRAME_CSS}}`;
             css += `[class*="friendSection"] .section-content,[class*="friendSection"]{background:transparent!important;}[class*="thumbnailWrapper"]{box-shadow:none!important;}`;
         }
         if (cfg.miscCatalogFrameTransparent && /^\/catalog(\/|$)/i.test(location.pathname)) {
-            // Catalog listing page + item detail page (hash-proof wildcards).
+            
             css += `[class*="catalogPage-"],[class*="catalogContainer-"],[class*="searchResultsContainer-"],[class*="resultsWrapper-"],[class*="searchOptionsContainer-"]{${FRAME_CSS}}`;
             css += `[class*="itemDetailsContainer-"],[class*="itemDetails-"],[class*="itemThumbContainer-"]{${FRAME_CSS}}`;
         }
         if (cfg.miscProfileFrameTransparent && isProfilePage()) {
-            // :has() may be unsupported in older engines - feature-detect so
-            // the glass never breaks (we only lose the sidebar exclusion).
+            
+            
             let NOHOME = '';
             try { if (CSS.supports('selector(:has(a))')) NOHOME = ':not(:has(a[href$="/home"]))'; } catch {}
             let glassEl = document.getElementById('pks-profile-glass-style');
@@ -717,30 +687,18 @@
             document.getElementById('pks-profile-glass-style')?.remove();
         }
         if (cfg.miscFriendsFrameTransparent && isFriendsPage()) {
-            // Friends sections get the SAME glass as "Transparent page frames".
+            
             css += `.section-content:has([class*="friendEntry"],[class*="listItemFriend-"]){${GLASS_CSS}border-radius:14px!important;}`;
             css += `[class*="friendCard-"],[class*="manageRequestCard-"]{${GLASS_CSS}border-radius:10px!important;}`;
             css += `[class*="friendsContainer-"],[class*="friendCardWrapper-"]{background:transparent!important;background-color:transparent!important;box-shadow:none!important;}`;
             css += `[class*="friendEntry"],[class*="friendWrapper"],[class*="thumbnailWrapper"],[class*="listItemFriend-"],[class*="sideRow-"]{background:transparent!important;background-color:transparent!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;}`;
             css += `[class*="listItemFriend-"] [class*="playerName-"],[class*="friendCard-"] [class*="username-"],[class*="manageRequestCard-"] [class*="username-"]{color:#fff!important;}`;
         }
-        /* Friends page (live DOM dump): tab bar is card-0-2-* > row-0-2-* >
-           .col > p.entry-0-2-*; request cards are friendCardWrapper-* >
-           friendCard-* (avatar/name) + manageRequestCard-* (white strip with
-           p.buttonShared- Ignore/Accept). Always-on restyle: */
-        /* 1. Tab bar: FULLY rounded (14px, matches the unified tab-bar block);
-           overflow:hidden clips the accent underline inside the corners. */
-        /* Page-gated: card-0-2-/row-0-2-/entry-0-2- are generic JSS names. */
+                        /* Page-gated: card-0-2-/row-0-2-/entry-0-2- are generic JSS names. */
         if (isFriendsPage()) {
         css += `[class*="card-0-2-"]:has(> [class*="row-0-2-"] > .col > [class*="entry-0-2-"]){border-radius:14px!important;overflow:hidden!important;}`;
-        /* 2. Merge avatar card + buttons strip into ONE glass card: rounded
-           outer corners, no borders/shadow at the seam (profile lesson).
-           GUI-gated: "Merge friend request cards" (miscFriendRequestMerge). */
-        if (cfg.miscFriendRequestMerge) {
-        /* The avatar/name card's class is unknown - target it structurally:
-           the direct child of the wrapper that sits right BEFORE the buttons
-           strip. Zero out the vertical gap and both seam borders/shadows. */
-        css += `[class*="friendCardWrapper-"] > *:has(+ [class*="manageRequestCard-"]){${GLASS_CSS}border-radius:10px 10px 0 0!important;border-bottom:0!important;margin-bottom:0!important;box-shadow:none!important;}`;
+                if (cfg.miscFriendRequestMerge) {
+                css += `[class*="friendCardWrapper-"] > *:has(+ [class*="manageRequestCard-"]){${GLASS_CSS}border-radius:10px 10px 0 0!important;border-bottom:0!important;margin-bottom:0!important;box-shadow:none!important;}`;
         css += `[class*="friendCardWrapper-"] [class*="manageRequestCard-"]{${GLASS_CSS}border-radius:0 0 10px 10px!important;border-top:0!important;margin-top:0!important;box-shadow:none!important;padding:8px 10px 10px!important;}`;
         css += `[class*="manageRequestCard-"] [class*="buttonShared-"]{border-radius:8px!important;margin:0!important;font-weight:700!important;cursor:pointer!important;transition:filter 0.15s ease,border-color 0.15s ease!important;}`;
         css += `[class*="manageRequestCard-"] [class*="ignoreButton-"]{background-color:${GLASS_BG}!important;border:1px solid ${GLASS_BORDER_COLOR}!important;color:#fff!important;margin-right:4px!important;}`;
@@ -754,19 +712,19 @@
         applyWearingGlassDirect();
         if (cfg.miscAvatarFrameTransparent && isAvatarPage()) css += `[class*="avatarCardContainer-"]{${FRAME_CSS}}[class*="pillToggle-"]{background:${GLASS_BG}!important;border-color:rgba(255,255,255,0.1)!important;}`;
         if (cfg.miscAvatarBlurDropdown && isAvatarPage()) { // buttonCol- also exists on profile pages
-            // Exact Pekora Avatar DOM (from Avatar runtime): buttonCol-* is the category strip;
-            // submenuContainer-* section-content is the hover dropdown rendered directly below it.
-            // Apply the SAME complete glass recipe directly to both. Do not style their common
-            // parent: backdrop-filter never blurs a parent's own children (the item cards).
-            // One literal preset for BOTH surfaces. The stronger shared tint normalises the
-            // different backdrops (dark page behind the strip, bright cards behind submenu)
-            // while retaining the same live 14px backdrop blur on each element.
+            
+            
+            
+            
+            
+            
+            
             css += `[class*="buttonCol-"],[class*="submenuContainer-"][class~="section-content"]{${GLASS_CSS}}`;
             css += `[class*="buttonCol-"]{border-radius:12px 12px 0 0!important;border-bottom:0!important;}`;
             css += `[class*="submenuContainer-"][class~="section-content"]{border-radius:0 0 12px 12px!important;border-top:0!important;margin-top:0!important;}`;
 
-            // Pekora gives unselected category <p> elements their own opaque background. Clear
-            // only those child paints so the real blur on buttonCol remains visible.
+            
+            
             css += `[class*="buttonCol-"] [class*="vTab-"],[class*="buttonCol-"] [class*="vTabLabel-"],[class*="buttonCol-"] [class*="vTabUnselected-"]{background:transparent!important;background-color:transparent!important;}`;
             css += `[class*="buttonCol-"] p[class*="vTabUnselected-"]{box-shadow:none!important;}`;
         }
@@ -900,43 +858,43 @@
                 [class*="playButtonContainer"] button [class*="iconPlay"]{filter:drop-shadow(0 1px 2px rgba(0,0,0,0.4))!important;}
 
             `;
-            // /games LISTING cards are owned by the unified "Modern game
-            // cards" setting (miscModernGameCards in applyCardStyle), shared
-            // with the home page. The flat translucent card rules above only
-            // matter on the game DETAIL page (nested inside glassed panels).
+            
+            
+            
+            
         }
-        // Only strip native frames when a feature that draws its own (glass / hero backdrop) is enabled.
-        // Inner hosts (thumb, carousel, description) are always cleared; the background- hero
-        // wrapper is cleared ONLY when it does not itself carry the unified hero glass above
-        // (i.e. glassify off or not on a /games/<id> page).
+        
+        
+        
+        
         if (cfg.miscGamesGlassify || cfg.miscGamesHeroBackdrop) css += `[class*="gameContainer"] [class*="thumbContainer"],[class*="gameContainer"] [class*="carouselGameDetails"],[class*="gameContainer"] [class*="descriptionContainer"]{background:transparent!important;background-color:transparent!important;border:none!important;box-shadow:none!important;}`;
         if ((cfg.miscGamesGlassify || cfg.miscGamesHeroBackdrop) && !(cfg.miscGamesGlassify && onGamesPage)) css += `[class*="gameContainer"] [class*="background-"]{background:transparent!important;background-color:transparent!important;border:none!important;box-shadow:none!important;}`;
         if (cfg.miscGamesHideRecommended && onGamesPage) css += `[class*="recommendedGamesContainer"]{display:none!important;}`;
         if (cfg.miscGamesHideComments && onGamesPage) css += `[class*="commentsContainer"]{display:none!important;}[class*="containerHeader"]:has(+[class*="commentsContainer"]){display:none!important;}`;
-        // ── Tab bars: unified glass (REWRITTEN) ──
-        // There are TWO different native tab components, not one:
-        //  1) vTab component — game page (About/Store/Servers, wrapped in
-        //     horizontalTabs) and profile page (About/Creations, no wrapper):
-        //     div[buttonCol-] > div[vTab-] > p[vTabLabel-]; unselected labels also
-        //     carry vTabUnselected- with a native paddingTop:7px that misaligns the
-        //     text, and the selected tab hides a white btnBottomSeperator strip that
-        //     hangs BELOW the bar (height:5px;margin-bottom:-5px) — display:none it.
-        //  2) friends page (/users/<id>/friends) — a DIFFERENT component entirely:
-        //     div[card-] > div[row-] > .col > p[entry-] (+entryActive-); its native
-        //     underline is an inset box-shadow 0 -4px var(--primary-color).
-        // Both are rebuilt as ONE glass bar: equal flex columns, uniform padding,
-        // accent underline on the active tab, soft hover highlight. Page-gated
-        // because the same generic class names are reused elsewhere (Groups,
-        // Messages keep their native tabs; the avatar page strip styles buttonCol-
-        // itself, but that block is gated to the avatar page).
-        // The underline is an INSET PILL (::after with rounded ends, pulled in from
-        // the sides and lifted off the bottom) so it can never poke past the bar's
-        // rounded glass corners like a full-width inset box-shadow would.
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
         const onProfileTabsPage = /\/users\/\d+\/profile/i.test(location.pathname);
         const onFriendsTabsPage = /\/users\/\d+\/friends/i.test(location.pathname) || /^\/my\/friends/i.test(location.pathname);
-        // SPLIT GATES (cross-toggle leak fix): the /games toggle only styles the
-        // /games page, the profile About/Creations tab bar follows its OWN
-        // /profile toggle - one page's toggle must never restyle another page.
+        
+        
+        
         if ((cfg.miscGamesGlassify && onGamesPage) || (cfg.miscProfileTabsGlassify && onProfileTabsPage)) {
             const t = getTheme();
             css += `
@@ -966,17 +924,17 @@
             `;
         }
         // ── Develop page (/develop) glassify ──
-        // Saved-DOM reference: the page content lives in div[developerContainer-];
-        // every selector below is SCOPED under it because the page reuses generic
-        // JSS names (wrapper-, text-, row-, box-, container-, buttonCol-) that also
-        // exist in the navbar/side nav and on other pages (same cross-page-leak
-        // lesson as the /trades itemCard- and /games recommendedGamesContainer fixes).
+        
+        
+        
+        
+        
         // Structure map (from the saved page):
-        //   div[buttonCol-] > div[vTab-] > p[vTabLabel-]   top tabs (My Creations...)
-        //   a[wrapper-] > span[text-]                      left asset-type list
-        //     (+wrapperSelected-/textSelected- = active, +wrapperDisabled- = greyed)
-        //   div[row-]:has(img[image-])                     one creation row
-        //   div[container-] > div[box-] > gear-/caret-     per-row settings button
+        
+        
+        
+        
+        
         const onDevelopPage = /^\/develop(\/|$)/i.test(location.pathname);
         if (cfg.miscDevelopGlassify && onDevelopPage) {
             const t = getTheme();
@@ -1020,49 +978,33 @@
         applyInventoryGlass();
     };
 
-    // ── Inventory page (/users/<id>/inventory) glassify ──
-    // JSS names from Next chunk 6236 (Korone dump): itemCard-, serial-,
-    // itemLabel-, creatorLabel-, creatorUrl-, categoryBgDesktop-,
-    // categoryTitle-, categoryValue-, showingLabel-, selectorOption(Selected)-,
-    // selectorClosed-, selectorMenuOpen-, selectOption-. Site defaults paint
-    // OPAQUE var(--white-color) panels with light seams (itemLabel border-top
-    // #f2f2f2) -- broken look on dark theme + custom bg. Page-gated: these
-    // are generic JSS names that could collide elsewhere.
+    
+    
+    
+    
+    
+    
+    
+    
     const isInventoryPage = () => /^\/users\/\d+\/inventory(\/|$)/i.test(location.pathname);
     const applyInventoryGlass = () => {
         let el = document.getElementById('pks-inventory-glass-style');
         if (!cfg.miscInventoryGlassify || !isInventoryPage()) { el?.remove(); return; }
         if (!el) { el = document.createElement('style'); el.id = 'pks-inventory-glass-style'; document.head.appendChild(el); }
         const t = getTheme();
-        // Card surface: same branching as modern game cards. With a custom
-        // background we need the REAL fake-backdrop blur (absolute pseudo
-        // slice + background-attachment:fixed) because backdrop-filter alone
-        // reads as a flat tint; hover lift therefore uses top, never
-        // transform (transform breaks background-attachment:fixed).
-        let cardCss;
-        const invBgUrl = cfg.miscBgUrl?.trim();
-        if (invBgUrl) {
-            const sliceBlur = (cfg.miscBgBlur ? (cfg.miscBgBlurAmount ?? 8) : 0) + 16;
-            const bgDarkOp = cfg.miscBgDarkOverlay ? ((cfg.miscBgDarkOpacity ?? 50) / 100) : 0;
-            const cardVeil = Math.min(0.8, 0.32 + bgDarkOp * 0.55).toFixed(2);
-            el.dataset.invMode = 'custom-slice';
-            cardCss = `
-            [class*="itemCard-"]{position:relative!important;top:0!important;isolation:isolate!important;background:transparent!important;border:1px solid ${GLASS_BORDER_COLOR}!important;box-shadow:${GLASS_SHADOW}!important;border-radius:12px!important;padding:8px!important;overflow:hidden!important;transition:border-color 0.22s,box-shadow 0.22s,top 0.18s!important;}
-            [class*="itemCard-"]::before{content:'';position:absolute;inset:-${sliceBlur * 2}px;z-index:-2;background:url('${invBgUrl.replace(/'/g, "\\'")}') center/cover no-repeat fixed;filter:blur(${sliceBlur}px) saturate(150%);pointer-events:none;}
-            [class*="itemCard-"]::after{content:'';position:absolute;inset:0;z-index:-1;background:rgba(10,11,16,${cardVeil});pointer-events:none;}
-            [class*="itemCard-"]:hover{border-color:${t.cardHoverBorder}!important;box-shadow:${t.cardHoverGlow}!important;top:-3px!important;z-index:2!important;}
+        
+        
+        
+        
+        
+        
+        
+        
+        el.dataset.invMode = 'catalog';
+        const cardCss = `
+            [class*="itemCard-"]{${GLASS_CSS}position:relative!important;border-radius:14px!important;padding:8px!important;overflow:hidden!important;transition:transform 0.16s ease,box-shadow 0.16s ease,border-color 0.16s ease!important;}
+            [class*="itemCard-"]:hover{transform:translateY(-4px)!important;box-shadow:0 14px 38px rgba(0,0,0,0.45)!important;border-color:${t.accent}77!important;}
             `;
-        } else {
-            // No custom background: ONE unified glass recipe -- exactly the
-            // same GLASS_CSS surface as the category sidebar / messages /
-            // groups panels. The graphite tint and site-background slice
-            // experiments both read as solid dark tiles, not glass.
-            el.dataset.invMode = 'glass';
-            cardCss = `
-            [class*="itemCard-"]{${GLASS_CSS}position:relative!important;top:0!important;border-radius:12px!important;padding:8px!important;overflow:hidden!important;transition:border-color 0.22s,box-shadow 0.22s,top 0.18s!important;}
-            [class*="itemCard-"]:hover{border-color:${t.cardHoverBorder}!important;box-shadow:${t.cardHoverGlow}!important;top:-3px!important;z-index:2!important;}
-            `;
-        }
         el.textContent = `
             /* category sidebar: one glass panel, accent for the active entry.
                NOTE: the backdrop-filter must live on a ::before pseudo layer,
@@ -1100,15 +1042,23 @@
                square image + fixed 16px badge row + one name line + one
                creator line; the serial pill is lifted out of the flow. */
             [class*="itemCard-"] [class*="serial-"]{position:absolute!important;top:8px!important;right:8px!important;float:none!important;margin:0!important;z-index:3!important;}
-            /* Preview framed EXACTLY like the catalog listing cards
-               (cardImage- recipe): faint translucent fill + 10px radius,
-               plus an explicit glass hairline so the frame reads on any
-               background. The site renders the thumb img at its natural
-               ~110px size (stock cards are narrower); force the img to fill
-               the square frame edge-to-edge like catalog previews do. */
-            [class*="itemCard-"] [class*="itemImage-"]{margin:0 0 6px!important;width:100%!important;aspect-ratio:1/1!important;display:flex!important;align-items:center!important;justify-content:center!important;overflow:hidden!important;background-color:rgba(255,255,255,0.035)!important;border:1px solid ${GLASS_BORDER_COLOR}!important;border-radius:10px!important;box-shadow:none!important;}
-            [class*="itemCard-"] [class*="itemImage-"] img{width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;object-fit:contain!important;border:none!important;border-radius:10px!important;background-color:transparent!important;}
-            [class*="itemCard-"] .icon-limited-label,[class*="itemCard-"] .icon-limited-unique-label,[class*="itemCard-"] [class*="fakeLimitedLabel-"]{display:block!important;height:16px!important;margin:2px 0 0!important;}
+            /* Preview: EXACTLY the catalog cardImage- recipe -- a full-width
+               SQUARE frame with the faint translucent fill and 10px radius.
+               The frame is painted on the thumb IMG itself (plus wrapper
+               fallbacks forced to full width), because the site renders the
+               thumb at its natural ~110px size inside an unstyled wrapper,
+               which looked undersized in the card. */
+            [class*="itemCard-"] > a{display:block!important;width:100%!important;}
+            [class*="itemCard-"] [class*="itemImage-"],[class*="itemCard-"] [class*="imageBig"],[class*="itemCard-"] [class*="thumb"],[class*="itemCard-"] [class*="Thumb"]{margin:0!important;padding:0!important;width:100%!important;display:block!important;background:transparent!important;border:none!important;box-shadow:none!important;}
+            [class*="itemCard-"] img{display:block!important;width:100%!important;height:auto!important;aspect-ratio:1/1!important;object-fit:contain!important;max-width:none!important;max-height:none!important;margin:0 0 6px!important;background-color:rgba(255,255,255,0.035)!important;border:none!important;border-radius:10px!important;box-shadow:none!important;}
+            /* LIMITED / LIMITED U badge INSIDE the preview, bottom-left --
+               the same placement as the catalog cards. The badge is an
+               in-flow sibling BELOW the img, so it is pulled up over the
+               frame with a negative top margin (6px img gap + 16px badge
+               height + 6px inset) and the bottom margin restores the flow,
+               so the name row sits exactly where it does on badge-less
+               cards and all cards stay equal-height. */
+            [class*="itemCard-"] .icon-limited-label,[class*="itemCard-"] .icon-limited-unique-label,[class*="itemCard-"] [class*="fakeLimitedLabel-"]{display:block!important;height:16px!important;position:relative!important;z-index:3!important;margin:-28px 0 12px 6px!important;}
             [class*="itemLabel-"]{color:#fff!important;border-top:1px solid rgba(255,255,255,0.1)!important;padding-top:4px!important;}
             [class*="creatorLabel-"]{color:#9aa0c0!important;margin-bottom:6px!important;}
             [class*="creatorUrl-"]{color:${t.accent}!important;}
@@ -1174,10 +1124,10 @@
     };
 
     const isGroupsPage = () => /^\/(my\/)?groups(\.aspx)?(\/|$)/i.test(location.pathname);
-    // Glassify the /groups page: no stable page-specific JSS hook is known
-    // for this page, so generic panel selectors are used. That is safe ONLY
-    // because the whole block is path-gated to /groups (leak-audit rule) and
-    // rebuilt on SPA navigation via applyPageFrameTransparency.
+    
+    
+    
+    
     const applyGroupsGlass = () => {
         let el = document.getElementById('pks-groups-glass-style');
         if (!cfg.miscGroupsGlassify || !isGroupsPage()) { el?.remove(); return; }
@@ -1216,7 +1166,9 @@
         const t = getTheme();
         let styleEl = document.getElementById('pks-theme-style');
         if (!styleEl) { styleEl = document.createElement('style'); styleEl.id = 'pks-theme-style'; document.head.appendChild(styleEl); }
+        const pgArgb = hexToRgbObj(t.accent) || { r: 192, g: 132, b: 252 };
         styleEl.textContent = `
+            #pks-panel { --pks-a:${t.accent};--pks-a-rgb:${pgArgb.r},${pgArgb.g},${pgArgb.b}; }
             #pks-panel input:focus, #pks-panel select:focus { border-color:${t.accent}!important;box-shadow:0 0 0 2px ${t.accent}22!important; }
             #pks-panel input[type=checkbox] { accent-color:${t.accent}; }
             .pks-tab-btn.active { background:${t.activeBg}!important;color:${t.activeText}!important;border-bottom:2px solid ${t.accent}!important; }
@@ -1229,7 +1181,6 @@
             .pks-section-title { color:${t.sectionText}!important; }
             .pks-row label { color:${t.labelText}!important; }
             #pks-top-border { background:${t.topBorder}!important; }
-            #pks-r-start.pks-action-btn { background:${t.accent}!important;color:#050508!important; }
             #pks-avatar-img { border-color:${t.accent}44!important; }
             .pks-currency-pill { border-color:${t.border}!important;background:${t.inputBg}!important; }
             .pks-stat { background:${t.inputBg}!important;border-color:${t.border}!important; }
@@ -1242,7 +1193,6 @@
         updateWatermarkTheme();
         applyCardStyle();
         applyMisc();
-        applyTradeStyle();
     };
 
     const updatePanelGlow = () => {
@@ -1258,7 +1208,7 @@
         const t = getTheme();
         const header = document.getElementById('pks-header');
         const tabbar = document.getElementById('pks-tab-bar');
-        panel.style.borderRadius = (cfg.panelRadius ?? 16) + 'px';
+        panel.style.borderRadius = (cfg.panelRadius ?? 24) + 'px';
 
         if (cfg.panelGradientEnabled) {
             const c1 = cfg.panelGradientColor1 || '#0d0d12';
@@ -1274,8 +1224,8 @@
         tabbar?.style.removeProperty('background');
 
         if (cfg.panelGlass) {
-            // Only the Interium GUI uses the darker glass tint. Blur/border/shadow
-            // remain canonical, while every site glassify surface keeps GLASS_BG.
+            
+            
             panel.style.setProperty('background', GUI_GLASS_BG, 'important');
             panel.style.setProperty('backdrop-filter', GLASS_FILTER, 'important');
             panel.style.setProperty('-webkit-backdrop-filter', GLASS_FILTER, 'important');
@@ -1293,31 +1243,17 @@
     const state = {
         session:   { lastUrl: location.href, cachedCsrf: null },
         dom:       { observer: null, retryTimer: null },
-        refresher: { running: false, clickTimer: null, reloadTimer: null, clicks: 0, reloads: 0 },
         profile:   { id: null, name: null, robux: 0, tickets: 0, avatar: null },
         watermark: { startTime: Date.now(), pingTimer: null, ping: null, dragX: null, dragY: null },
         authInfo:  { daysLeft: 0 },
-        authKey:   null,
-        trade: {
-            tradeTabActive: false,
-            massModal: null,
-            massBlastState: { myItems:[], mySelected:[], targetAssetId:null, targetOwners:[], sending:false, stopped:false, delaySeconds:20, logs:[] },
-            massCustomState: { myItems:[], mySelected:[], targets:[], sending:false, logs:[] },
-            assetThumbs: {},
-            myUserId: null,
-        }
     };
-
-    let twMyItems = [], twTheirItems = [], twMySelected = [], twTheirSelected = [];
-    let twMyPage = 0, twTheirPage = 0, twMySearch = '', twTheirSearch = '';
-    const TW_PER_PAGE = 10, TW_MAX_SEL = 4;
 
     const isHomePage     = () => location.pathname === '/' || location.pathname.toLowerCase() === '/home';
     const isProfilePage  = () => /\/users\/\d+\/profile/i.test(location.pathname);
 
     let _csrfToken = null;
-    // No browser cookie reads here: the CSRF token is obtained from the
-    // x-csrf-token response header via the 403 retry in postApi below.
+    
+    
     const getCsrf = () => _csrfToken || '';
 
     const postApi = async (url, body = {}) => {
@@ -1336,26 +1272,6 @@
     };
 
     const apiGet = (url) => fetch(url, { credentials: 'include', headers: { Accept: 'application/json' } });
-
-    // ── Interium: compatibility stubs ────────────────────────────────
-    // Trading is handled by Interium's own trading runtime file. These
-    // no-op stubs keep optional UI hooks safe when a hook is not loaded.
-    const _noop = () => {};
-    const isTradePage = () => false;
-    const isTradeWindow = () => false;
-    const applyTradeStyle = _noop, applyTradesCustom = _noop, ensureTradesOverlay = _noop,
-          injectTradeWindow = _noop, injectProfileTradeButton = _noop;
-    // buildMassTradeUI is a real implementation (see below) that renders the
-    // TRADE tab and drives window.InteriumMassTrader (consent-based offers).
-    const startRefresher = _noop, stopRefresher = _noop, panelLog = _noop,
-          updateRefresherUI = _noop, updateRefresherStatus = _noop;
-    const applyLarp = _noop, applyFakeVerify = _noop, applyCatalogOwned = _noop,
-          injectAvatarTools = _noop, removeFakeAvatarItem = _noop, formatLarp = () => '';
-    const addFakeAvatarItem = async () => {};
-    const fetchFakeItemData = async () => null;
-    const applyBadges = _noop, pollAnnouncements = _noop, saveProfileBanner = _noop;
-    const getAuthSession = () => '';
-
 
     const notify = (message, type = 'success') => {
         if (!cfg.showNotifications) return;
@@ -1404,7 +1320,6 @@
             const user = await userRes.json();
             state.profile.id   = user.id;
             state.profile.name = user.displayName || user.name;
-            state.trade.myUserId = user.id;
             const currRes = await fetch(`https://www.pekora.zip/apisite/economy/v1/users/${user.id}/currency`, { credentials:'include' });
             if (currRes.ok) { const curr = await currRes.json(); state.profile.robux = curr.robux ?? 0; state.profile.tickets = curr.tickets ?? 0; }
             updateProfileUI();
@@ -1486,9 +1401,7 @@
             };
             const pos = positions[cfg.watermarkPosition] || positions['bottom-left'];
             const wmCss = `all:initial;position:fixed;${pos}z-index:2147483640;display:flex;align-items:center;gap:0;font-family:var(--pks-font),'Share Tech Mono',monospace;font-weight:600;letter-spacing:0.06em;background:${GLASS_BG};backdrop-filter:${GLASS_FILTER};-webkit-backdrop-filter:${GLASS_FILTER};border:1px solid ${GLASS_BORDER_COLOR};box-shadow:${GLASS_SHADOW};border-radius:6px;padding:${5*scale}px ${12*scale}px;pointer-events:auto;user-select:none;overflow:hidden;opacity:${op};cursor:grab;`;
-            /* PERF: identical cssText writes still force style recalc at the
-               1 Hz watermark tick -- only write when it actually changed. */
-            if (wm.__pksCss !== wmCss) { wm.__pksCss = wmCss; wm.style.cssText = wmCss; }
+                        if (wm.__pksCss !== wmCss) { wm.__pksCss = wmCss; wm.style.cssText = wmCss; }
         } else {
             wm.style.left = state.watermark.dragX + 'px'; wm.style.top = state.watermark.dragY + 'px';
             wm.style.opacity = String(op); wm.style.padding = `${5*scale}px ${12*scale}px`;
@@ -1661,11 +1574,11 @@
             if (getComputedStyle(c).position === 'static') c.style.position = 'relative';
             c.style.zIndex = '1';
         });
-        // Match the profile card's rounded corners. Glassify sets border-radius
-        // on the outer [class*="card-0-2-"], but getProfileFrame often returns an
-        // inner cardBody whose own radius is 0 - so border-radius:inherit would
-        // collapse to sharp corners. Resolve the real radius from the frame or
-        // its nearest rounded ancestor and pin it every call so toggling
+        
+        
+        
+        
+        
         // glassify stays in sync.
         const radiusHost = [frame, frame.closest('[class*="card-0-2-"]'), frame.parentElement]
             .find((el) => el && parseFloat(getComputedStyle(el).borderTopLeftRadius || '0') > 0);
@@ -1709,7 +1622,7 @@
     const applyProfileBannerForPage = () => {
         const id = profileId();
         if (!id) return;
-        // Local-only: the banner is shown on your own profile from your saved settings.
+        
         applyProfileBanner(id === myPekoraId() ? localBannerData() : null);
     };
 
@@ -1755,37 +1668,38 @@
         const t = getTheme();
         let cssOut = '';
         if (cfg.miscModernGameCards) {
-            // Unified "Modern game cards": the SINGLE owner of game-card
-            // styling on pages where the cards sit directly on the page
-            // background -- the HOME rows and the /games LISTING. Page-gated:
-            // the game DETAIL page (/games/<id>) and profile favorites style
-            // their own nested cards (flat translucent inside glassed panels).
-            // backdrop-filter proved unreliable on these carousel cards, so
-            // when the custom site background (miscBgUrl) is set, the cards
-            // produce a REAL, guaranteed-visible blur without backdrop-filter:
-            // an ::before inside each card carries the SAME image the bg
-            // feature paints on body, with background-attachment:fixed (the
-            // IMAGE is viewport-aligned, matching the real background pixel-
-            // for-pixel) plus filter:blur. The pseudo itself is position:
-            // ABSOLUTE -- never fixed: overflow:hidden does NOT clip
-            // position:fixed descendants (they escape ancestor clipping
-            // unless the ancestor is their containing block), which painted
-            // full-viewport blur over the whole page. Absolute pseudos are
-            // clipped by the card's overflow:hidden normally. The pseudo is
-            // oversized (negative inset) so the blur's transparent edge fade
-            // is cropped away. isolation:isolate keeps the negative-z pseudos
-            // inside the card (never lift card CHILDREN with position/
-            // z-index -- see the avatar-bg lesson). NOTE: no transform on the
-            // card in this variant: transform breaks background-attachment:
-            // fixed (it degrades to scroll) and would misalign the slice. The
-            // hover lift is done with a relative top offset instead -- it
-            // moves the box without creating a containing block, so the
-            // viewport-anchored slice stays put (exactly how real glass
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
             // behaves when the card moves).
             const onModernCardsPage = isHomePage() || (/^\/games(\/|$)/i.test(location.pathname) && !isGamePage());
             if (onModernCardsPage) {
                 const cardBgUrl = cfg.miscBgUrl?.trim();
-                if (cardBgUrl) {
+                const cardBgIsVideo = /\.(mp4|webm|mov|gifv)(\?.*)?$/i.test(cardBgUrl || '');
+                if (cardBgUrl && !cardBgIsVideo) {
                     const sliceBlur = (cfg.miscBgBlur ? (cfg.miscBgBlurAmount ?? 8) : 0) + 16;
                     const bgDarkOp = cfg.miscBgDarkOverlay ? ((cfg.miscBgDarkOpacity ?? 50) / 100) : 0;
                     const cardVeil = Math.min(0.8, 0.32 + bgDarkOp * 0.55).toFixed(2);
@@ -1796,11 +1710,15 @@
                 [class*="gameCardContainer"]:hover{border-color:${t.cardHoverBorder}!important;box-shadow:${t.cardHoverGlow}!important;top:-3px!important;z-index:2!important;}
                     `;
                 } else {
-                    // No custom background set: glass + self-sufficient
-                    // graphite tint (backdrop-filter stays as progressive
-                    // enhancement over the native site theme).
+                    
+                    
+                    
+                    
+                    
                     cssOut += `
-                [class*="gameCardContainer"]{${GLASS_CSS}background:rgba(20,20,22,0.55)!important;border-radius:14px!important;transition:border-color 0.22s,box-shadow 0.22s,transform 0.18s!important;overflow:hidden!important;}
+                [class*="gameCardContainer"]{position:relative!important;isolation:isolate!important;background:transparent!important;border:1px solid ${GLASS_BORDER_COLOR}!important;box-shadow:${GLASS_SHADOW}!important;border-radius:14px!important;overflow:hidden!important;transition:border-color 0.22s,box-shadow 0.22s,transform 0.18s!important;}
+                [class*="gameCardContainer"]::before{content:'';position:absolute;inset:0;z-index:-2;background:rgba(20,20,22,0.55);backdrop-filter:${GLASS_FILTER};-webkit-backdrop-filter:${GLASS_FILTER};pointer-events:none;}
+                [class*="gameCardContainer"]::after{content:'';position:absolute;inset:0;z-index:-1;background:rgba(8,9,13,0.18);pointer-events:none;}
                 [class*="gameCardContainer"]:hover{border-color:${t.cardHoverBorder}!important;box-shadow:${t.cardHoverGlow}!important;transform:translateY(-3px)!important;z-index:2!important;}
                     `;
                 }
@@ -1845,19 +1763,19 @@
                 [class*="searchOptionsContainer-"] h1,[class*="searchOptionsContainer-"] h2,[class*="searchOptionsContainer-"] h3{color:#fff!important;}
                 [class*="catalogContainer"] input[type="text"]{${GLASS_CSS}border-radius:8px!important;color:#fff!important;padding:5px 9px!important;}
             `;
-            // Flat select fallback only while "Glassy dropdowns" is off - when
-            // it is on, the merged-card recipe (pksGlassSelectCss) owns selects.
+            
+            
             if (!cfg.miscCatalogDropdownGlass) cssOut += `
                 [class*="catalogContainer"] select{${GLASS_CSS}border-radius:8px!important;color:#fff!important;padding:5px 9px!important;}
                 [class*="catalogContainer"] select option{background:#16161f!important;color:#fff!important;}
             `;
-            // Catalog dropdowns are a custom component (from a live DOM dump):
-            //   selectorWrapper-* > selectorClosed-* (which GAINS the class
-            //   selectorOpen-* while open) + sibling selectorMenuOpen-* with
+            
+            
+            
             //   p.selectOption-* rows.
-            // Merged-card glass like the trades dropdowns: while open, the
-            // closed control keeps rounded TOP corners with a sharp bottom, and
-            // the menu below gets a sharp top with rounded BOTTOM corners.
+            
+            
+            
             if (cfg.miscCatalogDropdownGlass) cssOut += `
                 /* Anchor the wrapper so the absolute menu below sizes/aligns
                    to IT (not to the page - that made the menu full-width). */
@@ -1902,11 +1820,11 @@
             `;
         }
         if (cfg.miscItemPageGlass && isCatalogItemPage()) {
-            // Item detail page (/catalog/:id). One recipe covers all three
-            // variants from the Korone dump (limited w/ resellers + price
-            // chart, owned w/ Edit Avatar, not-owned w/ Buy) - they share the
-            // same itemContainer- skeleton; limited-only sections (resellers
-            // list, chart/stats) are .section-content SIBLINGS of it.
+            
+            
+            
+            
+            
             const itemDark = darkenHex(t.accent, 0.6);
             cssOut += `
                 /* main card + limited-only sections. Resellers AND Owners
@@ -1957,13 +1875,6 @@
     let _tradesPageInjected = false;
     let _tradesInjecting = false;
     let _tradesClosed = false;
-    let _tradesRepaint = null;
-
-    const escHtml = (s) => {
-        const d = document.createElement('div');
-        d.textContent = String(s ?? '');
-        return d.innerHTML;
-    };
 
     const fmtNum = (n) => {
         if (n >= 1e6) return (n/1e6).toFixed(1).replace(/\.0$/,'') + 'M';
@@ -1971,12 +1882,12 @@
         return n.toLocaleString();
     };
 
-    // ── Robux JSS icon fix ─────────────────────────────────────────────────────────────────
-    // Group / JSS-styled robux glyphs use dynamically generated class names
-    // (image-0-2-N) whose sprite is set via runtime JSS stylesheets, so static
-    // CSS selectors never match them. Scan same-origin JSS sheets for the
-    // `img-robux` background and repaint those exact selectors with our icon.
-    // NOTE: keep JS comments OUTSIDE the CSS strings — `//` inside CSS silently
+    
+    
+    
+    
+    
+    
     // eats the next rule.
     const applyRobuxJssIconFix = () => {
         const rbxPath = location.pathname.toLowerCase();
@@ -2049,20 +1960,19 @@
             [class*="tradeTypeActions"] a{color:${t.accent}!important;}
             [class*="tradeTypeActions"] select{${GLASS_CSS}color:#fff!important;border-radius:8px!important;padding:4px 8px!important;}
         `;
-        // ── Modern /trades page glassify (sender/user column + traded items + verdict bar) ──
-        // The WHOLE trade-list panel (tradeList-) is ONE glass surface; individual rows
-        // (tradeRow-) stay transparent — natively background:transparent — with only a subtle
-        // divider + hover, so users are NOT each wrapped in their own separate box.
-        // Item cards reuse the catalog listing-card recipe: glass wrapper + rounded + overflow
-        // hidden + padding, and the inner thumbnail (itemThumb-) gets a faint translucent fill
-        // instead of the site's opaque --white-color-hover, so the cards no longer look crooked.
-        // .pg-mt-verdict = the RAP/Value summary bar the trading runtime injects (was #121212).
-        // Toggleable via the GUI "/trades" section (cfg.tradesGlassify).
-        // PAGE-GATED to /trades: itemCard- is a generic JSS name that ALSO
-        // exists on /users/<id>/inventory (and elsewhere) -- the flat
-        // width:126px card recipe below leaked there and shrank inventory
-        // cards to tiny tiles (cross-page leak, same lesson as the
-        // recommendedGamesContainer scoping fix on /games).
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
         if (cfg.tradesGlassify && /^\/trades(\/|$)/i.test(location.pathname)) {
         css += `
             [class*="tradeList-"]{${GLASS_CSS}border-radius:14px!important;overflow-x:hidden!important;}
@@ -2089,18 +1999,17 @@
             [class*="itemCard-"] [class*="itemName-"]{color:#fff!important;font-weight:600!important;display:-webkit-box!important;-webkit-box-orient:vertical!important;-webkit-line-clamp:3!important;line-clamp:3!important;overflow:hidden!important;height:auto!important;min-height:0!important;flex:0 0 auto!important;margin:6px 0 0!important;line-height:1.13!important;}
             [class*="itemCard-"] [class*="itemValue-"]{margin-top:3px!important;flex:0 0 auto!important;}
             [class*="itemCard-"] .pg-mt-rap{margin-top:3px!important;}
-            .pg-mt-verdict{${GLASS_CSS}border-radius:10px!important;}
         `;
         }
-        // ── Custom Robux icon preset (assets/icons/robux_2021.svg served via jsDelivr) ──
+        
         // cfg.robuxIcon: 'off' | 'trades' | 'all'.
-        // 'trades' = only /trades, classic trade window /My/Trades.aspx and send-trade /users/<id>/trade;
-        //            the NAVBAR icon stays native there (its counter is natively white, so the
-        //            --robux-color override below does not visibly affect it).
-        // 'all'    = everywhere: catalog, item pages, navbar, trades, send-trade, etc.
-        // While the preset is active, robux amounts render WHITE instead of pekora's native green:
-        // native green comes from --robux-color / .text-robux; Interium runtime RAP spans use .pg-rap-amt.
-        // NOTE: keep JS comments OUTSIDE the template literals below — `//` inside CSS silently eats the next rule.
+        
+        
+        
+        
+        
+        
+        
         const rbxPath = location.pathname.toLowerCase();
         const rbxOnTradePage = /^\/trades\/?$/.test(rbxPath) || rbxPath.indexOf('/my/trades.aspx') === 0 || /^\/users\/\d+\/trade\/?$/.test(rbxPath);
         if (cfg.robuxIcon === 'all' || (cfg.robuxIcon === 'trades' && rbxOnTradePage)) {
@@ -2120,20 +2029,20 @@
                 `;
             }
         }
-        // ── Send-trade page (/users/<id>/trade) glassify: inventory cards + Your Offer / Your Request panels ──
-        // Classes there: itemGrid- (CSS grid) > itemButton- (card) > itemThumb-/itemImage-/itemName-/itemValue-;
-        // offerPanel- = the two <section>s with "Your Offer" / "Your Request" (titles are inside them);
-        // the Make Offer button lives OUTSIDE offerPanel-, so it is untouched by design.
-        // Cards are equalised per grid row via align-self:stretch (pekora natively leaves them uneven);
-        // itemButton is a <button>, and buttons vertically centre their content when stretched, so we
-        // pin content to the top with a flex column, and drop pekora's min-height:42px on itemName so
-        // the robux line hugs short names (free space goes to the card bottom instead).
-        // Category selects (select- inside inventoryHeader-): glass on the closed control everywhere;
-        // in Chromium with customizable-select support (@supports selector(::picker(select))) the OPEN
-        // dropdown is page-rendered via appearance:base-select, so it gets the real avatar-style glass
-        // (blur + rounded corners + accent hover); older browsers keep the dark-options fallback.
-        // NOTE: keep JS comments OUTSIDE the template literal below — `//` inside CSS silently eats the next rule.
-        // Toggleable via the GUI "/trades" section (cfg.sendTradeGlassify / cfg.tradesDropdownGlass).
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
         const rbxOnSendTrade = /^\/users\/\d+\/trade\/?$/.test(rbxPath);
         const rbxOnTradesList = /^\/trades\/?$/.test(rbxPath);
         if (rbxOnSendTrade && cfg.sendTradeGlassify) {
@@ -2149,12 +2058,12 @@
                 [class*="offerPanel-"] [class*="slot-"]{border-radius:10px!important;}
             `;
         }
-        // ── Trade pages: glassy <select> + its open picker (shared recipe) ──
-        // Chromium customizable select (appearance:base-select + ::picker(select)) lets the OPEN
-        // list get real glass too; older browsers keep the dark-options fallback. Select + picker
-        // read as ONE merged card: rounded outer corners, sharp seam at the join (mirrored via
-        // .pks-drop-up when the picker flips above the select). Applied to the send-trade category
-        // select and the /trades trade-type select; toggleable via cfg.tradesDropdownGlass.
+        
+        
+        
+        
+        
+        
         const pksGlassSelectCss = (S) => `
             ${S}{${GLASS_CSS}border-radius:8px!important;color:#fff!important;padding:6px 10px!important;cursor:pointer!important;transition:border-color 0.15s ease!important;}
             ${S}:hover,${S}:focus{border-color:${t.accent}77!important;outline:none!important;}
@@ -2175,20 +2084,20 @@
         const rbxOnCatalog = /^\/catalog(\/|$)/i.test(rbxPath);
         if (cfg.miscCatalogDropdownGlass && rbxOnCatalog) css += pksGlassSelectCss('[class*="catalogContainer"] select');
         if ((cfg.tradesDropdownGlass && (rbxOnSendTrade || rbxOnTradesList)) || (cfg.miscCatalogDropdownGlass && rbxOnCatalog)) {
-            // Flip-detection for the merged-card dropdown: when the picker runs out of room below,
-            // the browser anchors it ABOVE the select, and pure CSS has no "picker flipped" selector.
-            // With appearance:base-select the <option>s are real page DOM rendered inside the picker,
-            // so while the select is :open we compare the first option's rect against the select's rect
-            // each animation frame (scroll can re-flip a live picker) and toggle .pks-drop-up, which
-            // mirrors the border-radius pairing above. The rAF loop only runs while the picker is open.
-            // The picker is a top-layer popover, so the navbar can never paint over it; instead, when
-            // flipped up we clamp its height (--pks-drop-max, read by the CSS above) so it stops at the
-            // navbar's bottom edge and scrolls inside rather than covering the navbar.
-            // In the normal downward direction the opposite can happen: with the picker open, scrolling
-            // the page can drag the anchoring select up BEHIND the navbar, so the picker's top (anchored
-            // to the select's bottom edge) ends up inside the navbar zone. For that case we push the
-            // picker down with a dynamic margin-top (--pks-drop-shift) so its top edge stays at the
-            // navbar's bottom edge (the merged seam is hidden behind the navbar then anyway).
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
             if (!window.__pksTradeDropWatch) {
                 window.__pksTradeDropWatch = true;
                 const pksWatchDropSel = (sel) => {
@@ -2228,10 +2137,7 @@
                 };
                 const pksScanDropSels = () => document.querySelectorAll('[class*="inventoryHeader-"] select, select[aria-label="Trade type"], [class*="catalogContainer"] select').forEach(pksWatchDropSel);
                 pksScanDropSels();
-                /* PERF: this observer used to fire pksScanDropSels on EVERY
-                   mutation batch and was re-registered on each style rebuild.
-                   Coalesce scans into one rAF and register exactly once. */
-                try {
+                                try {
                     if (!window.__pksDropSelObs) {
                         window.__pksDropSelObs = true;
                         let dsRaf = 0;
@@ -2264,9 +2170,9 @@
             .icon-obc,[class*="icon-obc"]{display:none!important;}
         `;
         {
-            // Background media: image/GIF via CSS background-image, or MP4/WEBM/MOV
-            // via a real <video> element (CSS background-image cannot play video).
-            // imgur .gifv links are normalised to .mp4. ANY direct media URL works,
+            
+            
+            
             // not just imgur.
             const syncMiscBgVideo = (src, blurPx) => {
                 let v = document.getElementById('pks-misc-bg-video');
@@ -2288,8 +2194,8 @@
             const blur = blurAmt ? `blur(${blurAmt}px)` : 'none';
             const darkOp = cfg.miscBgDarkOverlay ? ((cfg.miscBgDarkOpacity ?? 50) / 100) : 0;
             if (rawBg && isVideoBg) {
-                // <video> sits on z-index:0 (via inline style), under the dark
-                // overlay (z-index:1) and page content (z-index:2).
+                
+                
                 css += `body::after{content:'';position:fixed;inset:0;z-index:1;background:rgba(0,0,0,${darkOp});pointer-events:none;}body>*{position:relative;z-index:2;}#pks-panel,#pks-watermark{z-index:2147483647!important;}`;
             } else if (rawBg) {
                 css += `body{background-image:url('${rawBg.replace(/'/g, "\\'")}')!important;background-size:cover!important;background-position:center!important;background-attachment:fixed!important;background-repeat:no-repeat!important;}body::before{content:'';position:fixed;inset:0;z-index:0;background:inherit;filter:${blur};pointer-events:none;}body::after{content:'';position:fixed;inset:0;z-index:1;background:rgba(0,0,0,${darkOp});pointer-events:none;}body>*{position:relative;z-index:2;}#pks-panel,#pks-watermark{z-index:2147483647!important;}`;
@@ -2298,10 +2204,10 @@
         }
         if (cfg.miscHideAds) css += `[class*="adWrapper"],[class*="adImage"]{display:none!important;}`;
         if (cfg.miscHideAlert) css += `[class*="alertBg"],[class*="alertText"],[class*="alertLink"],[class*="fakeAlert"]{display:none!important;}`;
-        // Hide ONLY the top <nav> element. The side nav card (Home/Profile/... links)
-        // is a SIBLING of <nav> inside .navbar-wrapper-main (verified in a saved DOM
-        // dump), so hiding the whole wrapper used to nuke the sidebar together with
-        // the navbar. Never hide .navbar-wrapper-main here.
+        
+        
+        
+        
         if (cfg.miscHideNavbar) css += `#stylable-nav-bar,nav.navbar,.navbar-0-2-49{display:none!important;}.main-0-2-1{padding-top:0!important;}`;
         if (cfg.miscHideMyFeed) css += `[class*="myFeedContainer"]{display:none!important;}`;
         if (cfg.miscHideBlogNews) css += `[class*="blogNewsContainer"]{display:none!important;}`;
@@ -2339,11 +2245,227 @@
         });
     };
 
-    /* ── Mass Trader tab (ported from Hexium src.js; engine lives in
-       src/trading/interium-trading-*.js as window.InteriumMassTrader). ──
-       Consent-based: it only SENDS trade offers the recipient must manually
-       accept. No auto-accept, no fake balance/verification, no 3rd-party host. */
-    const buildMassTradeUI = () => {
+        const buildLookupUI = () => {
+        const container = document.getElementById('pks-tab-lookup');
+        if (!container) return;
+        const t = getTheme();
+        container.innerHTML = '';
+
+        const mk = (tag, style, text) => { const e = document.createElement(tag); if (style) e.style.cssText = style; if (text != null) e.textContent = text; return e; };
+        const section = (title) => { const wrap = mk('div', 'margin:0 0 6px;'); wrap.appendChild(mk('div', `color:${t.sectionText};font-size:9px;letter-spacing:0.18em;text-transform:uppercase;font-weight:700;margin:12px 2px 8px;`, title)); return wrap; };
+        const subNote = (txt) => mk('div', `color:${t.sectionText};font-size:10px;line-height:1.5;margin:0 2px 6px;`, txt);
+        const stdInput = (ph) => { const i = mk('input'); i.type = 'text'; i.placeholder = ph || ''; i.style.cssText = `background:${t.inputBg};border:1px solid ${t.inputBorder};color:${t.valueText};border-radius:8px;padding:7px 9px;font-size:12px;width:100%;box-sizing:border-box;margin-bottom:6px;`; return i; };
+        const actionBtn = (text) => { const b = mk('button'); b.type = 'button'; b.textContent = text; b.style.cssText = `width:100%;background:${t.accent};border:1px solid ${t.accent};color:#08080c;border-radius:8px;padding:7px 9px;font-size:10px;font-weight:700;letter-spacing:0.05em;cursor:pointer;margin:4px 0;box-sizing:border-box;`; return b; };
+        const toolBox = () => mk('div', `max-height:230px;overflow-y:auto;background:${t.inputBg};border:1px solid ${t.inputBorder};border-radius:8px;padding:8px 10px;margin:6px 0 2px;font-size:11px;line-height:1.55;color:${t.valueText};`);
+        const kv = (k, v) => { const d = mk('div', 'display:flex;justify-content:space-between;gap:10px;padding:2px 0;'); d.appendChild(mk('span', `color:${t.labelText};`, k)); d.appendChild(mk('span', `color:${t.valueText};font-weight:600;text-align:right;`, String(v))); return d; };
+        const listRow = (name, val) => { const d = mk('div', 'display:flex;justify-content:space-between;gap:10px;padding:2px 0;border-bottom:1px solid rgba(255,255,255,0.05);'); d.appendChild(mk('span', `color:${t.valueText};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`, name)); if (val) d.appendChild(mk('span', `color:${t.accent};font-weight:600;white-space:nowrap;`, val)); return d; };
+        const spacer = () => mk('div', 'height:6px;');
+        const miniHead = (txt) => mk('div', `color:${t.sectionText};font-size:9px;text-transform:uppercase;letter-spacing:0.1em;margin:2px 0 4px;`, txt);
+
+        const fmtR = (n) => 'R$ ' + Number(n || 0).toLocaleString('en-US');
+        const lkApi = (path, opts) => fetch('https://www.pekora.zip/apisite' + path, Object.assign({ credentials: 'include' }, opts || {}));
+        const fetchCollectibles = async (userId) => {
+            const items = []; let cursor = '';
+            for (let p = 0; p < 40; p++) {
+                const r = await lkApi('/inventory/v1/users/' + userId + '/assets/collectibles?limit=100' + (cursor ? '&cursor=' + encodeURIComponent(cursor) : ''));
+                if (!r.ok) throw new Error('inventory ' + r.status);
+                const d = await r.json();
+                (d.data || []).forEach((it) => items.push({ assetId: it.assetId, name: it.name || ('Asset ' + it.assetId), rap: (it.recentAveragePrice != null ? it.recentAveragePrice : (it.originalPrice || 0)), serial: it.serialNumber }));
+                if (!d.nextPageCursor) break; cursor = d.nextPageCursor;
+            }
+            return items;
+        };
+        const resolveUser = async (input) => {
+            const q = String(input).trim();
+            if (/^[0-9]+$/.test(q)) return Number(q);
+            try {
+                const r = await lkApi('/users/v1/usernames/users', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ usernames: [q], excludeBannedUsers: false }) });
+                if (r.ok) { const d = await r.json(); if (d.data && d.data[0] && d.data[0].id != null) return d.data[0].id; }
+            } catch (e) {}
+            return null;
+        };
+
+                const KORO_VALUES_URL = 'https://www.koromons.net/api/items';
+        const KORO_VALUES_KEY = 'pcs_koromons_values_v1';
+        const KORO_LB_URL = 'https://www.koromons.net/api/leaderboard';
+        const KORO_LB_KEY = 'pcs_koromons_lb_v1';
+        const KORO_TTL = 1000 * 60 * 30;
+        let koroValues = null;
+        let koroLb = null;
+        const readCache = (key) => { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) { return null; } };
+        const writeCache = (key, obj) => { try { localStorage.setItem(key, JSON.stringify(obj)); } catch (e) {} };
+        const koroGetJson = async (url, timeoutMs) => {
+            const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+            const timer = ctrl ? setTimeout(() => ctrl.abort(), timeoutMs) : null;
+            try {
+                const r = await fetch(url, { headers: { accept: 'application/json' }, signal: ctrl ? ctrl.signal : undefined });
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return await r.json();
+            } finally { if (timer) clearTimeout(timer); }
+        };
+        const indexKoroValues = (rows) => {
+            const map = new Map();
+            (Array.isArray(rows) ? rows : []).forEach((item) => {
+                const id = item?.itemId ?? item?.ItemId ?? item?.assetId ?? item?.AssetId ?? item?.id;
+                const raw = item?.Value ?? item?.value ?? item?.val;
+                const value = Number(String(raw ?? '').replace(/,/g, '').match(/-?\d+(?:\.\d+)?/)?.[0] || 0);
+                if (id != null && Number.isFinite(value) && value > 0) map.set(String(id), Math.round(value));
+            });
+            return map;
+        };
+        const loadKoroValues = async () => {
+            if (koroValues) return koroValues;
+            const cached = readCache(KORO_VALUES_KEY);
+            if (cached && Array.isArray(cached.items)) {
+                koroValues = indexKoroValues(cached.items);
+                if (Date.now() - Number(cached.t || 0) <= KORO_TTL) return koroValues;
+            }
+            try {
+                const rows = await koroGetJson(KORO_VALUES_URL, 10000);
+                if (Array.isArray(rows)) { koroValues = indexKoroValues(rows); writeCache(KORO_VALUES_KEY, { t: Date.now(), items: rows }); }
+            } catch (e) {}
+            if (!koroValues) koroValues = new Map();
+            return koroValues;
+        };
+        const loadKoroLb = async () => {
+            if (koroLb) return koroLb;
+            const cached = readCache(KORO_LB_KEY);
+            if (cached && Array.isArray(cached.players)) {
+                koroLb = cached.players;
+                if (Date.now() - Number(cached.t || 0) <= KORO_TTL) return koroLb;
+            }
+            try {
+                const d = await koroGetJson(KORO_LB_URL, 15000);
+                const rows = d && Array.isArray(d.players) ? d.players : (Array.isArray(d) ? d : null);
+                if (rows) { koroLb = rows; writeCache(KORO_LB_KEY, { t: Date.now(), players: rows }); }
+            } catch (e) {}
+            if (!koroLb) koroLb = [];
+            return koroLb;
+        };
+        const koroFindPlayer = (idOrName) => {
+            if (!Array.isArray(koroLb) || !koroLb.length) return null;
+            const s = String(idOrName == null ? '' : idOrName).trim().toLowerCase();
+            if (!s) return null;
+            for (let i = 0; i < koroLb.length; i++) {
+                const p = koroLb[i];
+                if (String(p.id) === s || (p.name && String(p.name).toLowerCase() === s)) return { rank: i + 1, total: koroLb.length, rap: Number(p.rap) || 0, value: Number(p.value) || 0 };
+            }
+            return null;
+        };
+
+        /* ── Item lookup ── */
+        let s = section('Item lookup');
+        const itemInp = stdInput('Item ID (assetId)');
+        const itemOut = toolBox(); itemOut.style.display = 'none';
+        const itemBtn = actionBtn('Look up item');
+        itemBtn.addEventListener('click', async () => {
+            const id = itemInp.value.trim().replace(/\D/g, '');
+            if (!id) return;
+            itemBtn.textContent = 'Loading...'; itemOut.style.display = 'block'; itemOut.textContent = 'Loading...';
+            try {
+                const r = await lkApi('/catalog/v1/catalog/items/details', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ items: [{ itemType: 'Asset', id: Number(id) }] }) });
+                const d = await r.json(); const it = (d.data || [])[0];
+                itemOut.textContent = '';
+                if (!it) { itemOut.textContent = 'Item not found.'; }
+                else {
+                    itemOut.appendChild(kv('Name', it.name || ('Asset ' + id)));
+                    itemOut.appendChild(kv('Restriction', (it.itemRestrictions && it.itemRestrictions.join(', ')) || '-'));
+                    itemOut.appendChild(kv('Creator', it.creatorName || '-'));
+                    itemOut.appendChild(kv('Original price', it.price != null ? fmtR(it.price) : '-'));
+                    itemOut.appendChild(kv('Lowest price', it.lowestPrice != null ? fmtR(it.lowestPrice) : 'not for sale'));
+                    itemOut.appendChild(kv('Copies (serials)', it.serialCount != null ? it.serialCount : '-'));
+                    itemOut.appendChild(kv('Sales', it.saleCount != null ? it.saleCount : '-'));
+                    try { await loadKoroValues(); const v = Number(koroValues.get(String(id)) || 0); if (v > 0) itemOut.appendChild(kv('Koromons Value', v.toLocaleString())); } catch (e) {}
+                }
+            } catch (e) { itemOut.textContent = 'Error: ' + e.message; }
+            itemBtn.textContent = 'Look up item';
+        });
+        s.appendChild(itemInp); s.appendChild(itemBtn); s.appendChild(itemOut); container.appendChild(s);
+
+        /* ── Owner scan ── */
+        s = section('Owner scan');
+        s.appendChild(subNote('Lists public owners of an item. Private profiles are hidden by pekora.'));
+        const ownInp = stdInput('Item ID (assetId)');
+        const ownOut = toolBox(); ownOut.style.display = 'none';
+        const ownBtn = actionBtn('Scan owners');
+        ownBtn.addEventListener('click', async () => {
+            const id = ownInp.value.trim().replace(/\D/g, '');
+            if (!id) return;
+            ownBtn.textContent = 'Scanning...'; ownOut.style.display = 'block'; ownOut.textContent = 'Loading...';
+            try {
+                let cursor = ''; const pub = []; let rows = 0;
+                for (let p = 0; p < 15; p++) {
+                    const r = await lkApi('/inventory/v2/assets/' + id + '/owners?limit=100' + (cursor ? '&cursor=' + encodeURIComponent(cursor) : ''));
+                    if (!r.ok) { if (rows === 0) ownOut.textContent = 'Owners error ' + r.status; break; }
+                    const d = await r.json();
+                    (d.data || []).forEach((o) => { rows++; if (o.owner && o.owner.type === 'User' && o.owner.id !== 1) pub.push(o.owner.name); });
+                    if (!d.nextPageCursor) break; cursor = d.nextPageCursor;
+                }
+                const uniq = [...new Set(pub)];
+                if (rows > 0) {
+                    ownOut.textContent = '';
+                    ownOut.appendChild(kv('Copies scanned', rows));
+                    ownOut.appendChild(kv('Public owners', uniq.length));
+                    ownOut.appendChild(spacer());
+                    uniq.slice(0, 60).forEach((n) => ownOut.appendChild(listRow(n, '')));
+                }
+            } catch (e) { ownOut.textContent = 'Error: ' + e.message; }
+            ownBtn.textContent = 'Scan owners';
+        });
+        s.appendChild(ownInp); s.appendChild(ownBtn); s.appendChild(ownOut); container.appendChild(s);
+
+        /* ── User lookup ── */
+        s = section('User lookup');
+        const userInp = stdInput('Username or user ID');
+        const userOut = toolBox(); userOut.style.display = 'none';
+        const userBtn = actionBtn('Look up user');
+        userBtn.addEventListener('click', async () => {
+            const q = userInp.value.trim(); if (!q) return;
+            userBtn.textContent = 'Loading...'; userOut.style.display = 'block'; userOut.textContent = 'Loading...';
+            try {
+                const uid = await resolveUser(q);
+                if (uid == null) { userOut.textContent = 'Could not resolve username. Try a numeric user ID.'; }
+                else {
+                    const pr = await (await lkApi('/users/v1/users/' + uid)).json();
+                    let items = []; let invErr = false;
+                    try { items = await fetchCollectibles(uid); } catch (e) { invErr = true; }
+                    const total = items.reduce((a, b) => a + (b.rap || 0), 0);
+                    items.sort((a, b) => b.rap - a.rap);
+                    userOut.textContent = '';
+                    userOut.appendChild(kv('Name', (pr.name || '-') + ((pr.displayName && pr.displayName !== pr.name) ? (' (' + pr.displayName + ')') : '')));
+                    userOut.appendChild(kv('User ID', uid));
+                    if (pr.inventoryRap != null) userOut.appendChild(kv('Inventory RAP', fmtR(pr.inventoryRap)));
+                    userOut.appendChild(kv('Banned', pr.isBanned ? 'yes' : 'no'));
+                    try {
+                        await loadKoroLb();
+                        const kp = koroFindPlayer(uid) || (pr.name ? koroFindPlayer(pr.name) : null);
+                        if (kp) {
+                            userOut.appendChild(kv('Koromons Value', kp.value.toLocaleString()));
+                            userOut.appendChild(kv('Koromons RAP', kp.rap.toLocaleString()));
+                            userOut.appendChild(kv('Koromons rank', '#' + kp.rank + ' of ' + kp.total.toLocaleString()));
+                        } else if (!invErr && items.length) {
+                            await loadKoroValues();
+                            let estV = 0; items.forEach((it) => { const v = Number(koroValues.get(String(it.assetId)) || 0); estV += v > 0 ? v : (Number(it.rap) || 0); });
+                            userOut.appendChild(kv('Koromons Value (est.)', estV.toLocaleString()));
+                            userOut.appendChild(kv('Koromons rank', 'not on leaderboard'));
+                        }
+                    } catch (e) {}
+                    if (invErr) { userOut.appendChild(mk('div', 'color:#ffb454;padding-top:4px;', 'Inventory is private or unavailable.')); }
+                    else {
+                        userOut.appendChild(kv('Limited items', items.length));
+                        userOut.appendChild(kv('Computed RAP', fmtR(total)));
+                        userOut.appendChild(spacer());
+                        userOut.appendChild(miniHead('Top items'));
+                        items.slice(0, 15).forEach((it) => userOut.appendChild(listRow(it.name, fmtR(it.rap))));
+                    }
+                }
+            } catch (e) { userOut.textContent = 'Error: ' + e.message; }
+            userBtn.textContent = 'Look up user';
+        });
+        s.appendChild(userInp); s.appendChild(userBtn); s.appendChild(userOut); container.appendChild(s);
+    };
+
+        const buildMassTradeUI = () => {
         const container = document.getElementById('pks-tab-trade');
         if (!container) return;
         const MT = window.InteriumMassTrader;
@@ -2616,6 +2738,26 @@
         });
     };
 
+    const wrapPanelSections = () => {
+        
+        
+        
+        document.querySelectorAll('#pks-panel [id^="pks-tab-"]').forEach(pane => {
+            if (pane.id === 'pks-tab-bar') return;
+            if (pane.querySelector(':scope > .pks-sec')) return;
+            let sec = null;
+            Array.from(pane.children).forEach(node => {
+                if (node.classList && node.classList.contains('pks-section-title')) {
+                    sec = document.createElement('div');
+                    sec.className = 'pks-sec';
+                    pane.insertBefore(sec, node);
+                    sec.appendChild(node);
+                } else if (sec) {
+                    sec.appendChild(node);
+                }
+            });
+        });
+    };
 
     const buildPanel = (authInfo = {}) => {
         const daysLeft = authInfo.daysLeft;
@@ -2691,12 +2833,53 @@
             .pks-mode-pill button:hover { color:#9a9aae; }
             .pks-mode-pill button.active { background:#2a2a3a;color:#eaeaf5; }
             .pks-mode-pill button:not(:last-child) { border-right:1px solid var(--pks-line); }
+
+            /* == Interium PG: GUI interface ported from the experimental build == */
+            @keyframes pgx-enter { 0%{opacity:0;transform:translateY(-18px) scale(.94);filter:blur(8px);} 100%{opacity:1;transform:none;filter:none;} }
+            @keyframes pgx-aurora { 0%,100%{transform:translate3d(-8%,-6%,0) rotate(0deg) scale(1);} 33%{transform:translate3d(10%,4%,0) rotate(7deg) scale(1.15);} 66%{transform:translate3d(-2%,12%,0) rotate(-6deg) scale(.95);} }
+            @keyframes pgx-flow { 0%{background-position:0% 50%;} 50%{background-position:100% 50%;} 100%{background-position:200% 50%;} }
+            @keyframes pgx-scan { 0%{transform:translateY(-120%);} 100%{transform:translateY(800%);} }
+            #pks-panel { --pks-a:#c084fc;--pks-a-rgb:192,132,252;isolation:isolate;animation:pgx-enter .52s cubic-bezier(.16,1,.3,1)!important;background:linear-gradient(145deg,rgba(9,8,20,.94),rgba(18,12,35,.88) 50%,rgba(7,17,27,.92))!important;border:1px solid rgba(255,255,255,.16)!important;box-shadow:0 32px 100px rgba(0,0,0,.88),0 0 0 1px rgba(var(--pks-a-rgb),.14),0 0 36px rgba(var(--pks-a-rgb),.27),inset 0 1px 0 rgba(255,255,255,.13)!important; }
+            #pks-panel::before { content:'';position:absolute;z-index:0;inset:-45%;pointer-events:none;background:radial-gradient(circle at 28% 24%,rgba(var(--pks-a-rgb),.32),transparent 24%),radial-gradient(circle at 74% 34%,rgba(34,211,238,.20),transparent 21%),radial-gradient(circle at 48% 80%,rgba(244,114,182,.18),transparent 26%);filter:blur(28px);animation:pgx-aurora 11s ease-in-out infinite; }
+            #pks-panel::after { content:'';position:absolute;z-index:1;inset:0;pointer-events:none;border-radius:inherit;background:repeating-linear-gradient(0deg,rgba(255,255,255,.012) 0,rgba(255,255,255,.012) 1px,transparent 1px,transparent 4px),linear-gradient(115deg,rgba(255,255,255,.04),transparent 25%,transparent 70%,rgba(var(--pks-a-rgb),.05));mix-blend-mode:screen; }
+            #pks-panel > * { position:relative;z-index:2; }
+            #pks-top-border { display:none!important; }
+            #pks-header { padding:12px 15px!important;background:linear-gradient(110deg,rgba(255,255,255,.075),rgba(255,255,255,.018))!important;border-bottom:1px solid rgba(255,255,255,.09)!important;backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);overflow:hidden; }
+            #pks-header::after { content:'';position:absolute;left:-25%;right:-25%;height:16px;top:-18px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.18),transparent);filter:blur(6px);animation:pgx-scan 7s linear infinite;pointer-events:none; }
+            #pks-panel #pks-header-title { font-size:10px!important;letter-spacing:.28em!important;font-weight:900!important;background:linear-gradient(90deg,#fff,#22d3ee,var(--pks-a),#f472b6,#fff);background-size:250% auto;-webkit-background-clip:text;background-clip:text;color:transparent!important;animation:pgx-flow 6s linear infinite!important;text-shadow:none!important; }
+            #pks-panel #pks-avatar-img { box-shadow:0 0 20px rgba(var(--pks-a-rgb),.28)!important; }
+            #pks-panel .pks-currency-pill { position:relative;overflow:hidden;border:1px solid rgba(255,255,255,.10)!important;border-radius:10px!important;background:linear-gradient(135deg,rgba(255,255,255,.09),rgba(255,255,255,.025))!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 7px 18px rgba(0,0,0,.18); }
+            #pks-panel .pks-currency-pill::before { content:'';position:absolute;inset:0;background:linear-gradient(100deg,transparent,rgba(255,255,255,.08),transparent);transform:translateX(-120%);transition:.45s;pointer-events:none; }
+            #pks-panel .pks-currency-pill:hover::before { transform:translateX(120%); }
+            #pks-panel .pks-win-btn { width:12px!important;height:12px!important;box-shadow:inset 0 0 0 1px rgba(0,0,0,.3),0 0 10px currentColor!important; }
+            #pks-panel #pks-min-btn { color:#febc2e; }
+            #pks-panel #pks-close-btn { color:#ff5f57; }
+            #pks-tab-bar { gap:5px!important;padding:8px 9px!important;align-items:center!important;background:rgba(5,5,13,.46)!important;border-bottom:1px solid rgba(255,255,255,.08)!important;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px); }
+            #pks-panel .pks-tab-btn { padding:8px 3px!important;font-size:8.5px!important;font-weight:800!important;letter-spacing:.08em!important;color:#68677a!important;border:1px solid transparent!important;border-radius:9px!important;transition:color .18s,background .18s,border-color .18s,transform .18s,box-shadow .18s!important;position:relative;overflow:hidden; }
+            #pks-panel .pks-tab-btn:hover { color:#d8d7e8!important;background:rgba(255,255,255,.055)!important;transform:translateY(-1px); }
+            #pks-panel .pks-tab-btn.active { color:#fff!important;background:linear-gradient(135deg,rgba(var(--pks-a-rgb),.27),rgba(34,211,238,.10))!important;border-color:rgba(var(--pks-a-rgb),.42)!important;border-bottom:1px solid rgba(var(--pks-a-rgb),.42)!important;box-shadow:0 0 18px rgba(var(--pks-a-rgb),.18),inset 0 1px 0 rgba(255,255,255,.13)!important;text-shadow:0 0 9px var(--pks-a)!important; }
+            #pks-panel .pks-tab-btn.active::after { content:'';position:absolute;left:24%;right:24%;bottom:0;height:2px;background:linear-gradient(90deg,transparent,var(--pks-a),transparent);box-shadow:0 0 8px var(--pks-a); }
+            #pks-panel [id^="pks-tab-"]:not(#pks-tab-bar) { padding:8px 12px 12px!important;background:linear-gradient(180deg,rgba(4,4,12,.18),rgba(4,4,12,.4)); }
+            #pks-panel .pks-sec { background:linear-gradient(145deg,rgba(255,255,255,.052),rgba(255,255,255,.018));border:1px solid rgba(255,255,255,.085);border-radius:14px;padding:2px 11px 9px;margin:9px 0;box-shadow:inset 0 1px 0 rgba(255,255,255,.055),0 8px 22px rgba(0,0,0,.14);transition:transform .18s ease,border-color .18s ease,background .18s ease; }
+            #pks-panel .pks-sec:hover { transform:translateY(-1px);border-color:rgba(var(--pks-a-rgb),.22);background:linear-gradient(145deg,rgba(var(--pks-a-rgb),.07),rgba(255,255,255,.018)); }
+            #pks-panel .pks-sec > .pks-section-title { margin:9px 0 7px!important; }
+            #pks-panel .pks-section-title { color:rgba(210,207,233,.52)!important;font-size:8px!important;letter-spacing:.17em!important;font-weight:900!important; }
+            #pks-panel .pks-section-title::after { background:linear-gradient(90deg,rgba(var(--pks-a-rgb),.45),transparent)!important;opacity:1!important; }
+            #pks-panel input[type=text], #pks-panel input[type=number], #pks-panel select { background:rgba(5,5,14,.66)!important;border:1px solid rgba(255,255,255,.11)!important;border-radius:10px!important;color:#f4f1ff!important;box-shadow:inset 0 1px 5px rgba(0,0,0,.35); }
+            #pks-panel input[type=text]:focus, #pks-panel input[type=number]:focus, #pks-panel select:focus { border-color:rgba(var(--pks-a-rgb),.7)!important;box-shadow:0 0 0 3px rgba(var(--pks-a-rgb),.12),inset 0 1px 5px rgba(0,0,0,.3)!important;outline:none; }
+            #pks-panel input[type=checkbox] { background:rgba(5,5,14,.8)!important;border-color:rgba(255,255,255,.14)!important; }
+            #pks-panel input[type=checkbox]:checked { background:linear-gradient(90deg,var(--pks-a),#22d3ee)!important;border-color:transparent!important;box-shadow:0 0 13px rgba(var(--pks-a-rgb),.35)!important; }
+            #pks-panel button:not(.pks-tab-btn):not(.pks-win-btn) { border-radius:10px!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.09),0 6px 16px rgba(0,0,0,.16);transition:transform .15s,filter .15s,box-shadow .15s!important; }
+            #pks-panel button:not(.pks-tab-btn):not(.pks-win-btn):hover { transform:translateY(-2px)!important;filter:brightness(1.15);box-shadow:0 10px 24px rgba(0,0,0,.25),0 0 15px rgba(var(--pks-a-rgb),.12); }
+            #pks-panel .pks-mode-pill button { border-radius:0!important;box-shadow:none!important; }
+            #pks-panel .pks-mode-pill button:hover { transform:none!important;filter:none; }
+            #pks-panel ::-webkit-scrollbar-thumb { background:linear-gradient(var(--pks-a),#22d3ee)!important;border-radius:9px!important;box-shadow:0 0 8px rgba(var(--pks-a-rgb),.45); }
         `;
         document.head.appendChild(style);
 
         const panel = document.createElement('div');
         panel.id = 'pks-panel';
-        panel.style.cssText = `all:initial;position:fixed;top:18px;right:18px;z-index:2147483647;font-family:var(--pks-font),'Share Tech Mono',monospace;background:#0c0c0e;border:1px solid #2a2a35;border-radius:16px;width:374px;box-shadow:0 14px 60px rgba(0,0,0,0.9),0 0 0 1px rgba(255,255,255,0.04);overflow:hidden;user-select:none;transform-origin:top right;animation:pks-panel-in 0.34s cubic-bezier(0.22,1,0.36,1);`;
+        panel.style.cssText = `all:initial;position:fixed;top:22px;right:22px;z-index:2147483647;font-family:var(--pks-font),'Share Tech Mono',monospace;background:#0c0c0e;border:1px solid #2a2a35;border-radius:24px;width:410px;box-shadow:0 14px 60px rgba(0,0,0,0.9),0 0 0 1px rgba(255,255,255,0.04);overflow:hidden;user-select:none;transform-origin:top right;animation:pks-panel-in 0.34s cubic-bezier(0.22,1,0.36,1);`;
 
         panel.innerHTML = `
             <div id="pks-top-border" style="height:3px;width:100%;background:linear-gradient(90deg,#00e5ff,#a855f7,#fbbf24);background-size:200% 100%;animation:pks-border-flow 6s linear infinite;flex-shrink:0;"></div>
@@ -2727,6 +2910,7 @@
             <div id="pks-body">
                 <div id="pks-tab-bar" style="display:flex;align-items:flex-end;padding:0 2px;background:#0d0d0f;border-bottom:1px solid #1a1a24;overflow-x:auto;scrollbar-width:none;">
                     <button class="pks-tab-btn active" data-tab="hex"><svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:3px;"><path d="M2 5l3 2.2L8 2l3 5.2L14 5l-1.3 8H3.3z"/></svg>PROFILE</button>
+                    <button class="pks-tab-btn" data-tab="lookup"><svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="vertical-align:middle;margin-right:3px;"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>LOOKUP</button>
                     <button class="pks-tab-btn" data-tab="trade"><svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="vertical-align:middle;margin-right:3px;"><path d="M7 16V4L3 8m4-4l4 4M9 1v12l4-4m-4 4l4-4"/></svg>TRADE</button>
                     <button class="pks-tab-btn" data-tab="misc"><svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="vertical-align:middle;margin-right:3px;"><circle cx="8" cy="8" r="2"/><path d="M8 2v2M8 12v2M2 8h2M12 8h2"/></svg>MISC</button>
                     <button class="pks-tab-btn" data-tab="settings"><svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="vertical-align:middle;margin-right:3px;"><circle cx="8" cy="8" r="2.5"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.5 3.5l1.4 1.4M11.1 11.1l1.4 1.4M3.5 12.5l1.4-1.4M11.1 4.9l1.4-1.4"/></svg>CFG</button>
@@ -2834,6 +3018,7 @@
                     <div style="margin-top:4px;"><button id="pks-wm-reset-pos" class="pks-action-btn" style="width:100%;background:#16161f;color:#666;border-color:#252535;padding:7px;font-size:10px;">\u21ba Reset watermark position</button></div>
                     <div style="margin-top:8px;"><button id="pks-misc-apply" class="pks-action-btn" style="width:100%;background:#16161f;color:#888;border-color:#2a2a35;padding:8px;">\u21ba Re-apply All Misc Settings</button></div>
                 </div>
+                <div id="pks-tab-lookup" style="padding:12px 13px;display:none;max-height:460px;overflow-y:auto;"></div>
                 <div id="pks-tab-trade" style="padding:12px 13px;display:none;max-height:460px;overflow-y:auto;"></div>
                 <div id="pks-tab-hex" style="padding:12px 13px;display:block;max-height:460px;overflow-y:auto;">
                     <div style="margin-bottom:6px;"><span class="pks-page-badge">Profile Banner</span></div>
@@ -2883,35 +3068,22 @@
                     <div style="margin-top:10px;border-top:1px solid #1a1a24;padding-top:12px;">
                         <button id="pks-reset-btn" class="pks-action-btn" style="width:100%;background:#1e1414;color:#ff4466;border-color:#ff446633;padding:8px;">\u21ba Reset all settings</button>
                     </div>
-                    <div style="margin-top:8px;text-align:center;color:#1e1e2e;font-size:9px;letter-spacing:0.1em;">Interium \u00b7 GUI adapted from Hexium by @CardCounting</div>
+                    <div style="margin-top:8px;text-align:center;color:#1e1e2e;font-size:9px;letter-spacing:0.1em;">Interium \u00b7 experimental interface</div>
                 </div>
             </div>
         `;
 
         document.body.appendChild(panel);
+        wrapPanelSections();
 
         const applyGuiScale = () => {
             const s = (cfg.guiScale ?? 100) / 100;
             panel.style.transform = `scale(${s})`;
             panel.style.transformOrigin = 'top right';
-            panel.style.width = '374px';
+            panel.style.width = '410px';
         };
         applyGuiScale();
         updatePanelGlow();
-
-        const updateLarpPreview = () => {
-            const prev = document.getElementById('pks-larp-preview');
-            const t = getTheme(), on = !!cfg.larpEnabled;
-            if (prev) prev.style.opacity = on ? '1' : '0.45';
-            const rob = document.getElementById('pks-larp-prev-robux');
-            const tix = document.getElementById('pks-larp-prev-tix');
-            if (rob) rob.textContent = formatLarp(cfg.larpRobux);
-            if (tix) { tix.textContent = formatLarp(cfg.larpTix); tix.style.setProperty('color', '#f0a500', 'important'); }
-            const st = document.getElementById('pks-larp-status');
-            if (st) st.innerHTML = `Status: <span style="color:#ccc">${on ? 'Faking balance' : 'Off'}</span>`;
-            const dot = document.getElementById('pks-larp-dot');
-            if (dot) { dot.style.background = on ? t.accent : '#2e2e3a'; dot.style.boxShadow = on ? `0 0 8px ${t.accent}` : 'none'; }
-        };
 
         const initModePill = (pillId, cfgKey, onChange) => {
             const pill = document.getElementById(pillId);
@@ -2980,8 +3152,7 @@
             'cfg-miscAvatarFrameTransparent':'miscAvatarFrameTransparent','cfg-avatarGlassify':'avatarGlassify','cfg-avatarEditorGlass':'avatarEditorGlass',
             'cfg-miscAvatarBlurDropdown':'miscAvatarBlurDropdown',
             'cfg-avatarBgEnabled':'avatarBgEnabled','cfg-avatarBgBlur':'avatarBgBlur',
-            'cfg-tradesBgColor':'tradesBgColor','cfg-tradesOpacity':'tradesOpacity','cfg-tradesBlur':'tradesBlur','cfg-tradesAccent':'tradesAccent',
-            'cfg-profileBannerEnabled':'profileBannerEnabled','cfg-profileBannerImage':'profileBannerImage','cfg-profileBannerBlur':'profileBannerBlur','cfg-profileBannerTint':'profileBannerTint','cfg-profileBannerTintOpacity':'profileBannerTintOpacity','cfg-profileBannerBrightness':'profileBannerBrightness','cfg-hideHexBadge':'hideHexBadge','cfg-profileBannerTintGradient':'profileBannerTintGradient','cfg-profileBannerTint2':'profileBannerTint2','cfg-profileBannerTintAngle':'profileBannerTintAngle','cfg-tradesGlassCards':'tradesGlassCards','cfg-tradesMetric':'tradesMetric','cfg-tradesPillOpacity':'tradesPillOpacity','cfg-robuxIcon':'robuxIcon','cfg-tradesGlassify':'tradesGlassify','cfg-sendTradeGlassify':'sendTradeGlassify','cfg-tradesDropdownGlass':'tradesDropdownGlass',
+            'cfg-profileBannerEnabled':'profileBannerEnabled','cfg-profileBannerImage':'profileBannerImage','cfg-profileBannerBlur':'profileBannerBlur','cfg-profileBannerTint':'profileBannerTint','cfg-profileBannerTintOpacity':'profileBannerTintOpacity','cfg-profileBannerBrightness':'profileBannerBrightness','cfg-profileBannerTintGradient':'profileBannerTintGradient','cfg-profileBannerTint2':'profileBannerTint2','cfg-profileBannerTintAngle':'profileBannerTintAngle','cfg-robuxIcon':'robuxIcon','cfg-tradesGlassify':'tradesGlassify','cfg-sendTradeGlassify':'sendTradeGlassify','cfg-tradesDropdownGlass':'tradesDropdownGlass',
             'cfg-watermarkEnabled':'watermarkEnabled','cfg-watermarkPosition':'watermarkPosition',
             'cfg-watermarkAccentColor':'watermarkAccentColor','cfg-watermarkScale':'watermarkScale','cfg-watermarkOpacity':'watermarkOpacity',
             'cfg-watermarkShowTime':'watermarkShowTime','cfg-watermarkShowPing':'watermarkShowPing','cfg-watermarkShowUser':'watermarkShowUser',
@@ -2996,10 +3167,7 @@
                 else if (el.type === 'color') { if (cfg[key]?.trim()) el.value = cfg[key]; }
                 else el.value = cfg[key] ?? '';
             }
-            const clickEl  = document.getElementById('pks-r-click-ms');
-            const reloadEl = document.getElementById('pks-r-reload-ms');
-            if (clickEl) clickEl.value = cfg.clickInterval; if (reloadEl) reloadEl.value = cfg.hardRefreshInterval;
-            [['pks-hk-record-toggle-gui','hotkeyToggleGui'],['pks-hk-record-refresher','hotkeyRefresher'],['pks-hk-record-hardrefresh','hotkeyHardRefresh']].forEach(([elId, cfgKey]) => {
+            [['pks-hk-record-toggle-gui','hotkeyToggleGui']].forEach(([elId, cfgKey]) => {
                 const el = document.getElementById(elId); if (el) el.textContent = cfg[cfgKey] || 'none';
             });
             ['pks-sidebar-mode-pill','pks-navbar-mode-pill'].forEach(pillId => {
@@ -3007,11 +3175,6 @@
                 const cfgKey = pillId === 'pks-sidebar-mode-pill' ? 'sidebarMode' : 'navbarMode';
                 pill?.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.mode === cfg[cfgKey]));
             });
-            const larpR = document.getElementById('cfg-larpRobux'); if (larpR) larpR.value = cfg.larpRobux ? String(cfg.larpRobux) : '';
-            const larpT = document.getElementById('cfg-larpTix');   if (larpT) larpT.value = cfg.larpTix   ? String(cfg.larpTix)   : '';
-            const larpE = document.getElementById('cfg-larpEnabled'); if (larpE) larpE.checked = !!cfg.larpEnabled;
-            const larpV = document.getElementById('cfg-larpVerify'); if (larpV) larpV.checked = !!cfg.larpVerify;
-            updateLarpPreview();
             updateModeVisibility();
         };
         syncFieldsFromCfg();
@@ -3020,15 +3183,11 @@
             applyThemeToDom(); applyMisc(); applyCardStyle(); updateWatermark();
             applySidebarNavStyle(); applySidebarDirect(); applyPageFrameTransparency(); updateModeVisibility();
             applyEffects(); applyAvatarGlass(); applyAvatarEditorGlass(); applyAvatarBg();
-            if (isTradePage()) applyTradeStyle();
-            applyTradesCustom();
             applyProfileBannerForPage();
         };
 
         panel.addEventListener('change', (e) => {
             const el = e.target; const id = el.id; if (!id) return;
-            if (id === 'pks-r-click-ms')      { cfg.clickInterval       = Math.max(100,  parseInt(el.value) || 1500); saveCfg(cfg); return; }
-            if (id === 'pks-r-reload-ms')     { cfg.hardRefreshInterval = Math.max(5000, parseInt(el.value) || 60000); saveCfg(cfg); return; }
             if (id === 'cfg-miscBgUrl') return;
             const key = fieldMap[id]; if (!key) return;
             if (el.type === 'checkbox')     cfg[key] = el.checked;
@@ -3037,25 +3196,23 @@
             else                            cfg[key] = el.value || (OPTIONAL_COLOR_FIELDS.has(id) ? '' : DEFAULTS[key]);
             saveCfg(cfg);
             reapplyAll();
-            if (id === 'cfg-tradesMetric' && _tradesRepaint) _tradesRepaint();
-            if (id === 'cfg-tradesPillOpacity') applyTradesCustom();
             if (id === 'cfg-anonymous') { updateProfileUI(); updateWatermark(); }
             if (id === 'cfg-guiScale') applyGuiScale();
             if (id === 'cfg-miscPageFont') applyPageFont(el.value);
             if (id === 'cfg-miscGuiFont')  applyGuiFont(el.value);
         });
 
-        // \u2500\u2500 Per-page "Glassify page" master switches \u2500\u2500
-        // One switch per page badge that flips EVERY glassify / glass-surface
-        // key of that page at once. Masters are not cfg keys themselves:
-        // their state is derived from the group (checked = all on,
-        // indeterminate = mixed), and the granular checkboxes stay in sync
+        
+        
+        
+        
+        
         // in both directions.
         const GLASSIFY_PAGE_GROUPS = {
             home:      { label: '/home',      keys: ['miscHomeFramesTransparent', 'miscModernGameCards', 'miscFriendsFrameTransparent'] },
             friends:   { label: '/friends',   keys: ['miscFriendsTabsGlassify'] },
             games:     { label: '/games',     keys: ['miscGamesGlassify', 'miscGamesHeroBackdrop', 'miscModernGameCards'] },
-            trades:    { label: '/trades',    keys: ['tradesGlassify', 'sendTradeGlassify', 'tradesDropdownGlass', 'tradesGlassCards'] },
+            trades:    { label: '/trades',    keys: ['tradesGlassify', 'sendTradeGlassify', 'tradesDropdownGlass'] },
             catalog:   { label: '/catalog',   keys: ['miscCatalogFrameTransparent', 'miscCatalogItemCards', 'miscCatalogDropdownGlass', 'miscItemPageGlass'] },
             groups:    { label: '/groups',    keys: ['miscGroupsGlassify'] },
             develop:   { label: '/develop',   keys: ['miscDevelopGlassify'] },
@@ -3086,8 +3243,8 @@
                 notify((on ? 'Glassified ' : 'Un-glassified ') + group.label, 'info');
             });
         }
-        // Keep master states honest when any granular toggle changes. This
-        // listener is registered AFTER the generic fieldMap handler above,
+        
+        
         // so cfg is already updated when it runs.
         panel.addEventListener('change', (e) => {
             if (e.target?.id && fieldMap[e.target.id]) syncGlassMasters();
@@ -3125,81 +3282,9 @@
             notify('Effect colour cleared \u2014 using auto', 'info');
         });
 
-        const larpRobuxEl = document.getElementById('cfg-larpRobux');
-        const larpTixEl   = document.getElementById('cfg-larpTix');
-        const larpToggle  = document.getElementById('cfg-larpEnabled');
-        const commitLarp = () => {
-            cfg.larpRobux = parseInt((larpRobuxEl?.value || '').replace(/[^\d]/g, '')) || 0;
-            cfg.larpTix   = parseInt((larpTixEl?.value   || '').replace(/[^\d]/g, '')) || 0;
-            saveCfg(cfg); applyLarp(); updateLarpPreview();
-        };
-        larpRobuxEl?.addEventListener('input', commitLarp);
-        larpTixEl?.addEventListener('input', commitLarp);
-        larpToggle?.addEventListener('change', () => {
-            cfg.larpEnabled = larpToggle.checked; saveCfg(cfg); applyLarp(); updateLarpPreview();
-        });
-        const verifyToggle = document.getElementById('cfg-larpVerify');
-        verifyToggle?.addEventListener('change', () => {
-            cfg.larpVerify = verifyToggle.checked; saveCfg(cfg); applyFakeVerify();
-            notify(cfg.larpVerify ? 'Fake verify on' : 'Fake verify off', 'info');
-        });
-
-        const _larpCardCache = {};
-        const renderLarpFakeList = () => {
-            const list = document.getElementById('pks-larp-fakelist');
-            if (!list) return;
-            list.innerHTML = '';
-            const ids = cfg.avatarFakeItems || [];
-            if (!ids.length) {
-                list.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:18px;color:#3a3a48;font-size:10px;">No fake items yet</div>`;
-                return;
-            }
-            ids.forEach(id => {
-                const card = document.createElement('div');
-                card.style.cssText = `position:relative;background:#16161f;border:1px solid #252535;border-radius:8px;overflow:hidden;cursor:pointer;transition:border-color 0.15s,transform 0.12s;`;
-                const qty = Math.max(1, parseInt((cfg.avatarFakeQty || {})[id]) || 1);
-                card.innerHTML = `
-                    <div style="width:100%;aspect-ratio:1;background:#0a0b0e;overflow:hidden;">
-                        <img src="https://www.pekora.zip/thumbs/asset.ashx?assetId=${id}&width=110&height=110&format=png" style="width:100%;height:100%;object-fit:contain;" onerror="this.style.opacity=0;">
-                    </div>
-                    ${qty > 1 ? `<div style="position:absolute;top:4px;right:4px;background:#00e87a;color:#050508;font-size:9px;font-weight:800;padding:1px 5px;border-radius:9px;">×${qty}</div>` : ''}
-                    <div style="padding:3px 4px;font-size:9px;color:#9a9ab0;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center;" title="Asset ${id}">${escHtml(_larpCardCache[id] || ('#' + id))}</div>
-                    <div class="pks-larp-rm" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(120,10,30,0.78);color:#fff;font-size:11px;font-weight:700;letter-spacing:0.06em;opacity:0;transition:opacity 0.15s;">REMOVE</div>
-                `;
-                const overlay = card.querySelector('.pks-larp-rm');
-                card.addEventListener('mouseenter', () => { card.style.borderColor = '#ff4466'; card.style.transform = 'translateY(-2px)'; overlay.style.opacity = '1'; });
-                card.addEventListener('mouseleave', () => { card.style.borderColor = '#252535'; card.style.transform = 'none'; overlay.style.opacity = '0'; });
-                card.addEventListener('click', () => { removeFakeAvatarItem(id); renderLarpFakeList(); notify('Removed fake item', 'info'); });
-                list.appendChild(card);
-                if (_larpCardCache[id] === undefined) {
-                    _larpCardCache[id] = null;
-                    fetchFakeItemData(id).then(d => {
-                        if (d?.name) { _larpCardCache[id] = d.name; const lbl = card.querySelector('div[title]'); if (lbl) lbl.textContent = d.name; }
-                    });
-                }
-            });
-        };
-        document.getElementById('pks-larp-add-item')?.addEventListener('click', async () => {
-            const inp = document.getElementById('pks-larp-assetid');
-            const qtyInp = document.getElementById('pks-larp-qty');
-            const id = (inp?.value || '').replace(/[^\d]/g, '');
-            if (!id) { notify('Enter a valid asset ID', 'error'); return; }
-            const qty = Math.max(1, parseInt(qtyInp?.value) || 1);
-            cfg.avatarFakeQty = Object.assign({}, cfg.avatarFakeQty, { [id]: qty }); saveCfg(cfg);
-            const btn = document.getElementById('pks-larp-add-item');
-            if (btn) { btn.disabled = true; btn.textContent = '…'; }
-            await addFakeAvatarItem(id, true);
-            applyCatalogOwned();
-            if (btn) { btn.disabled = false; btn.textContent = 'Add'; }
-            if (inp) inp.value = '';
-            if (qtyInp) qtyInp.value = '1';
-            renderLarpFakeList();
-            notify('Fake item saved — faked as owned + worn', 'success');
-        });
-        renderLarpFakeList();
-
-        const TABS = ['hex','trade','misc','settings'];
+        const TABS = ['hex','lookup','trade','misc','settings'];
         try { buildMassTradeUI(); } catch (e) { console.warn('[Interium] Mass Trader UI failed to build', e); }
+        try { buildLookupUI(); } catch (e) { console.warn('[Interium] Lookup UI failed to build', e); }
         panel.querySelectorAll('.pks-tab-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 panel.querySelectorAll('.pks-tab-btn').forEach(b => b.classList.remove('active'));
@@ -3209,14 +3294,10 @@
             });
         });
 
-        document.getElementById('pks-r-start')?.addEventListener('click', startRefresher);
-        document.getElementById('pks-r-stop')?.addEventListener('click', stopRefresher);
         document.getElementById('pks-misc-apply')?.addEventListener('click', () => {
             applyMisc(); applyCardStyle(); applySidebarNavStyle(); applySidebarDirect(); applyPageFrameTransparency();
-            if (isTradePage()) applyTradeStyle();
             notify('Misc settings applied', 'info');
         });
-        document.getElementById('pks-hex-save')?.addEventListener('click', (e) => saveProfileBanner(e.currentTarget));
         document.getElementById('cfg-profileBannerImage')?.addEventListener('keydown', (e) => {
             if (e.key !== 'Enter') return;
             cfg.profileBannerImage = e.target.value.trim();
@@ -3253,14 +3334,14 @@
         document.getElementById('pks-reset-btn')?.addEventListener('click', () => {
             cfg = Object.assign({}, DEFAULTS); saveCfg(cfg); syncFieldsFromCfg();
             applyThemeToDom(); applyMisc(); applyCardStyle(); updateWatermark(); applyGuiScale();
-            applySidebarNavStyle(); applySidebarDirect(); applyPageFrameTransparency(); applyEffects(); applyLarp();
+            applySidebarNavStyle(); applySidebarDirect(); applyPageFrameTransparency(); applyEffects();
             notify('Settings reset to defaults', 'info');
         });
 
         const reapplyEverything = () => {
             applyThemeToDom(); applyMisc(); applyCardStyle(); updateWatermark(); applyGuiScale();
             applySidebarNavStyle(); applySidebarDirect(); applyPageFrameTransparency(); applyEffects();
-            applyLarp(); applyFakeVerify(); applyTradesCustom(); applyProfileBannerForPage();
+            applyProfileBannerForPage();
         };
         document.getElementById('pks-cfg-export')?.addEventListener('click', () => {
             const json = JSON.stringify(cfg, null, 2);
@@ -3297,7 +3378,6 @@
         closeB?.addEventListener('click', () => {
             panel.style.transition = 'opacity 0.18s,transform 0.18s';
             panel.style.opacity = '0'; panel.style.transform = 'scale(0.94)';
-            stopRefresher();
             setTimeout(() => panel.remove(), 200);
         });
 
@@ -3328,21 +3408,18 @@
                 }).catch(() => { if (!cfg.anonymous) img.style.display = 'block'; });
         };
 
-        applyThemeToDom(); applyMisc(); applyCardStyle(); applyEffects(); applyLarp();
+        applyThemeToDom(); applyMisc(); applyCardStyle(); applyEffects();
         applySidebarNavStyle(); applySidebarDirect(); injectSidebarLinks(); applyPageFrameTransparency();
         applyPageFont(cfg.miscPageFont || 'Default (Site Font)');
         applyGuiFont(cfg.miscGuiFont || 'Share Tech Mono');
-        if (isTradePage()) applyTradeStyle();
         fetchProfile().then(trySetAvatar);
         setInterval(() => { if (!document.hidden) fetchProfile().then(trySetAvatar); }, 30000); /* PERF: no profile polling from background tabs */
-        panelLog('Panel ready. Configure intervals and press START.', 'info');
     };
 
     const isAvatarPage = () => /\/My\/Avatar/i.test(location.pathname) || /(^|\/)avatar(\/|$)/i.test(location.pathname);
     const AV_WRAP_SEL = '[class*="avatarCardWrapper"]';
 
     const isCatalogItemPage = () => /\/catalog\/\d+/i.test(location.pathname);
-    const currentCatalogAssetId = () => { const m = location.pathname.match(/\/catalog\/(\d+)/i); return m ? m[1] : null; };
 
     const AVATAR_BG_BASE = 'https://cdn.jsdelivr.net/gh/warmpain9/Interium@main/assets/avatar-bgs/';
     const AVATAR_BG_PRESET_CANDIDATES = (() => {
@@ -3668,11 +3745,8 @@ p[class*="vTabUnselected-"]{box-shadow:none!important;}`
             if (cfg.miscProfileFrameTransparent) applyWearingGlassDirect();
             injectSidebarLinks();
             applyAgeOverride();
-            ensureTradesOverlay();
             removeNagAlerts();
-            injectProfileTradeButton();
             applyAvatarControls(); injectAvatarBgStrip(); applyAvatarGlass(); applyAvatarEditorGlass(); if (cfg.avatarBgEnabled) applyAvatarBg();
-            applyBadges();
             applyProfileBannerForPage();
         };
         state.dom.runPass = runDomPass;
@@ -3692,9 +3766,7 @@ p[class*="vTabUnselected-"]{box-shadow:none!important;}`
         }
         applyAgeOverride();
         removeNagAlerts();
-        injectProfileTradeButton();
         applyAvatarControls(); injectAvatarBgStrip(); applyAvatarGlass(); applyAvatarEditorGlass(); if (cfg.avatarBgEnabled) applyAvatarBg();
-        applyBadges();
         applyProfileBannerForPage();
     };
 
@@ -3712,25 +3784,15 @@ p[class*="vTabUnselected-"]{box-shadow:none!important;}`
             const _trOv = document.getElementById('pks-tr-overlay');
             if (_trOv) { if (_trOv._onKey) document.removeEventListener('keydown', _trOv._onKey); _trOv.remove(); }
             document.getElementById('pks-tr-hide')?.remove();
-            twMyItems = []; twTheirItems = [];
-            twMySelected = []; twTheirSelected = [];
-            twMyPage = 0; twTheirPage = 0;
-            twMySearch = ''; twTheirSearch = '';
-            if (/\/My\/Trades\.aspx/i.test(location.pathname)) ensureTradesOverlay();
             setTimeout(() => {
                 applyPageFrameTransparency();
                 applyRobuxJssIconFix(); /* JSS sheets (group robux glyphs) mount after nav */
                 applyCardStyle(); /* page-gated blocks (item page glass) must rebuild on SPA nav */
                 applySidebarNavStyle();
                 applySidebarDirect();
-                if (isTradePage()) applyTradeStyle();
-                if (isTradeWindow()) injectTradeWindow();
-                if (/\/My\/Trades\.aspx/i.test(location.pathname)) ensureTradesOverlay();
-                if (isAvatarPage()) injectAvatarTools();
-                if (isCatalogItemPage()) applyCatalogOwned();
                 applyGamesHeroBackdrop();
                 injectFriendsButtons();
-                if (!isTradeWindow() && cfg.effectType !== 'none' && !document.getElementById('pks-effects-canvas')) applyEffects();
+                if (cfg.effectType !== 'none' && !document.getElementById('pks-effects-canvas')) applyEffects();
             }, 400);
         };
         history.pushState    = function (...a) { origPush.apply(this, a);    onNav(); };
@@ -3753,10 +3815,6 @@ p[class*="vTabUnselected-"]{box-shadow:none!important;}`
             buildWatermark();
             setupHotkeys();
             monitorDOM();
-            if (isTradeWindow()) injectTradeWindow();
-            if (/\/My\/Trades\.aspx/i.test(location.pathname)) ensureTradesOverlay();
-            if (isAvatarPage()) injectAvatarTools();
-            if (isCatalogItemPage()) applyCatalogOwned();
             injectFriendsButtons();
             setTimeout(() => notify('Welcome to Interium!', 'success'), 800);
         };
@@ -3764,7 +3822,6 @@ p[class*="vTabUnselected-"]{box-shadow:none!important;}`
         const authInfo = {};
         if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => run(authInfo));
         else run(authInfo);
-
 
         console.log('%cINTERIUM UI', 'color:#a855f7;font-weight:900;font-size:14px;letter-spacing:2px;');
         console.log('[Interium] UI runtime loaded — trading features live in the trading runtime.');
