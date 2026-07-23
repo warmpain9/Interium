@@ -4,6 +4,31 @@
 /* INTERIUM_MAIN */
 console.info('[Interium] Trading runtime v1.0.0 started at', document.readyState);
 
+/* GM_xmlhttpRequest (granted in the loader header) bypasses page CSP, which blocks
+   cross-origin koromons.net requests on /internal/* pages. unsafeWindow keeps the
+   page-visible fetch stub working now that the script runs sandboxed. */
+const INTERIUM_PAGE_WIN = (typeof unsafeWindow !== 'undefined' && unsafeWindow) ? unsafeWindow : window;
+const INTERIUM_GM_HTTP = (typeof GM_xmlhttpRequest === 'function') ? GM_xmlhttpRequest : null;
+const interiumGmJson = (url, timeoutMs = 10000) => new Promise((resolve, reject) => {
+	if (!INTERIUM_GM_HTTP) { reject(new Error('GM_xmlhttpRequest unavailable')); return; }
+	let done = false;
+	const finish = (fn, v) => { if (!done) { done = true; fn(v); } };
+	INTERIUM_GM_HTTP({
+		method: 'GET',
+		url,
+		timeout: timeoutMs,
+		headers: { accept: 'application/json' },
+		onload: (r) => {
+			try {
+				if (!r || r.status < 200 || r.status >= 300) { finish(reject, new Error('HTTP ' + (r && r.status))); return; }
+				finish(resolve, JSON.parse(r.responseText));
+			} catch (e) { finish(reject, e); }
+		},
+		onerror: () => finish(reject, new Error('network error')),
+		ontimeout: () => finish(reject, new Error('request timed out'))
+	});
+});
+
 (function () {
 	'use strict';
 const pcsStubFor = (u) => {
@@ -12,19 +37,42 @@ if (u.indexOf('/economy/v1/users/') !== -1 && u.indexOf('/currency') !== -1) ret
 if (u.indexOf('/trades/v1/trades/') !== -1 && u.indexOf('/count') !== -1) return { count: 0 };
 return null;
 };
+/* The counter-trade composer renders at /trades without the partner id in the URL,
+   so remember whose inventories the page itself requests (newest first wins). */
+const pgTwSeenInventoryIds = [];
+const pgTwNoteInventoryUrl = (u) => {
+	try {
+		const m = String(u || '').match(/\/users\/(\d+)\/assets\/collectibles/i);
+		if (!m) return;
+		const prev = pgTwSeenInventoryIds.find(e => e.id === m[1]);
+		if (prev) prev.at = Date.now(); else pgTwSeenInventoryIds.push({ id: m[1], at: Date.now() });
+		if (pgTwSeenInventoryIds.length > 8) pgTwSeenInventoryIds.shift();
+	} catch (_) {}
+};
+/* The site requests inventories through axios (XHR), not fetch, so watch XHR too. */
 try {
-const origFetch = window.fetch;
+	const pgTwXhrProto = INTERIUM_PAGE_WIN.XMLHttpRequest && INTERIUM_PAGE_WIN.XMLHttpRequest.prototype;
+	if (pgTwXhrProto && pgTwXhrProto.open) {
+		const pgTwOrigXhrOpen = pgTwXhrProto.open;
+		pgTwXhrProto.open = function (method, url) { pgTwNoteInventoryUrl(url); return pgTwOrigXhrOpen.apply(this, arguments); };
+	}
+} catch (_) {}
+try {
+const origFetch = INTERIUM_PAGE_WIN.fetch;
 if (origFetch) {
-window.fetch = async function (input, init) {
+const interiumFetch = async function (input, init) {
 const args = arguments;
 const u = typeof input === 'string' ? input : (input && input.url) || '';
-const response = await origFetch.apply(this, args);
+pgTwNoteInventoryUrl(u);
+const response = await origFetch.apply(INTERIUM_PAGE_WIN, args);
 const stub = pcsStubFor(u);
 if (stub && response && response.status === 503) {
 return new Response(JSON.stringify(stub), { status: 200, headers: { 'content-type': 'application/json', 'x-interium-fallback': '503' } });
 }
 return response;
 };
+INTERIUM_PAGE_WIN.fetch = interiumFetch;
+if (INTERIUM_PAGE_WIN !== window) { try { window.fetch = interiumFetch; } catch (_) {} }
 }
 } catch (e) {}
 
@@ -271,7 +319,7 @@ return h2.closest('[class*="cardBody-0-2-"]') || h2.closest('[class*="card-0-2-"
 };
 const validBannerColor = (x, fallback) => /^#[0-9a-fA-F]{6}$/.test(String(x||'')) ? x : fallback;
 const currentProfileId = () => (location.pathname.match(/\/users\/(\d+)\/profile/i) || [])[1] || null;
-const pgTwState = { myItems:null, theirItems:null, partnerId:null, loading:false };
+const pgTwState = { myItems:null, theirItems:null, partnerId:null, loading:false, myId:undefined, myIdReq:null };
 const pgTwIndex = (list) => { const idx=new Map(); (list||[]).forEach(it=>{ const k=String(it.name||'').trim().toLowerCase()+'|'+Math.round(Number(it.rap||0)); if(!idx.has(k)) idx.set(k,[]); idx.get(k).push(it); }); return idx; };
 const pgTwMatch = (idx, name, rap) => { const k=String(name||'').trim().toLowerCase()+'|'+Math.round(Number(rap||0)); const arr=idx.get(k); if(arr&&arr.length) return arr.shift(); return null; };
 const pgTwDecorate = (thumbEl, anchorEl, it, mode, nameEl) => {
@@ -314,7 +362,9 @@ const pgTwDecorate = (thumbEl, anchorEl, it, mode, nameEl) => {
 	return { aid, val };
 };
 const applyTradeWindowStats = () => {
-	const onPage = /^\/users\/\d+\/trade\/?$/i.test(location.pathname);
+	const sendMatch = location.pathname.match(/^\/users\/(\d+)\/trade\/?$/i);
+	const counterMode = !sendMatch && /^\/trades\/?$/i.test(location.pathname) && !!document.querySelector('section[class*="offerPanel-"]');
+	const onPage = !!sendMatch || counterMode;
 	if(!onPage){
 		if(document.querySelector('.pg-tw-koroval,.pg-tw-tag,.pg-tw-total-value,.pg-tw-total-value2,.pg-tw-verdict')){
 			document.querySelectorAll('.pg-tw-koroval,.pg-tw-tag,.pg-tw-total-value,.pg-tw-total-value2,.pg-tw-verdict,.pg-ext-cat').forEach(n=>n.remove());
@@ -326,7 +376,22 @@ const applyTradeWindowStats = () => {
 	}
 	if(!cfg.modernTradeRap) return;
 	if(!pgTwState.koroWait){ pgTwState.koroWait=true; loadKoromonsValues().then(()=>{ try{ applyTradeWindowStats(); }catch(_e){} }).catch(()=>{}); } else { loadKoromonsValues().catch(()=>{}); }
-	const partnerId=(location.pathname.match(/\/users\/(\d+)\/trade/i)||[])[1];
+	let partnerId = sendMatch ? sendMatch[1] : null;
+	if(!partnerId){
+		if(pgTwState.myId===undefined){
+			if(!pgTwState.myIdReq){
+				pgTwState.myIdReq=(async()=>{
+					try{ const me=await (await mtApi('/users/v1/users/authenticated')).json(); pgTwState.myId=me&&me.id!=null?String(me.id):null; }
+					catch(_e){ pgTwState.myId=null; }
+					try{ applyTradeWindowStats(); }catch(_e){}
+				})();
+			}
+			return;
+		}
+		const seen=pgTwSeenInventoryIds.slice().sort((a,b)=>b.at-a.at);
+		const hit=seen.find(e=>e.id!==String(pgTwState.myId));
+		partnerId=hit?hit.id:null;
+	}
 	if(!partnerId) return;
 	if(pgTwState.partnerId!==partnerId){
 		pgTwState.partnerId=partnerId; pgTwState.myItems=null; pgTwState.theirItems=null; pgTwState.loading=false;
@@ -447,27 +512,28 @@ const applyTradeWindowStats = () => {
 			
 			
 			
+			/* Keep the verdict outside the offer panel so its glass card is not stretched. */
 			const host=panels[0]||null;
+			if(host&&host.parentNode){
+				if(host.nextElementSibling!==bar) host.parentNode.insertBefore(bar,host.nextSibling);
+			}
+			bar.style.width=''; bar.style.marginLeft='';
+			/* The offer panel carries its own bottom spacing; pull the bar up so the visible gap stays ~10px. */
+			bar.style.margin='0 0 10px'; bar.style.marginTop='0px';
 			if(host){
-				const anchor=host.querySelector('.pg-tw-total-value')||host.querySelector('[class*="totalRow-"]');
-				if(anchor&&anchor.parentNode){ if(anchor.nextElementSibling!==bar) anchor.parentNode.insertBefore(bar,anchor.nextSibling); }
-				else if(bar.parentNode!==host){ host.appendChild(bar); }
+				const gapTop=Math.round(bar.getBoundingClientRect().top-host.getBoundingClientRect().bottom);
+				if(gapTop>10) bar.style.marginTop=(10-gapTop)+'px';
 			}
-			bar.style.width=''; bar.style.marginLeft=''; bar.style.marginBottom='0px';
-			
-			
 			const requestPanel=panels[1]||null;
-			if(requestPanel){
-				requestPanel.style.marginTop='0px';
-				const gap=Math.round(requestPanel.getBoundingClientRect().top-bar.getBoundingClientRect().bottom);
-				if(gap>8) requestPanel.style.marginTop=(-(gap-8))+'px';
-			}
+			if(requestPanel){ requestPanel.style.removeProperty('margin-top'); }
 			if(bar.getAttribute('data-pg-sig')!==html){ bar.setAttribute('data-pg-sig',html); bar.innerHTML=html; pgWireVerdictBg(bar); }
 		}
 	}catch(_e){}
 };
 				const KOROMONS_VALUES_URL = 'https://www.koromons.net/api/items';
 	const KOROMONS_VALUES_CACHE_KEY = 'pcs_koromons_values_v1';
+	/* /internal/* pages ship connect-src 'self'; without GM_xmlhttpRequest cross-origin koromons fetches are CSP-blocked there. */
+	const KOROMONS_CSP_LOCKED = !INTERIUM_GM_HTTP && /^\/internal\//i.test(location.pathname);
 	const KOROMONS_VALUES_TTL = 1000 * 60 * 60 * 6;
 	const koromonsValueCache = new Map();
 	const koromonsTagsCache = new Map();
@@ -503,7 +569,7 @@ const applyTradeWindowStats = () => {
 			return { hit:true, fresh:age >= 0 && age <= KOROMONS_VALUES_TTL };
 		} catch (_) { return { hit:false, fresh:false }; }
 	};
-		const pgGetJson = (url, timeoutMs = 10000) => new Promise((resolve, reject) => {
+		const pgFetchJson = (url, timeoutMs = 10000) => new Promise((resolve, reject) => {
 		const ctl = typeof AbortController === 'function' ? new AbortController() : null;
 		const timer = setTimeout(() => { try { if (ctl) ctl.abort(); } catch(_) {} reject(new Error('Koromon’s request timed out')); }, timeoutMs);
 		fetch(url, { headers:{accept:'application/json'}, signal: ctl ? ctl.signal : undefined })
@@ -511,6 +577,7 @@ const applyTradeWindowStats = () => {
 			.then(d => { clearTimeout(timer); resolve(d); })
 			.catch(e => { clearTimeout(timer); reject(e); });
 	});
+	const pgGetJson = (url, timeoutMs = 10000) => INTERIUM_GM_HTTP ? interiumGmJson(url, timeoutMs) : pgFetchJson(url, timeoutMs);
 	const INTERIUM_VALUES_FALLBACK_URL = 'https://raw.githubusercontent.com/unitedbygrief/koronevalues/refs/heads/main/valu.json';
 	const asItemArray = (d) => Array.isArray(d) ? d : (Array.isArray(d?.items) ? d.items : (Array.isArray(d?.data) ? d.data : null));
 	const requestKoromonsValues = () => pgGetJson(KOROMONS_VALUES_URL, 10000).then(d => {
@@ -531,6 +598,7 @@ const applyTradeWindowStats = () => {
 		const cached = readKoromonsCache();
 		koromonsValuesLoaded = cached.hit;
 		if (cached.fresh && !force) return Promise.resolve(koromonsValueCache);
+		if (KOROMONS_CSP_LOCKED) { koromonsValuesLoaded = true; koromonsValuesPromise = Promise.resolve(koromonsValueCache); return koromonsValuesPromise; }
 		koromonsValuesPromise = requestKoromonsValues().then(rows => {
 			indexKoromonsValues(rows); koromonsValuesLoaded = true;
 			try { localStorage.setItem(KOROMONS_VALUES_CACHE_KEY,JSON.stringify({t:Date.now(),items:rows})); } catch(_) {}
@@ -557,7 +625,7 @@ const applyTradeWindowStats = () => {
 			return { hit:true, fresh:age >= 0 && age <= KOROMONS_LB_TTL };
 		} catch(e){ return { hit:false, fresh:false }; }
 	};
-	const requestKoromonsLb = () => pgGetJson(KOROMONS_LB_URL, 15000).then(d => {
+	const requestKoromonsLb = () => KOROMONS_CSP_LOCKED ? Promise.resolve(null) : pgGetJson(KOROMONS_LB_URL, 15000).then(d => {
 		const rows = d && Array.isArray(d.players) ? d.players : (Array.isArray(d) ? d : null);
 		if (!rows) throw new Error('Invalid Koromon’s leaderboard response');
 		return rows;
@@ -567,6 +635,7 @@ const applyTradeWindowStats = () => {
 		const cached = readKoromonsLbCache();
 		if (cached.fresh && !force) return Promise.resolve(koromonsLbRows);
 		koromonsLbPromise = requestKoromonsLb().then(rows => {
+			if (!rows) return koromonsLbRows;
 			koromonsLbRows = rows;
 			try { localStorage.setItem(KOROMONS_LB_CACHE_KEY,JSON.stringify({t:Date.now(),players:rows})); } catch(_) {}
 			return koromonsLbRows;
@@ -721,7 +790,6 @@ else window.addEventListener('DOMContentLoaded', init);
         }
     } catch (_) {}
 
-    const VALUES_JSON_URL = 'https://www.koromons.net/api/items';
     const VALUES_CACHE_KEY = 'pk_v50_koromons_items_v3_cache';
     const VALUES_CACHE_MAX_AGE_MS = 1000 * 60 * 60 * 24;
     const OWNER_RARE_CACHE_KEY = 'pk_v50_owner_rare_cache_60_exclusions';
@@ -846,24 +914,6 @@ else window.addEventListener('DOMContentLoaded', init);
         
         return fetch(url, { headers: { Accept: 'application/json' } })
             .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
-    }
-
-    const INTERIUM_VALUES_FALLBACK_URL = 'https://raw.githubusercontent.com/unitedbygrief/koronevalues/refs/heads/main/valu.json';
-    
-    
-    
-    async function gmGetItemsWithFallback(primaryUrl) {
-        const toRows = (d) => Array.isArray(d) ? d : (Array.isArray(d?.items) ? d.items : (Array.isArray(d?.data) ? d.data : null));
-        try {
-            const rows = toRows(await gmGetJson(primaryUrl));
-            if (rows && rows.length) return rows;
-            throw new Error('primary returned no items');
-        } catch (e) {
-            console.warn('[Interium] api/items unavailable, using valu.json fallback:', (e && e.message) || e);
-            const rows = toRows(await gmGetJson(INTERIUM_VALUES_FALLBACK_URL));
-            if (!rows) throw new Error('valu.json fallback invalid');
-            return rows;
-        }
     }
 
     function numFromAny(v) {
@@ -1061,20 +1111,50 @@ else window.addEventListener('DOMContentLoaded', init);
         return age >= 0 && age <= VALUES_CACHE_MAX_AGE_MS;
     }
 
-    async function refreshValues() {
-        try {
-            const rows = await gmGetItemsWithFallback(VALUES_JSON_URL);
-            if (!Array.isArray(rows) || !rows.length) throw new Error('No item array from Koromon’s api/items or valu.json fallback.');
-            indexValueItems(rows);
-            try { localStorage.setItem(VALUES_CACHE_KEY, JSON.stringify({ t: Date.now(), items: rows })); } catch (_) {}
-            return true;
-        } catch (e) {
-            console.warn('[PK 5.0] Values refresh failed; keeping cached/RAP data', e);
-            return false;
-        }
+    /* Live refresh goes through GM_xmlhttpRequest (CSP-exempt). The cache path below is
+       the fallback for @grant none installs or when koromons.net is down. */
+    let koroRowsPromise = null;
+    const KORO_ITEMS_URL = 'https://www.koromons.net/api/items';
+    const KORO_FALLBACK_URL = 'https://raw.githubusercontent.com/unitedbygrief/koronevalues/refs/heads/main/valu.json';
+    const koroRowsOf = (d) => Array.isArray(d) ? d : (Array.isArray(d?.items) ? d.items : (Array.isArray(d?.data) ? d.data : null));
+    function fetchKoromonsRows() {
+        if (koroRowsPromise) return koroRowsPromise;
+        koroRowsPromise = interiumGmJson(KORO_ITEMS_URL, 10000)
+            .then((d) => { const rows = koroRowsOf(d); if (rows && rows.length) return rows; throw new Error('api/items returned no items'); })
+            .catch(() => interiumGmJson(KORO_FALLBACK_URL, 10000).then((d) => { const rows = koroRowsOf(d); if (!rows || !rows.length) throw new Error('valu.json fallback invalid'); return rows; }));
+        koroRowsPromise.catch(() => { koroRowsPromise = null; });
+        return koroRowsPromise;
     }
 
-    const KOROMONS_ITEMS_URL = 'https://www.koromons.net/api/items';
+    function freshestKoromonsCache(extraKey) {
+        const picks = [
+            readJson(localStorage.getItem(VALUES_CACHE_KEY), null),
+            readJson(localStorage.getItem(extraKey), null),
+            readJson(localStorage.getItem('pcs_koromons_values_v1'), null)
+        ].filter((c) => c && Array.isArray(c.items) && c.items.length);
+        picks.sort((a, b) => Number(b.t || 0) - Number(a.t || 0));
+        return picks[0] || null;
+    }
+
+    async function refreshValues() {
+        if (INTERIUM_GM_HTTP) {
+            try {
+                const rows = await fetchKoromonsRows();
+                indexValueItems(rows);
+                try { localStorage.setItem(VALUES_CACHE_KEY, JSON.stringify({ t: Date.now(), items: rows })); } catch (_) {}
+                return true;
+            } catch (e) { console.warn('[PK 5.0] Live values refresh failed; falling back to cache/RAP', e); }
+        }
+        const pick = freshestKoromonsCache(null);
+        if (!pick) {
+            console.info('[PK 5.0] No Koromon’s data cached yet; using RAP. Values sync after visiting the trades page.');
+            return false;
+        }
+        indexValueItems(pick.items);
+        try { localStorage.setItem(VALUES_CACHE_KEY, JSON.stringify({ t: Number(pick.t || Date.now()), items: pick.items })); } catch (_) {}
+        return true;
+    }
+
     const KOROMONS_DEMAND_CACHE_KEY = 'pk_v50_koromons_demand_cache';
     const KOROMONS_DEMAND_CACHE_MAX_AGE_MS = 1000 * 60 * 60 * 6;
 
@@ -1088,16 +1168,19 @@ else window.addEventListener('DOMContentLoaded', init);
     }
 
     async function refreshKoromonsDemand() {
-        try {
-            const rows = await gmGetItemsWithFallback(KOROMONS_ITEMS_URL);
-            if (!Array.isArray(rows) || !rows.length) throw new Error('No item array from Koromon’s api/items or valu.json fallback.');
-            indexKoromonsDemand(rows);
-            try { localStorage.setItem(KOROMONS_DEMAND_CACHE_KEY, JSON.stringify({ t: Date.now(), items: rows })); } catch (_) {}
-            return true;
-        } catch (e) {
-            console.warn('[PK 5.0] Koromon’s demand refresh failed', e);
-            return false;
+        if (INTERIUM_GM_HTTP) {
+            try {
+                const rows = await fetchKoromonsRows();
+                indexKoromonsDemand(rows);
+                try { localStorage.setItem(KOROMONS_DEMAND_CACHE_KEY, JSON.stringify({ t: Date.now(), items: rows })); } catch (_) {}
+                return true;
+            } catch (e) { console.warn('[PK 5.0] Koromon’s demand refresh failed; falling back to cache', e); }
         }
+        const pick = freshestKoromonsCache(KOROMONS_DEMAND_CACHE_KEY);
+        if (!pick) return false;
+        indexKoromonsDemand(pick.items);
+        try { localStorage.setItem(KOROMONS_DEMAND_CACHE_KEY, JSON.stringify({ t: Number(pick.t || Date.now()), items: pick.items })); } catch (_) {}
+        return true;
     }
 
     function hasJsonValue(item) {
@@ -1904,11 +1987,11 @@ else window.addEventListener('DOMContentLoaded', init);
             body.pk-rare-glow-on .pk-card.pk-rare:hover{background:linear-gradient(#1b1b1b,#1b1b1b) padding-box,conic-gradient(from var(--pk-rare-angle,0deg),rgba(255,255,255,.10) 0deg,rgba(255,255,255,.18) 54deg,rgba(255,255,255,1) 82deg,rgba(255,255,255,1) 104deg,rgba(255,255,255,.48) 132deg,rgba(255,255,255,.10) 180deg,rgba(255,255,255,.10) 230deg,rgba(255,255,255,.90) 270deg,rgba(255,255,255,.34) 310deg,rgba(255,255,255,.10) 360deg) border-box!important;animation-duration:1.25s!important;}
             body.pk-rare-glow-on .pk-card.pk-rare::before,body.pk-rare-glow-on .pk-card.pk-rare::after,body.pk-rare-glow-off .pk-card.pk-rare::before,body.pk-rare-glow-off .pk-card.pk-rare::after{display:none!important;content:none!important;}
             body:not(.pk-calc-open) .pk-calc-panel{display:none!important;}
-            .pk-calc-panel{position:fixed;right:14px;bottom:14px;z-index:99991;width:430px;max-width:calc(100vw - 28px);max-height:72vh;overflow:hidden;border-radius:14px;background:linear-gradient(180deg,rgba(25,25,25,.98),rgba(10,10,10,.98));border:1px solid rgba(255,255,255,.16);box-shadow:0 18px 55px rgba(0,0,0,.55),0 0 20px rgba(102,255,153,.08);}
+            .pk-calc-panel{position:fixed!important;right:14px;bottom:14px;z-index:99991!important;width:430px;max-width:calc(100vw - 28px);max-height:72vh;overflow:hidden;border-radius:14px;background:linear-gradient(180deg,rgba(25,25,25,.98),rgba(10,10,10,.98));border:1px solid rgba(255,255,255,.16);box-shadow:0 18px 55px rgba(0,0,0,.55),0 0 20px rgba(102,255,153,.08);}
             .pk-calc-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;background:linear-gradient(90deg,rgba(35,35,35,.98),rgba(20,20,20,.98));border-bottom:1px solid rgba(255,255,255,.08);font-weight:900;font-size:14px;cursor:grab;}.pk-calc-dragging .pk-calc-head{cursor:grabbing;}.pk-clear{padding:5px 8px;font-size:11px;}
             .pk-calc-columns{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:9px;}.pk-calc-columns h4{margin:0 0 6px;color:#fff;font-size:12px;display:flex;align-items:center;justify-content:space-between;gap:6px;}.pk-add-any{font-size:10px!important;padding:4px 7px!important;height:auto!important;}.pk-calc-list{display:grid;gap:6px;max-height:34vh;overflow:auto;}.pk-calc-empty{border:1px dashed #444;border-radius:8px;color:#9f9f9f;text-align:center;padding:16px 8px;font-size:12px;}.pk-calc-item{display:grid;grid-template-columns:34px 1fr auto;gap:7px;align-items:center;background:#1d1d1d;border:1px solid #343434;border-radius:8px;padding:6px;}.pk-calc-item img{width:34px;height:34px;object-fit:contain;background:#111;border-radius:5px;border:1px solid #292929;}.pk-calc-item b{display:block;font-size:10.5px;color:#eef5ff;line-height:1.15;max-height:25px;overflow:hidden;}.pk-calc-item span{display:block;color:#66ff99;font-size:10px;font-weight:900;}.pk-calc-remove{background:transparent;border:0;color:#8b98a8;cursor:pointer;font-size:16px;}.pk-calc-total{border-top:1px solid rgba(255,255,255,.08);padding:10px 12px;display:grid;gap:6px;background:#121212;}.pk-calc-total-row{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:#aab7c5;}.pk-calc-total-row strong{color:#66ff99;font-size:15px;}.pk-win strong{color:#66ff99!important;}.pk-lose strong{color:#ff6b6b!important;}
             .pk-picker-modal{width:min(760px,96vw)!important;}.pk-picker-list{display:grid;gap:6px;max-height:58vh;overflow:auto;margin-top:10px;}.pk-picker-row{display:grid;grid-template-columns:42px minmax(0,1fr) auto;justify-content:stretch;gap:10px;align-items:center;text-align:left;background:#111;border:1px solid #333;border-radius:8px;color:#fff;padding:7px 10px;cursor:pointer;}.pk-picker-row:hover{border-color:#6fdfff;background:#181818;}.pk-picker-img{width:38px;height:38px;object-fit:contain;background:#0b0b0b;border:1px solid #292929;border-radius:6px;}.pk-picker-row span{font-weight:850;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}.pk-picker-row b{color:#66ff99;white-space:nowrap;}
-            .pk-modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:999998;display:flex;align-items:center;justify-content:center;padding:20px;}.pk-modal{width:min(680px,95vw);max-height:80vh;overflow:auto;background:#161616;color:#fff;border:1px solid #3a3a3a;border-radius:12px;box-shadow:0 25px 80px rgba(0,0,0,.55);padding:14px;}.pk-modal-head{display:flex;justify-content:space-between;gap:12px;align-items:center;border-bottom:1px solid #333;padding-bottom:10px;margin-bottom:10px;}.pk-modal-head span{color:#aab4bf;font-size:12px;}.pk-close{background:#242c36;color:#fff;border:1px solid #4a5666;border-radius:7px;padding:6px 10px;cursor:pointer;}.pk-uaid-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;}.pk-uaid{background:#111;border:1px solid #333;border-radius:8px;padding:8px;font-size:12px;}
+            .pk-modal-backdrop{position:fixed!important;inset:0!important;background:rgba(0,0,0,.72);z-index:999998!important;display:flex;align-items:center;justify-content:center;padding:20px;}.pk-modal{width:min(680px,95vw);max-height:80vh;overflow:auto;background:#161616;color:#fff;border:1px solid #3a3a3a;border-radius:12px;box-shadow:0 25px 80px rgba(0,0,0,.55);padding:14px;}.pk-modal-head{display:flex;justify-content:space-between;gap:12px;align-items:center;border-bottom:1px solid #333;padding-bottom:10px;margin-bottom:10px;}.pk-modal-head span{color:#aab4bf;font-size:12px;}.pk-close{background:#242c36;color:#fff;border:1px solid #4a5666;border-radius:7px;padding:6px 10px;cursor:pointer;}.pk-uaid-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;}.pk-uaid{background:#111;border:1px solid #333;border-radius:8px;padding:8px;font-size:12px;}
             @media (max-width:1200px){.pk-grid{grid-template-columns:repeat(7,118px)!important;gap:10px!important;}.pk-calc-panel{width:390px;}}
             @media (max-width:900px){main .col-12.col-lg-3,main .col-12.col-lg-9{width:100%!important;max-width:100%!important;flex:0 0 100%!important;}.pk-grid{grid-template-columns:repeat(5,minmax(0,1fr))!important;}.pk-toolbar{width:100%!important;max-width:100%!important;}.pk-toolbar-top{flex-wrap:wrap!important;}.pk-search{width:100%!important;max-width:100%!important;}.pk-count{justify-self:start!important;}.pk-tool-group-right{margin-left:0!important;}.pk-calc-panel{position:relative;right:auto;bottom:auto;width:100%;margin-top:12px;}}
             @media (max-width:640px){.pk-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.pk-tool-group{width:100%;}.pk-btn{flex:1 1 auto;}.pk-calc-columns{grid-template-columns:1fr;}}

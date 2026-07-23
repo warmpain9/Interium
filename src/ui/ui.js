@@ -1534,7 +1534,7 @@
         document.body.insertBefore(canvas, document.body.firstChild);
         let fxStyle = document.getElementById('pks-effects-style');
         if (!fxStyle) { fxStyle = document.createElement('style'); fxStyle.id = 'pks-effects-style'; document.head.appendChild(fxStyle); }
-        fxStyle.textContent = `body > *:not(#pks-effects-canvas):not(#pks-tr-overlay):not(#pks-tw-root){position:relative;z-index:2;} #pks-effects-canvas{z-index:1!important;}`;
+        fxStyle.textContent = `body > *:not(#pks-effects-canvas):not(#pks-tr-overlay):not(#pks-tw-root):not(#pk-calc-panel):not(.pk-modal-backdrop){position:relative;z-index:2;} #pks-effects-canvas{z-index:1!important;}`;
         _fxCanvas = canvas; _fxCtx = canvas.getContext('2d');
         const resize = () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; fxInit(type, canvas.width, canvas.height); };
         resize(); _fxResize = resize; window.addEventListener('resize', resize);
@@ -2045,7 +2045,7 @@
         
         const rbxOnSendTrade = /^\/users\/\d+\/trade\/?$/.test(rbxPath);
         const rbxOnTradesList = /^\/trades\/?$/.test(rbxPath);
-        if (rbxOnSendTrade && cfg.sendTradeGlassify) {
+        if ((rbxOnSendTrade || rbxOnTradesList) && cfg.sendTradeGlassify) {
             css += `
                 [class*="itemGrid-"]{align-items:stretch!important;}
                 [class*="itemGrid-"] [class*="itemButton-"]{${GLASS_CSS}box-sizing:border-box!important;align-self:stretch!important;height:auto!important;display:flex!important;flex-direction:column!important;justify-content:flex-start!important;align-items:stretch!important;border-radius:12px!important;padding:8px!important;overflow:hidden!important;transition:transform 0.16s ease,box-shadow 0.16s ease,border-color 0.16s ease!important;}

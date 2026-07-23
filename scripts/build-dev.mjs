@@ -37,7 +37,11 @@ const header = `// ==UserScript==
 // @match        https://pekora.zip/*
 // @run-at       document-start
 // @noframes
-// @grant        none
+// @grant        GM_xmlhttpRequest
+// @grant        unsafeWindow
+// @connect      www.koromons.net
+// @connect      koromons.net
+// @connect      raw.githubusercontent.com
 // ==/UserScript==
 
 console.info('[Interium] DEV bundle ${loaderVersion}.${stamp} - runtimes inlined locally: ${files.join(', ')}');
