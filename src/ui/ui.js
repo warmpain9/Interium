@@ -1002,7 +1002,7 @@
         
         el.dataset.invMode = 'catalog';
         const cardCss = `
-            [class*="itemCard-"]{${GLASS_CSS}position:relative!important;border-radius:14px!important;padding:8px!important;overflow:hidden!important;transition:transform 0.16s ease,box-shadow 0.16s ease,border-color 0.16s ease!important;}
+            [class*="itemCard-"]{${GLASS_CSS}position:relative!important;border-radius:14px!important;padding:8px!important;overflow:hidden!important;height:auto!important;min-height:0!important;display:flex!important;flex-direction:column!important;justify-content:flex-start!important;transition:transform 0.16s ease,box-shadow 0.16s ease,border-color 0.16s ease!important;}
             [class*="itemCard-"]:hover{transform:translateY(-4px)!important;box-shadow:0 14px 38px rgba(0,0,0,0.45)!important;border-color:${t.accent}77!important;}
             `;
         el.textContent = `
@@ -1044,13 +1044,12 @@
             [class*="itemCard-"] [class*="serial-"]{position:absolute!important;top:8px!important;right:8px!important;float:none!important;margin:0!important;z-index:3!important;}
             /* Preview: EXACTLY the catalog cardImage- recipe -- a full-width
                SQUARE frame with the faint translucent fill and 10px radius.
-               The frame is painted on the thumb IMG itself (plus wrapper
-               fallbacks forced to full width), because the site renders the
-               thumb at its natural ~110px size inside an unstyled wrapper,
-               which looked undersized in the card. */
-            [class*="itemCard-"] > a{display:block!important;width:100%!important;}
-            [class*="itemCard-"] [class*="itemImage-"],[class*="itemCard-"] [class*="imageBig"],[class*="itemCard-"] [class*="thumb"],[class*="itemCard-"] [class*="Thumb"]{margin:0!important;padding:0!important;width:100%!important;display:block!important;background:transparent!important;border:none!important;box-shadow:none!important;}
-            [class*="itemCard-"] img{display:block!important;width:100%!important;height:auto!important;aspect-ratio:1/1!important;object-fit:contain!important;max-width:none!important;max-height:none!important;margin:0 0 6px!important;background-color:rgba(255,255,255,0.035)!important;border:none!important;border-radius:10px!important;box-shadow:none!important;}
+               Forced full-width wrappers and scale(1.18) so inventory items
+               fill the preview frame identically to catalog cards. */
+            [class*="itemCard-"] > a,[class*="itemCard-"] a:has(img){display:block!important;width:100%!important;}
+            [class*="itemCard-"] [class*="itemImage-"],[class*="itemCard-"] [class*="imageBig"],[class*="itemCard-"] [class*="thumb"],[class*="itemCard-"] [class*="Thumb"],[class*="itemCard-"] [class*="image-"],[class*="itemCard-"] [class*="imageWrapper"],[class*="itemCard-"] [class*="thumbnailWrapper"],[class*="itemCard-"] div:has(> img){margin:0 0 6px!important;padding:0!important;width:100%!important;max-width:100%!important;height:auto!important;aspect-ratio:1/1!important;display:flex!important;align-items:center!important;justify-content:center!important;background-color:rgba(255,255,255,0.035)!important;border-radius:10px!important;overflow:hidden!important;border:none!important;box-shadow:none!important;position:relative!important;}
+            [class*="itemCard-"] img{display:block!important;width:100%!important;height:100%!important;aspect-ratio:1/1!important;object-fit:contain!important;max-width:none!important;max-height:none!important;margin:0!important;padding:0!important;background:transparent!important;border:none!important;border-radius:10px!important;box-shadow:none!important;transform:scale(1.18)!important;transform-origin:center center!important;transition:transform 0.16s ease!important;}
+            [class*="itemCard-"]:hover img{transform:scale(1.24)!important;}
             /* LIMITED / LIMITED U badge INSIDE the preview, bottom-left --
                the same placement as the catalog cards. The badge is an
                in-flow sibling BELOW the img, so it is pulled up over the
