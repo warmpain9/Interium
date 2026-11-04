@@ -1,12 +1,12 @@
 // ==UserScript==
 // @name         Interium Loader
 // @namespace    https://github.com/warmpain9/Interium
-// @version      1.0.0
+// @version      1.1.0
 // @description  CSP-safe loader: Tampermonkey attaches the Interium trading + UI runtimes from GitHub (via GitHub raw) using @require.
 // @author       Interium contributors
 // @license      MIT
-// @match        https://www.pekora.zip/*
-// @match        https://pekora.zip/*
+// @match        https://www.echocr.xyz/*
+// @match        https://echocr.xyz/*
 // @run-at       document-start
 // @noframes
 // @grant        GM_xmlhttpRequest
@@ -25,7 +25,7 @@
 
 /*
  * Why @require instead of downloading + eval():
- * pekora.zip's Content Security Policy forbids 'unsafe-eval' on some pages
+ * echocr.xyz's Content Security Policy forbids 'unsafe-eval' on some pages
  * (for example /internal/collectibles), so no loader may execute downloaded
  * source code as a string there. With @require, Tampermonkey itself fetches
  * the runtime from GitHub and runs it as regular userscript code at
@@ -41,4 +41,4 @@
  * URLs when the loader updates - so ALWAYS bump @version here with every
  * runtime change, otherwise users keep running stale cached runtimes.
  */
-console.info('[Interium] Loader v1.0.0 - core + trading + UI runtimes attached via @require (CSP-safe).');
+console.info('[Interium] Loader v1.1.0 - core + trading + UI runtimes attached via @require (CSP-safe).');

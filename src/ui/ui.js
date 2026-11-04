@@ -1037,7 +1037,7 @@
             /* item cards: surface from the branch above (real blur slice
                with custom bg, glass + graphite tint otherwise) */
             ${cardCss}
-            /* Equal-height cards (pekora bug: the serial pill and the limited
+            /* Equal-height cards (site bug: the serial pill and the limited
                badge shift geometry per card). Layout normalised to padding +
                square image + fixed 16px badge row + one name line + one
                creator line; the serial pill is lifted out of the flow. */
@@ -1313,14 +1313,17 @@
         }, cfg.notificationDuration);
     };
 
+    const SITE_ORIGIN = (typeof location !== 'undefined' && location.origin && !location.origin.startsWith('null')) ? location.origin : 'https://www.echocr.xyz';
+    const SITE_API = SITE_ORIGIN + '/apisite';
+
     const fetchProfile = async () => {
         try {
-            const userRes = await fetch('https://www.pekora.zip/apisite/users/v1/users/authenticated', { credentials:'include' });
+            const userRes = await fetch(`${SITE_API}/users/v1/users/authenticated`, { credentials:'include' });
             if (!userRes.ok) return;
             const user = await userRes.json();
             state.profile.id   = user.id;
             state.profile.name = user.displayName || user.name;
-            const currRes = await fetch(`https://www.pekora.zip/apisite/economy/v1/users/${user.id}/currency`, { credentials:'include' });
+            const currRes = await fetch(`${SITE_API}/economy/v1/users/${user.id}/currency`, { credentials:'include' });
             if (currRes.ok) { const curr = await currRes.json(); state.profile.robux = curr.robux ?? 0; state.profile.tickets = curr.tickets ?? 0; }
             updateProfileUI();
             updateWatermark();
@@ -1354,7 +1357,7 @@
     const measurePing = async () => {
         try {
             const t0 = performance.now();
-            await fetch('https://www.pekora.zip/apisite/users/v1/users/authenticated', { credentials:'include', cache:'no-store', signal:AbortSignal.timeout(5000) });
+            await fetch(`${SITE_API}/users/v1/users/authenticated`, { credentials:'include', cache:'no-store', signal:AbortSignal.timeout(5000) });
             state.watermark.ping = Math.round(performance.now() - t0);
         } catch { state.watermark.ping = null; }
         updateWatermark();
@@ -1549,7 +1552,7 @@
 
     const profileId = () => { const m = location.pathname.match(/\/users\/(\d+)/); return m ? m[1] : null; };
 
-    const myPekoraId = () => String(state.profile.id || '');
+    const myProfileId = () => String(state.profile.id || '');
 
     const getProfileFrame = () => {
         const h = document.querySelector('h2[class*="username"]');
@@ -1623,7 +1626,7 @@
         const id = profileId();
         if (!id) return;
         
-        applyProfileBanner(id === myPekoraId() ? localBannerData() : null);
+        applyProfileBanner(id === myProfileId() ? localBannerData() : null);
     };
 
     let _modalFixedEls = [];
@@ -1992,7 +1995,7 @@
             [class*="itemCard-"] [class*="thumbWrap-"]{position:relative!important;width:100%!important;height:auto!important;aspect-ratio:1/1!important;}
             [class*="itemCard-"] [class*="itemThumb-"]{width:100%!important;height:100%!important;background:rgba(255,255,255,0.035)!important;border-radius:10px!important;overflow:hidden!important;border:none!important;box-shadow:none!important;}
             [class*="itemCard-"] [class*="itemThumb-"] img{background:transparent!important;border-radius:10px!important;object-fit:contain!important;}
-            /* Pekora leaves a hole between short names and the price rows (the name/price area
+            /* Leaves a hole between short names and the price rows (the name/price area
                gets sized against the tallest card in the row). Kill every source of that gap:
                the name hugs its own lines, nothing flex-grows, and the value rows keep a small
                fixed top margin instead of being pushed toward the card bottom. */
@@ -2263,7 +2266,7 @@
         const miniHead = (txt) => mk('div', `color:${t.sectionText};font-size:9px;text-transform:uppercase;letter-spacing:0.1em;margin:2px 0 4px;`, txt);
 
         const fmtR = (n) => 'R$ ' + Number(n || 0).toLocaleString('en-US');
-        const lkApi = (path, opts) => fetch('https://www.pekora.zip/apisite' + path, Object.assign({ credentials: 'include' }, opts || {}));
+        const lkApi = (path, opts) => fetch(SITE_API + path, Object.assign({ credentials: 'include' }, opts || {}));
         const fetchCollectibles = async (userId) => {
             const items = []; let cursor = '';
             for (let p = 0; p < 40; p++) {
@@ -2384,7 +2387,7 @@
 
         /* ── Owner scan ── */
         s = section('Owner scan');
-        s.appendChild(subNote('Lists public owners of an item. Private profiles are hidden by pekora.'));
+        s.appendChild(subNote('Lists public owners of an item. Private profiles are hidden.'));
         const ownInp = stdInput('Item ID (assetId)');
         const ownOut = toolBox(); ownOut.style.display = 'none';
         const ownBtn = actionBtn('Scan owners');
@@ -2491,7 +2494,7 @@
 
         const warn = document.createElement('div');
         warn.style.cssText = `margin-bottom:10px;padding:8px 10px;background:rgba(240,165,0,0.08);border:1px solid rgba(240,165,0,0.35);border-radius:6px;color:#d9a94a;font-size:9px;line-height:1.7;letter-spacing:0.04em;`;
-        warn.innerHTML = 'Sends standard trade offers that the recipient must <b>manually accept</b>. Bulk automated trading may violate Pekora\u2019s rules \u2014 use at your own risk. Interium never auto-accepts or fakes anything.';
+        warn.innerHTML = 'Sends standard trade offers that the recipient must <b>manually accept</b>. Bulk automated trading may violate EchoCore\u2019s rules \u2014 use at your own risk. Interium never auto-accepts or fakes anything.';
         container.appendChild(warn);
 
         const tabBar = document.createElement('div');
@@ -3398,7 +3401,7 @@
             const img = document.getElementById('pks-avatar-img');
             const anonEl = document.getElementById('pks-avatar-anon');
             if (!img) return;
-            fetch(`https://www.pekora.zip/apisite/thumbnails/v1/users/avatar-headshot?userIds=${state.profile.id}&size=60x60&format=Png`, { credentials:'include' })
+            fetch(`${SITE_API}/thumbnails/v1/users/avatar-headshot?userIds=${state.profile.id}&size=60x60&format=Png`, { credentials:'include' })
                 .then(r => r.ok ? r.json() : null)
                 .then(d => {
                     const url = d?.data?.[0]?.imageUrl;
@@ -3609,15 +3612,15 @@ p[class*="vTabUnselected-"]{box-shadow:none!important;}`
     };
 
     const isFriendsPage = () => /\/friends/i.test(location.pathname);
-    const declineFriend = (uid) => postApi(`https://www.pekora.zip/apisite/friends/v1/users/${uid}/decline-friend-request`, {});
-    const unfriendUser  = (uid) => postApi(`https://www.pekora.zip/apisite/friends/v1/users/${uid}/unfriend`, {});
+    const declineFriend = (uid) => postApi(`${SITE_API}/friends/v1/users/${uid}/decline-friend-request`, {});
+    const unfriendUser  = (uid) => postApi(`${SITE_API}/friends/v1/users/${uid}/unfriend`, {});
 
     const collectRequestIds = async () => {
         const ids = new Set();
         try {
             let cursor = '';
             for (let i = 0; i < 50; i++) {
-                const url = `https://www.pekora.zip/apisite/friends/v1/my/friends/requests?limit=100${cursor ? '&cursor=' + encodeURIComponent(cursor) : ''}`;
+                const url = `${SITE_API}/friends/v1/my/friends/requests?limit=100${cursor ? '&cursor=' + encodeURIComponent(cursor) : ''}`;
                 const r = await apiGet(url);
                 if (!r.ok) break;
                 const d = await r.json();

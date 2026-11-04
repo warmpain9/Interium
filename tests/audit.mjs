@@ -14,7 +14,7 @@ const all = loader + bodies.join('\n');
 if (/document\.cookie|\.cookie\s*=/.test(all)) fail('cookie access found');
 if (!bodies.some((b) => b.includes('Trading Interium'))) fail('authoritative trading module missing');
 // No third-party backend may ever be *called*. The Mass Trader engine talks
-// only to pekora.zip's own /trades/v1/trades/send offer endpoint (allowed; it
+// only to echocr.xyz's own /trades/v1/trades/send offer endpoint (allowed; it
 // only sends offers the recipient must manually accept, never auto-accepts).
 for (const forbidden of ['interium.zxwxtt.workers.dev', 'workers.dev/announce', 'workers.dev/badges']) {
   if (all.includes(forbidden)) fail('excluded third-party backend content found: ' + forbidden);

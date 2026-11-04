@@ -1,9 +1,9 @@
 {
   "name": "interium-userscript",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
-  "description": "Unofficial open-source Pekora community userscript",
+  "description": "Unofficial open-source EchoCore community userscript",
   "scripts": {
     "check": "node --check loader/interium-loader.user.js && node --check src/core/core.js && node --check src/trading/trading.js && node --check src/ui/ui.js",
     "build": "node scripts/build.mjs",

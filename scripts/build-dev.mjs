@@ -33,8 +33,8 @@ const header = `// ==UserScript==
 // @description  Local dev bundle of the Interium runtimes (no CDN @require). Disable the production Interium Loader while this script is enabled.
 // @author       Interium contributors
 // @license      MIT
-// @match        https://www.pekora.zip/*
-// @match        https://pekora.zip/*
+// @match        https://www.echocr.xyz/*
+// @match        https://echocr.xyz/*
 // @run-at       document-start
 // @noframes
 // @grant        GM_xmlhttpRequest

@@ -7,7 +7,7 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 const read = (p) => readFile(new URL('../' + p, import.meta.url), 'utf8');
 const stripHeader = (s) => s.replace(/^\/\/ ==UserScript==[\s\S]*?^\/\/ ==\/UserScript==\s*/m, '');
 
-const banner = `/* Interium main runtime | MIT | Unofficial, not affiliated with Pekora.\n * Trading code source: Trading Interium (authoritative; no trade code imported from src.js).\n */\n`;
+const banner = `/* Interium main runtime | MIT | Unofficial, not affiliated with EchoCore.\n * Trading code source: Trading Interium (authoritative; no trade code imported from src.js).\n */\n`;
 
 const [core, trading, ui] = await Promise.all([
     read('src/core/core.js'),

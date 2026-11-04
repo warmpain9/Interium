@@ -1,5 +1,5 @@
 /* Interium exact Trading Interium 1.0.0 runtime.
- * Unofficial community software; not affiliated with Pekora.
+ * Unofficial community software; not affiliated with EchoCore.
  */
 /* INTERIUM_MAIN */
 console.info('[Interium] Trading runtime v1.0.0 started at', document.readyState);
@@ -77,7 +77,8 @@ if (INTERIUM_PAGE_WIN !== window) { try { window.fetch = interiumFetch; } catch 
 } catch (e) {}
 
 const cfg = { modernTradeRap:true, tradeValues:true, koroProfileBlock:true, collectiblesSuite:true };
-const mtApi = (path, opts) => fetch('https://www.pekora.zip/apisite' + path, Object.assign({ credentials:'include' }, opts || {}));
+const SITE_API = (typeof location !== 'undefined' && location.origin && !location.origin.startsWith('null') ? location.origin : 'https://www.echocr.xyz') + '/apisite';
+const mtApi = (path, opts) => fetch(SITE_API + path, Object.assign({ credentials:'include' }, opts || {}));
 let _pgMyIdCache = null;
 const mtEnsureId = async () => { if (_pgMyIdCache) return _pgMyIdCache; const r = await mtApi('/users/v1/users/authenticated'); if (!r.ok) throw new Error('auth '+r.status); const d = await r.json(); _pgMyIdCache = d.id || d.userId || null; return _pgMyIdCache; };
 const fetchCollectibles = async (userId) => {
@@ -1230,7 +1231,7 @@ else window.addEventListener('DOMContentLoaded', init);
     }
 
     function ownerApiUrl(assetId, cursor = '', limit = 100) {
-        return `https://www.pekora.zip/apisite/inventory/v2/assets/${encodeURIComponent(assetId)}/owners?cursor=${encodeURIComponent(cursor || '')}&limit=${encodeURIComponent(limit)}&sortOrder=Asc`;
+        return `${SITE_API}/inventory/v2/assets/${encodeURIComponent(assetId)}/owners?cursor=${encodeURIComponent(cursor || '')}&limit=${encodeURIComponent(limit)}&sortOrder=Asc`;
     }
 
     function ownerRowsFromResponse(data) {
@@ -1363,7 +1364,7 @@ else window.addEventListener('DOMContentLoaded', init);
         const items = [];
         let cursor = '';
         do {
-            const url = `https://www.pekora.zip/apisite/inventory/v1/users/${encodeURIComponent(userId)}/assets/collectibles?limit=100${cursor ? '&cursor=' + encodeURIComponent(cursor) : ''}`;
+            const url = `${SITE_API}/inventory/v1/users/${encodeURIComponent(userId)}/assets/collectibles?limit=100${cursor ? '&cursor=' + encodeURIComponent(cursor) : ''}`;
             const data = await gmGetJson(url);
             if (Array.isArray(data?.data)) items.push(...data.data);
             cursor = data?.nextPageCursor || '';
@@ -2085,7 +2086,7 @@ else window.addEventListener('DOMContentLoaded', init);
     'use strict';
     if (window.InteriumMassTrader) return;
 
-    const API = 'https://www.pekora.zip/apisite';
+    const API = (typeof location !== 'undefined' && location.origin && !location.origin.startsWith('null') ? location.origin : 'https://www.echocr.xyz') + '/apisite';
     const api = (path, opts) => fetch(API + path, Object.assign({ credentials: 'include' }, opts || {}));
 
     let _csrf = null;
