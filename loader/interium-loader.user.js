@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Interium Loader
 // @namespace    https://github.com/warmpain9/Interium
-// @version      1.1.1
+// @version      1.1.2
 // @description  CSP-safe loader: Tampermonkey attaches the Interium trading + UI runtimes from GitHub (via GitHub raw) using @require.
 // @author       Interium contributors
 // @license      MIT
@@ -41,4 +41,4 @@
  * URLs when the loader updates - so ALWAYS bump @version here with every
  * runtime change, otherwise users keep running stale cached runtimes.
  */
-console.info('[Interium] Loader v1.1.1 - core + trading + UI runtimes attached via @require (CSP-safe).');
+console.info('[Interium] Loader v1.1.2 - core + trading + UI runtimes attached via @require (CSP-safe).');
