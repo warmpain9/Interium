@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Interium DEV (local build)
 // @namespace    https://github.com/warmpain9/Interium
-// @version      2.0.0.20261105.160303
+// @version      2.0.0.20261105.161005
 // @description  Local standalone build of Interium v2 (no CDN @require).
 // @author       Interium contributors
 // @license      MIT
@@ -13,7 +13,7 @@
 // @grant        unsafeWindow
 // ==/UserScript==
 
-console.info('[Interium] Standalone v2.0.0.20261105.160303 active.');
+console.info('[Interium] Standalone v2.0.0.20261105.161005 active.');
 
 (function () {
     'use strict';
@@ -582,44 +582,34 @@ console.info('[Interium] Standalone v2.0.0.20261105.160303 active.');
 
     const state = {
         user: { id: null, name: 'User', robux: 0, tickets: 0, avatarUrl: '' },
-        panelOpen: true,
-        panelMinimized: false,
+        menuOpen: true,
         ping: 18,
         fps: 60,
-        activeTab: 'visuals',
+        activeCategory: 'visuals',
+        activeSub: 'inventory',
         drag: { active: false, ox: 0, oy: 0, px: 0, py: 0 },
-        wmDrag: { active: false, ox: 0, oy: 0, px: 0, py: 0 }
-    };
-
-    const injectFonts = () => {
-        if (document.getElementById('int-csgo-fonts')) return;
-        const link = document.createElement('link');
-        link.id = 'int-csgo-fonts';
-        link.rel = 'stylesheet';
-        link.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap';
-        document.head.appendChild(link);
+        openDropdown: null
     };
 
     const injectStyles = () => {
-        let el = document.getElementById('int-csgo-styles');
+        let el = document.getElementById('int-csgo-replica-styles');
         if (!el) {
             el = document.createElement('style');
-            el.id = 'int-csgo-styles';
+            el.id = 'int-csgo-replica-styles';
             (document.head || document.documentElement).appendChild(el);
         }
 
         const c = core ? core.config() : cfg;
 
         el.textContent = `
-            @keyframes int-border-flow {
+            @keyframes int-rainbow-flow {
                 0% { background-position: 0% 50%; }
                 100% { background-position: 200% 50%; }
             }
 
             :root {
                 --int-card-scale: ${c.cardImageScale || 1.18};
-                --int-panel-scale: ${(c.guiScale || 100) / 100};
-                --int-csgo-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, sans-serif;
+                --int-menu-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, Roboto, sans-serif;
                 --int-mono-font: 'JetBrains Mono', 'Segoe UI Mono', monospace;
             }
 
@@ -628,12 +618,12 @@ console.info('[Interium] Standalone v2.0.0.20261105.160303 active.');
                 display: flex !important;
                 flex-direction: column !important;
                 position: relative !important;
-                background: #141419 !important;
+                background: #0d0d10 !important;
                 background: var(--int-surface) !important;
                 backdrop-filter: var(--int-blur) !important;
                 -webkit-backdrop-filter: var(--int-blur) !important;
                 border: 1px solid var(--int-border) !important;
-                border-radius: 8px !important;
+                border-radius: 6px !important;
                 padding: 10px !important;
                 transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease, box-shadow 0.2s ease !important;
                 overflow: visible !important;
@@ -642,7 +632,7 @@ console.info('[Interium] Standalone v2.0.0.20261105.160303 active.');
             [class*="itemCard-"]:hover {
                 transform: translateY(-2px) !important;
                 border-color: var(--int-border-hover) !important;
-                box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5), 0 0 16px var(--int-accent-glow) !important;
+                box-shadow: 0 10px 24px rgba(0, 0, 0, 0.6), 0 0 16px var(--int-accent-glow) !important;
             }
 
             [class*="itemCard-"] [class*="itemImage-"] {
@@ -655,8 +645,8 @@ console.info('[Interium] Standalone v2.0.0.20261105.160303 active.');
                 display: flex !important;
                 align-items: center !important;
                 justify-content: center !important;
-                background: rgba(0, 0, 0, 0.3) !important;
-                border-radius: 6px !important;
+                background: rgba(0, 0, 0, 0.35) !important;
+                border-radius: 4px !important;
                 position: relative !important;
             }
 
@@ -677,7 +667,7 @@ console.info('[Interium] Standalone v2.0.0.20261105.160303 active.');
                 height: 100% !important;
                 object-fit: contain !important;
                 transform: scale(var(--int-card-scale)) !important;
-                transition: transform 0.24s cubic-bezier(0.16, 1, 0.3, 1) !important;
+                transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
             }
 
             [class*="itemCard-"]:hover img {
@@ -691,17 +681,17 @@ console.info('[Interium] Standalone v2.0.0.20261105.160303 active.');
                 float: none !important;
                 margin: 0 !important;
                 z-index: 6 !important;
-                background: rgba(18, 18, 24, 0.85) !important;
+                background: rgba(10, 10, 14, 0.88) !important;
                 backdrop-filter: blur(8px) !important;
                 -webkit-backdrop-filter: blur(8px) !important;
-                border: 1px solid rgba(255, 255, 255, 0.14) !important;
-                border-radius: 4px !important;
+                border: 1px solid rgba(255, 255, 255, 0.16) !important;
+                border-radius: 3px !important;
                 padding: 2px 6px !important;
                 font-family: var(--int-mono-font) !important;
                 font-weight: 700 !important;
-                font-size: 11px !important;
+                font-size: 10.5px !important;
                 color: #fff !important;
-                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6) !important;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.7) !important;
             }
 
             /* --- Glassify Navbar & Sidebar --- */
@@ -718,11 +708,11 @@ console.info('[Interium] Standalone v2.0.0.20261105.160303 active.');
                     background: ${c.sidebarMode === 'transparent' ? 'transparent' : c.sidebarColour + Math.round((c.sidebarOpacity / 100) * 255).toString(16).padStart(2, '0')} !important;
                     ${c.sidebarMode === 'blur' ? `backdrop-filter: blur(${c.sidebarBlurAmount || 16}px) saturate(180%) !important; -webkit-backdrop-filter: blur(${c.sidebarBlurAmount || 16}px) saturate(180%) !important;` : ''}
                     border: 1px solid var(--int-border) !important;
-                    border-radius: 8px !important;
+                    border-radius: 6px !important;
                 ` : ''}
             }
 
-            /* --- Card Item Meta Pills --- */
+            /* Card Meta Badges */
             .int-card-meta {
                 display: flex;
                 flex-direction: column;
@@ -739,17 +729,17 @@ console.info('[Interium] Standalone v2.0.0.20261105.160303 active.');
             }
 
             .int-val {
-                font-size: 10.5px;
+                font-size: 10px;
                 font-weight: 700;
                 color: var(--int-accent);
-                background: rgba(124, 58, 237, 0.12);
+                background: rgba(124, 58, 237, 0.14);
                 border: 1px solid var(--int-accent-glow);
-                border-radius: 4px;
+                border-radius: 3px;
                 padding: 1px 5px;
             }
 
             .int-rap {
-                font-size: 10.5px;
+                font-size: 10px;
                 font-weight: 600;
                 color: var(--int-text-muted);
             }
@@ -758,7 +748,7 @@ console.info('[Interium] Standalone v2.0.0.20261105.160303 active.');
                 font-size: 9px;
                 font-weight: 800;
                 letter-spacing: 0.5px;
-                padding: 1px 5px;
+                padding: 1px 4px;
                 border-radius: 3px;
                 text-transform: uppercase;
             }
@@ -775,576 +765,474 @@ console.info('[Interium] Standalone v2.0.0.20261105.160303 active.');
                 color: #34d399;
             }
 
-            /* ============================================================== */
-            /* --- CS:GO CHEAT MENU (DEAR IMGUI INTERIUM REPLICA) --- */
-            /* ============================================================== */
+            /* ========================================================= */
+            /* --- CS:GO INTERIUM CHEAT MENU (1:1 EXACT REPLICA) --- */
+            /* ========================================================= */
 
-            #int-csgo-menu {
+            #int-menu-root {
                 all: initial;
                 position: fixed;
                 top: calc(50% - 240px);
-                left: calc(50% - 340px);
+                left: calc(50% - 330px);
                 z-index: 2147483647;
-                width: 680px;
+                width: 660px;
                 height: 480px;
-                background: #111116;
-                border: 1px solid #262632;
-                border-radius: 6px;
-                box-shadow: 0 16px 48px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.05);
+                background: #0a0a0c;
+                border: 1px solid #1a1a24;
+                box-shadow: 0 20px 60px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(255, 255, 255, 0.03);
                 display: flex;
-                flex-direction: column;
-                font-family: var(--int-csgo-font);
-                color: #e4e4e7;
-                overflow: hidden;
+                font-family: var(--int-menu-font);
+                color: #d0d0d8;
                 user-select: none;
-                transform-origin: center center;
-                transform: scale(var(--int-panel-scale));
+                overflow: hidden;
             }
 
-            #int-csgo-menu.int-hidden {
+            #int-menu-root.int-hidden {
                 display: none !important;
             }
 
-            /* Menu Header */
-            #int-menu-header {
-                height: 34px;
-                background: #14141a;
-                border-bottom: 1px solid #20202a;
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                padding: 0 14px;
-                cursor: grab;
-                position: relative;
-            }
-
-            #int-menu-header:active {
-                cursor: grabbing;
-            }
-
-            #int-menu-border-glow {
+            /* Top Rainbow Border */
+            #int-menu-top-line {
                 position: absolute;
                 top: 0;
                 left: 0;
                 right: 0;
                 height: 2px;
-                background: var(--int-border-flow);
+                background: linear-gradient(90deg, #ff2a5f 0%, #a855f7 35%, #00e5ff 65%, #00ff7f 85%, #ffbb00 100%);
                 background-size: 200% 100%;
-                animation: int-border-flow 4s linear infinite;
+                animation: int-rainbow-flow 5s linear infinite;
+                z-index: 10;
             }
 
-            .int-menu-brand {
-                display: flex;
-                align-items: center;
-                gap: 8px;
-                font-size: 12px;
-                font-weight: 700;
-                letter-spacing: 0.14em;
-                text-transform: uppercase;
-                color: #fff;
-            }
-
-            .int-menu-brand svg {
-                width: 14px;
-                height: 14px;
-                fill: var(--int-accent);
-            }
-
-            .int-menu-tag {
-                font-size: 9px;
-                font-weight: 700;
-                letter-spacing: 0.08em;
-                color: var(--int-accent);
-                background: rgba(124, 58, 237, 0.15);
-                border: 1px solid var(--int-accent-glow);
-                border-radius: 3px;
-                padding: 1px 5px;
-            }
-
-            .int-menu-controls {
-                display: flex;
-                align-items: center;
-                gap: 8px;
-            }
-
-            .int-menu-btn {
-                background: transparent;
-                border: none;
-                color: #71717a;
-                cursor: pointer;
-                font-size: 13px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                width: 18px;
-                height: 18px;
-                border-radius: 3px;
-                transition: color 0.15s, background 0.15s;
-            }
-
-            .int-menu-btn:hover {
-                color: #fff;
-                background: rgba(255, 255, 255, 0.08);
-            }
-
-            /* Main Layout: Sidebar + Canvas */
-            #int-menu-main {
-                display: flex;
-                flex: 1;
-                overflow: hidden;
-            }
-
-            /* Left Sidebar Navigation */
+            /* --- Left Sidebar --- */
             #int-menu-sidebar {
-                width: 150px;
-                background: #0d0d11;
-                border-right: 1px solid #1f1f28;
+                width: 140px;
+                background: #08080a;
+                border-right: 1px solid #16161e;
                 display: flex;
                 flex-direction: column;
                 justify-content: space-between;
-                padding: 10px 8px;
+                flex-shrink: 0;
             }
 
-            .int-nav-list {
-                display: flex;
-                flex-direction: column;
-                gap: 4px;
-            }
-
-            .int-nav-item {
+            /* Sidebar Header Logo */
+            #int-menu-logo-box {
+                height: 42px;
+                border-bottom: 1px solid #16161e;
                 display: flex;
                 align-items: center;
-                gap: 10px;
-                padding: 8px 10px;
-                background: transparent;
-                border: 1px solid transparent;
-                border-radius: 4px;
-                color: #828292;
-                font-family: inherit;
-                font-size: 12px;
-                font-weight: 600;
-                cursor: pointer;
-                transition: all 0.14s ease;
-                text-align: left;
+                gap: 8px;
+                padding: 0 12px;
+                cursor: grab;
             }
 
-            .int-nav-item svg {
-                width: 15px;
-                height: 15px;
+            #int-menu-logo-box:active {
+                cursor: grabbing;
+            }
+
+            .int-logo-txt {
+                font-size: 13px;
+                font-weight: 800;
+                letter-spacing: 0.12em;
+                color: #ffffff;
+                text-transform: uppercase;
+            }
+
+            .int-logo-chevron {
+                width: 14px;
+                height: 14px;
+                fill: #ffffff;
+            }
+
+            /* Navigation Tree */
+            #int-nav-tree {
+                flex: 1;
+                overflow-y: auto;
+                padding: 8px 0;
+                display: flex;
+                flex-direction: column;
+                scrollbar-width: none;
+            }
+
+            #int-nav-tree::-webkit-scrollbar {
+                display: none;
+            }
+
+            .int-cat-header {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 7px 12px;
+                color: #888899;
+                font-size: 11.5px;
+                font-weight: 700;
+                cursor: pointer;
+                transition: color 0.12s;
+            }
+
+            .int-cat-header:hover {
+                color: #ffffff;
+            }
+
+            .int-cat-header.int-active {
+                color: #ffffff;
+            }
+
+            .int-cat-header svg {
+                width: 13px;
+                height: 13px;
                 fill: currentColor;
                 flex-shrink: 0;
             }
 
-            .int-nav-item:hover {
-                color: #e4e4e7;
-                background: rgba(255, 255, 255, 0.03);
-            }
-
-            .int-nav-item.int-active {
-                color: #fff;
-                background: rgba(124, 58, 237, 0.15);
-                border-color: rgba(124, 58, 237, 0.35);
-            }
-
-            .int-nav-item.int-active svg {
-                fill: var(--int-accent);
-            }
-
-            /* Sidebar Profile Card */
-            .int-sidebar-profile {
-                background: #14141a;
-                border: 1px solid #20202a;
-                border-radius: 5px;
-                padding: 8px;
-                display: flex;
+            .int-sub-list {
+                display: none;
                 flex-direction: column;
-                gap: 6px;
+                padding: 2px 0 6px;
             }
 
-            .int-sp-user {
+            .int-cat-group.int-expanded .int-sub-list {
+                display: flex;
+            }
+
+            .int-sub-item {
+                padding: 5px 12px 5px 33px;
+                color: #666677;
+                font-size: 10.5px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: color 0.12s;
+            }
+
+            .int-sub-item:hover {
+                color: #b0b0be;
+            }
+
+            .int-sub-item.int-active {
+                color: #ffffff;
+            }
+
+            /* Bottom Sidebar User Info */
+            #int-sidebar-user {
+                padding: 10px 12px;
+                border-top: 1px solid #16161e;
                 display: flex;
                 align-items: center;
-                gap: 8px;
+                gap: 10px;
+                background: #060608;
             }
 
-            .int-sp-avatar {
-                position: relative;
-                width: 28px;
-                height: 28px;
+            .int-user-sq {
+                width: 32px;
+                height: 32px;
+                background: #ffffff;
+                border-radius: 2px;
                 flex-shrink: 0;
+                overflow: hidden;
+                display: flex;
+                align-items: center;
+                justify-content: center;
             }
 
-            .int-sp-avatar img {
-                width: 28px;
-                height: 28px;
-                border-radius: 4px;
-                border: 1px solid var(--int-accent);
+            .int-user-sq img {
+                width: 100%;
+                height: 100%;
                 object-fit: cover;
-                background: #1a1a24;
             }
 
-            .int-sp-dot {
-                position: absolute;
-                bottom: -1px;
-                right: -1px;
-                width: 7px;
-                height: 7px;
-                border-radius: 50%;
-                background: #10b981;
-                border: 1.5px solid #14141a;
-                box-shadow: 0 0 6px #10b981;
-            }
-
-            .int-sp-meta {
+            .int-user-meta {
                 min-width: 0;
                 flex: 1;
             }
 
-            .int-sp-name {
-                font-size: 11.5px;
+            .int-user-nick {
+                font-size: 11px;
                 font-weight: 700;
-                color: #fff;
+                color: #ffffff;
                 white-space: nowrap;
                 overflow: hidden;
                 text-overflow: ellipsis;
                 line-height: 1.2;
             }
 
-            .int-sp-sub {
+            .int-user-sub {
+                font-size: 9.5px;
+                color: #666677;
+                line-height: 1.2;
+            }
+
+            .int-user-curr {
                 font-size: 9px;
-                font-weight: 700;
-                color: var(--int-accent);
-                text-transform: uppercase;
-                letter-spacing: 0.06em;
-            }
-
-            .int-sp-curr {
-                display: flex;
-                justify-content: space-between;
                 font-family: var(--int-mono-font);
-                font-size: 10px;
-                font-weight: 700;
-                border-top: 1px solid #1e1e28;
-                padding-top: 4px;
+                color: #10b981;
+                margin-top: 2px;
             }
 
-            .int-sp-robux { color: #10b981; }
-            .int-sp-tickets { color: #f0a500; }
-
-            /* Right Content Canvas */
-            #int-menu-content {
+            /* --- Main Content Area (Two Columns) --- */
+            #int-menu-body {
                 flex: 1;
-                padding: 12px;
-                overflow-y: auto;
-                background: #101014;
-            }
-
-            .int-tab-pane {
-                display: none;
-                gap: 12px;
-                height: 100%;
-            }
-
-            .int-tab-pane.int-active {
-                display: grid;
-                grid-template-columns: 1fr 1fr;
-            }
-
-            .int-col {
                 display: flex;
-                flex-direction: column;
-                gap: 12px;
-            }
-
-            /* --- ImGui Groupbox (Child Window) --- */
-            .int-groupbox {
-                background: #15151b;
-                border: 1px solid #242430;
-                border-radius: 5px;
-                padding: 12px;
-                display: flex;
-                flex-direction: column;
-                gap: 10px;
+                background: #0a0a0c;
+                overflow: hidden;
                 position: relative;
             }
 
-            .int-gb-header {
-                font-size: 10.5px;
-                font-weight: 700;
-                letter-spacing: 0.12em;
-                text-transform: uppercase;
-                color: var(--int-accent);
+            .int-content-pane {
+                display: none;
+                flex: 1;
+                width: 100%;
+                height: 100%;
+            }
+
+            .int-content-pane.int-active {
+                display: flex;
+            }
+
+            .int-content-col {
+                flex: 1;
+                padding: 14px 16px;
+                overflow-y: auto;
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+            }
+
+            .int-content-col:first-child {
+                border-right: 1px solid #16161e;
+            }
+
+            /* Controls: Checkbox Row */
+            .int-ctl-checkbox {
                 display: flex;
                 align-items: center;
-                gap: 6px;
-                padding-bottom: 6px;
-                border-bottom: 1px solid #20202c;
+                justify-content: space-between;
+                cursor: pointer;
+                user-select: none;
+                padding: 2px 0;
             }
 
-            .int-gb-header::before {
-                content: '[';
-                color: #555566;
-            }
-
-            .int-gb-header::after {
-                content: ']';
-                color: #555566;
-            }
-
-            /* --- ImGui Checkbox Widget --- */
-            .int-checkbox-row {
+            .int-chk-left {
                 display: flex;
                 align-items: center;
                 gap: 8px;
-                cursor: pointer;
-                user-select: none;
             }
 
-            .int-checkbox-box {
-                width: 14px;
-                height: 14px;
-                background: #1a1a22;
-                border: 1px solid #2f2f3e;
-                border-radius: 3px;
+            .int-chk-box {
+                width: 12px;
+                height: 12px;
+                border: 1px solid #555566;
+                border-radius: 2px;
+                background: transparent;
                 display: flex;
                 align-items: center;
                 justify-content: center;
                 flex-shrink: 0;
-                transition: background 0.12s, border-color 0.12s, box-shadow 0.12s;
+                transition: border-color 0.12s;
             }
 
-            .int-checkbox-box::after {
+            .int-chk-box::after {
                 content: '';
-                width: 4px;
-                height: 7px;
-                border: solid #fff;
-                border-width: 0 2px 2px 0;
-                transform: rotate(45deg) translate(-0.5px, -0.5px);
+                width: 6px;
+                height: 6px;
+                background: #ffffff;
+                border-radius: 1px;
                 opacity: 0;
                 transition: opacity 0.12s;
             }
 
-            .int-checkbox-row:hover .int-checkbox-box {
-                border-color: var(--int-accent);
+            .int-ctl-checkbox:hover .int-chk-box {
+                border-color: #888899;
             }
 
-            .int-checkbox-row.int-checked .int-checkbox-box {
-                background: var(--int-accent);
-                border-color: var(--int-accent);
-                box-shadow: 0 0 8px var(--int-accent-glow);
+            .int-ctl-checkbox.int-checked .int-chk-box {
+                border-color: #ffffff;
             }
 
-            .int-checkbox-row.int-checked .int-checkbox-box::after {
+            .int-ctl-checkbox.int-checked .int-chk-box::after {
                 opacity: 1;
             }
 
-            .int-checkbox-label {
+            .int-chk-label {
                 font-size: 11.5px;
+                color: #d0d0d8;
                 font-weight: 500;
-                color: #d4d4d8;
             }
 
-            /* --- ImGui Slider Widget --- */
-            .int-slider-wrap {
+            .int-chk-bind {
+                font-size: 10px;
+                font-weight: 700;
+                font-family: var(--int-mono-font);
+                color: #666677;
+                letter-spacing: 0.05em;
+            }
+
+            /* Controls: Combobox Row (Exact CS:GO layout: [ Value ] ≡ [ Label ]) */
+            .int-ctl-combo {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                padding: 3px 0;
+                font-size: 11.5px;
+                cursor: pointer;
+                position: relative;
+            }
+
+            .int-combo-val {
+                color: #ffffff;
+                font-weight: 600;
+                min-width: 60px;
+            }
+
+            .int-combo-icon {
+                color: #555566;
+                font-size: 12px;
+                line-height: 1;
+            }
+
+            .int-combo-name {
+                color: #888899;
+                font-weight: 500;
+            }
+
+            .int-combo-popup {
+                display: none;
+                position: absolute;
+                top: 100%;
+                left: 0;
+                background: #111116;
+                border: 1px solid #22222e;
+                border-radius: 3px;
+                z-index: 100;
+                min-width: 140px;
+                box-shadow: 0 8px 24px rgba(0, 0, 0, 0.8);
+            }
+
+            .int-combo-popup.int-open {
+                display: flex;
+                flex-direction: column;
+            }
+
+            .int-combo-option {
+                padding: 6px 10px;
+                font-size: 11px;
+                color: #b0b0be;
+                cursor: pointer;
+            }
+
+            .int-combo-option:hover {
+                background: rgba(255, 255, 255, 0.06);
+                color: #ffffff;
+            }
+
+            /* Controls: Slider Row */
+            .int-ctl-slider {
                 display: flex;
                 flex-direction: column;
                 gap: 4px;
+                padding: 4px 0;
             }
 
-            .int-slider-header {
+            .int-sld-meta {
                 display: flex;
                 justify-content: space-between;
                 font-size: 11px;
-                font-weight: 500;
-                color: #a1a1aa;
+                color: #888899;
             }
 
-            .int-slider-val {
+            .int-sld-num {
+                color: #ffffff;
                 font-family: var(--int-mono-font);
                 font-weight: 700;
-                color: #fff;
             }
 
-            .int-slider-ctrl {
+            .int-sld-input {
                 -webkit-appearance: none;
                 width: 100%;
-                height: 5px;
-                background: #1d1d26;
-                border: 1px solid #2a2a38;
-                border-radius: 2px;
-                outline: none;
-            }
-
-            .int-slider-ctrl::-webkit-slider-thumb {
-                -webkit-appearance: none;
-                width: 10px;
-                height: 14px;
-                border-radius: 2px;
-                background: #fff;
-                cursor: pointer;
-                box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
-                border: 1px solid #ddd;
-            }
-
-            .int-slider-ctrl::-webkit-slider-thumb:hover {
-                background: var(--int-accent);
-            }
-
-            /* --- ImGui Combobox Widget --- */
-            .int-combo-wrap {
-                display: flex;
-                flex-direction: column;
-                gap: 4px;
-            }
-
-            .int-combo-label {
-                font-size: 11px;
-                font-weight: 500;
-                color: #a1a1aa;
-            }
-
-            .int-combo-select {
-                background: #191922;
-                border: 1px solid #2b2b3a;
-                border-radius: 4px;
-                padding: 5px 8px;
-                color: #fff;
-                font-family: inherit;
-                font-size: 11px;
-                outline: none;
-                cursor: pointer;
-            }
-
-            .int-combo-select:focus {
-                border-color: var(--int-accent);
-            }
-
-            .int-combo-select option {
-                background: #14141c;
-                color: #fff;
-            }
-
-            /* --- ImGui Button --- */
-            .int-cs-btn {
-                background: #1c1c26;
-                border: 1px solid #2c2c3c;
-                border-radius: 4px;
-                padding: 6px 12px;
-                color: #e4e4e7;
-                font-family: inherit;
-                font-size: 11px;
-                font-weight: 600;
-                cursor: pointer;
-                transition: all 0.12s ease;
-                text-align: center;
-            }
-
-            .int-cs-btn:hover {
-                background: var(--int-accent);
-                border-color: var(--int-accent);
-                color: #fff;
-                box-shadow: 0 0 10px var(--int-accent-glow);
-            }
-
-            .int-cs-btn:active {
-                transform: translateY(1px);
-            }
-
-            /* --- Theme Radio Grid --- */
-            .int-themes-grid {
-                display: grid;
-                grid-template-columns: repeat(4, 1fr);
-                gap: 6px;
-            }
-
-            .int-theme-card {
-                padding: 7px 4px;
+                height: 3px;
                 background: #1a1a24;
-                border: 1px solid #2b2b3c;
-                border-radius: 4px;
-                text-align: center;
-                font-size: 11px;
-                font-weight: 600;
-                color: #8a8a9a;
+                border-radius: 1px;
+                outline: none;
+            }
+
+            .int-sld-input::-webkit-slider-thumb {
+                -webkit-appearance: none;
+                width: 8px;
+                height: 12px;
+                border-radius: 1px;
+                background: #ffffff;
                 cursor: pointer;
-                transition: all 0.12s;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
             }
 
-            .int-theme-card:hover {
-                color: #fff;
-                border-color: var(--int-border-hover);
+            /* Controls: Text Input */
+            .int-ctl-input {
+                background: #0f0f14;
+                border: 1px solid #1f1f2a;
+                border-radius: 2px;
+                padding: 5px 8px;
+                color: #ffffff;
+                font-family: inherit;
+                font-size: 11px;
+                outline: none;
+                width: 100%;
+                box-sizing: border-box;
             }
 
-            .int-theme-card.int-active {
-                border-color: var(--int-accent);
-                color: #fff;
-                background: rgba(124, 58, 237, 0.15);
-                box-shadow: 0 0 8px var(--int-accent-glow);
+            .int-ctl-input:focus {
+                border-color: #555566;
             }
 
-            /* --- Watermark Capsule (CS:GO Cheat Style) --- */
-            #int-watermark {
+            /* Separator */
+            .int-ctl-sep {
+                height: 1px;
+                background: #16161e;
+                margin: 4px 0;
+            }
+
+            /* Resize handle */
+            #int-menu-resize {
+                position: absolute;
+                bottom: 3px;
+                right: 3px;
+                width: 7px;
+                height: 7px;
+                border-right: 2px solid #333344;
+                border-bottom: 2px solid #333344;
+            }
+
+            /* ========================================================= */
+            /* --- TOP-LEFT WATERMARK (EXACT CS:GO REPLICA) --- */
+            /* ========================================================= */
+
+            #int-watermark-pill {
                 position: fixed;
-                top: 12px;
-                left: 12px;
+                top: 8px;
+                left: 8px;
                 z-index: 2147483640;
-                background: rgba(13, 13, 18, 0.92);
-                backdrop-filter: blur(12px);
-                -webkit-backdrop-filter: blur(12px);
-                border: 1px solid #262634;
-                border-radius: 4px;
-                padding: 5px 12px;
-                font-family: var(--int-mono-font);
+                background: #08080a;
+                border: 1px solid #16161e;
+                border-radius: 2px;
+                padding: 3px 8px;
+                font-family: var(--int-menu-font);
                 font-size: 11px;
                 font-weight: 700;
-                color: #e4e4e7;
+                color: #ffffff;
                 display: flex;
                 align-items: center;
-                gap: 8px;
-                cursor: grab;
-                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+                gap: 6px;
+                cursor: pointer;
+                box-shadow: 0 4px 16px rgba(0, 0, 0, 0.7);
                 user-select: none;
             }
 
-            #int-watermark::before {
+            #int-watermark-pill::before {
                 content: '';
                 position: absolute;
                 top: 0;
                 left: 0;
                 right: 0;
                 height: 2px;
-                background: var(--int-border-flow);
-                border-radius: 4px 4px 0 0;
-            }
-
-            #int-watermark:active {
-                cursor: grabbing;
-            }
-
-            .int-wm-brand {
-                color: var(--int-accent);
-                letter-spacing: 0.08em;
-            }
-
-            .int-wm-sep {
-                color: #3f3f4e;
-            }
-
-            /* --- Custom Scrollbar --- */
-            #int-menu-content::-webkit-scrollbar,
-            .int-scroll-box::-webkit-scrollbar {
-                width: 4px;
-            }
-
-            #int-menu-content::-webkit-scrollbar-track,
-            .int-scroll-box::-webkit-scrollbar-track {
-                background: transparent;
-            }
-
-            #int-menu-content::-webkit-scrollbar-thumb,
-            .int-scroll-box::-webkit-scrollbar-thumb {
-                background: var(--int-accent);
-                border-radius: 2px;
+                background: linear-gradient(90deg, #ff2a5f, #a855f7, #00e5ff);
             }
 
             /* Custom BG */
@@ -1387,21 +1275,18 @@ console.info('[Interium] Standalone v2.0.0.20261105.160303 active.');
             }
 
             updateUserUI();
-            updateWatermark();
         } catch (e) {
             console.warn('[Interium] User fetch error:', e);
         }
     };
 
     const updateUserUI = () => {
-        const nameEl = document.getElementById('int-sp-name');
-        const robuxEl = document.getElementById('int-sp-robux');
-        const ticketsEl = document.getElementById('int-sp-tickets');
-        const avatarEl = document.getElementById('int-sp-avatar-img');
+        const nameEl = document.getElementById('int-user-nick');
+        const currEl = document.getElementById('int-user-curr');
+        const avatarEl = document.getElementById('int-user-img');
 
         if (nameEl) nameEl.textContent = state.user.name;
-        if (robuxEl) robuxEl.textContent = Number(state.user.robux).toLocaleString();
-        if (ticketsEl) ticketsEl.textContent = Number(state.user.tickets).toLocaleString();
+        if (currEl) currEl.textContent = `R$ ${Number(state.user.robux).toLocaleString()} | Tx ${Number(state.user.tickets).toLocaleString()}`;
         if (avatarEl && state.user.avatarUrl) avatarEl.src = state.user.avatarUrl;
     };
 
@@ -1576,70 +1461,20 @@ console.info('[Interium] Standalone v2.0.0.20261105.160303 active.');
         }
     };
 
-    /* --- Watermark Capsule (CS:GO Cheat Style) --- */
-    let lastFrameTime = performance.now();
-    let frameCount = 0;
-    const calcFps = () => {
-        const now = performance.now();
-        frameCount++;
-        if (now >= lastFrameTime + 1000) {
-            state.fps = Math.round((frameCount * 1000) / (now - lastFrameTime));
-            frameCount = 0;
-            lastFrameTime = now;
-            updateWatermark();
-        }
-        requestAnimationFrame(calcFps);
-    };
-
-    const updateWatermark = () => {
-        const c = core ? core.config() : cfg;
-        let wm = document.getElementById('int-watermark');
-        if (!c.watermarkEnabled) {
-            if (wm) wm.remove();
-            return;
-        }
+    /* --- Top-Left CS:GO Watermark --- */
+    const renderWatermark = () => {
+        let wm = document.getElementById('int-watermark-pill');
         if (!wm) {
             wm = document.createElement('div');
-            wm.id = 'int-watermark';
+            wm.id = 'int-watermark-pill';
+            wm.innerHTML = `<span>INTERIUM</span>`;
             document.body.appendChild(wm);
 
-            wm.addEventListener('mousedown', (e) => {
-                state.wmDrag.active = true;
-                const r = wm.getBoundingClientRect();
-                state.wmDrag.ox = r.left;
-                state.wmDrag.oy = r.top;
-                state.wmDrag.px = e.clientX;
-                state.wmDrag.py = e.clientY;
-                e.preventDefault();
-            });
-
-            window.addEventListener('mousemove', (e) => {
-                if (!state.wmDrag.active) return;
-                const dx = e.clientX - state.wmDrag.px;
-                const dy = e.clientY - state.wmDrag.py;
-                wm.style.left = `${state.wmDrag.ox + dx}px`;
-                wm.style.top = `${state.wmDrag.oy + dy}px`;
-                wm.style.bottom = 'auto';
-                wm.style.right = 'auto';
-            });
-
-            window.addEventListener('mouseup', () => {
-                state.wmDrag.active = false;
+            wm.addEventListener('click', () => {
+                state.menuOpen = !state.menuOpen;
+                document.getElementById('int-menu-root')?.classList.toggle('int-hidden', !state.menuOpen);
             });
         }
-
-        const now = new Date();
-        const timeStr = now.toTimeString().split(' ')[0];
-
-        wm.innerHTML = `
-            <span class="int-wm-brand">INTERIUM</span>
-            ${c.watermarkShowUser && state.user.name ? `<span class="int-wm-sep">|</span><span>${state.user.name}</span>` : ''}
-            ${c.watermarkShowFps ? `<span class="int-wm-sep">|</span><span>${state.fps} fps</span>` : ''}
-            ${c.watermarkShowPing ? `<span class="int-wm-sep">|</span><span>${state.ping || 18} ms</span>` : ''}
-            ${c.watermarkShowTime ? `<span class="int-wm-sep">|</span><span>${timeStr}</span>` : ''}
-        `;
-        wm.style.opacity = (c.watermarkOpacity || 85) / 100;
-        wm.style.transform = `scale(${(c.watermarkScale || 100) / 100})`;
     };
 
     /* --- Avatar In-Page Tool --- */
@@ -1652,12 +1487,11 @@ console.info('[Interium] Standalone v2.0.0.20261105.160303 active.');
 
         const card = document.createElement('div');
         card.id = 'int-avatar-tools';
-        card.className = 'int-groupbox';
-        card.style.marginTop = '14px';
+        card.style.cssText = 'margin-top:14px;background:#0c0c0e;border:1px solid #1a1a24;padding:12px;border-radius:4px;';
         card.innerHTML = `
-            <div class="int-gb-header">AVATAR BACKGROUND PRESETS</div>
-            <div id="int-av-grid" style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px;max-height:160px;overflow-y:auto;"></div>
-            <input type="text" id="int-av-custom" class="int-combo-select" placeholder="Custom URL: image / gif / mp4 (press Enter)" style="width:100%;box-sizing:border-box;" />
+            <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#fff;margin-bottom:8px;">Avatar Background Presets</div>
+            <div id="int-av-grid" style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px;max-height:160px;overflow-y:auto;margin-bottom:8px;"></div>
+            <input type="text" id="int-av-custom" class="int-ctl-input" placeholder="Custom URL: image / gif / mp4 (press Enter)" />
         `;
         anchor.parentElement.insertBefore(card, anchor.nextSibling);
 
@@ -1665,7 +1499,7 @@ console.info('[Interium] Standalone v2.0.0.20261105.160303 active.');
         const c = core ? core.config() : cfg;
 
         const offTile = document.createElement('div');
-        offTile.style.cssText = 'aspect-ratio:1;border-radius:4px;background:#1a1a24;border:1px solid #2f2f3e;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:10px;font-weight:700;color:#71717a;';
+        offTile.style.cssText = 'aspect-ratio:1;border-radius:2px;background:#14141a;border:1px solid #282834;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:9.5px;font-weight:700;color:#666677;';
         offTile.textContent = 'OFF';
         offTile.addEventListener('click', () => {
             core?.saveConfig({ avatarBgEnabled: false, avatarBgImage: '' });
@@ -1676,7 +1510,7 @@ console.info('[Interium] Standalone v2.0.0.20261105.160303 active.');
         for (let i = 1; i <= 23; i++) {
             const url = `${ASSET_BASE}avatar-bgs/${i}.png`;
             const tile = document.createElement('div');
-            tile.style.cssText = `aspect-ratio:1;border-radius:4px;background-image:url('${url}');background-size:cover;background-position:center;border:1px solid #2f2f3e;cursor:pointer;transition:transform 0.12s;`;
+            tile.style.cssText = `aspect-ratio:1;border-radius:2px;background-image:url('${url}');background-size:cover;background-position:center;border:1px solid #282834;cursor:pointer;transition:transform 0.12s;`;
             tile.addEventListener('mouseenter', () => tile.style.transform = 'scale(1.08)');
             tile.addEventListener('mouseleave', () => tile.style.transform = 'scale(1)');
             tile.addEventListener('click', () => {
@@ -1718,306 +1552,328 @@ console.info('[Interium] Standalone v2.0.0.20261105.160303 active.');
         bgEl.style.filter = c.avatarBgBlur ? `blur(${c.avatarBgBlur}px)` : 'none';
     };
 
-    /* --- Build Authentic CS:GO Interium Menu --- */
+    /* --- Build 1:1 CS:GO Interium Menu Window --- */
     const ICONS = {
-        visuals: `<svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>`,
-        market: `<svg viewBox="0 0 24 24"><path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/></svg>`,
-        trade: `<svg viewBox="0 0 24 24"><path d="M6.99 11L3 15l3.99 4v-3H14v-2H6.99v-3zM21 9l-3.99-4v3H10v2h7.01v3L21 9z"/></svg>`,
-        misc: `<svg viewBox="0 0 24 24"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>`,
-        configs: `<svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>`
+        legit: `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><line x1="12" y1="1" x2="12" y2="5" stroke="currentColor" stroke-width="2"/><line x1="12" y1="19" x2="12" y2="23" stroke="currentColor" stroke-width="2"/><line x1="1" y1="12" x2="5" y2="12" stroke="currentColor" stroke-width="2"/><line x1="19" y1="12" x2="23" y2="12" stroke="currentColor" stroke-width="2"/></svg>`,
+        rage: `<svg viewBox="0 0 24 24"><path d="M12 2a5 5 0 0 1 5 5v3a5 5 0 0 1-10 0V7a5 5 0 0 1 5-5z"/><path d="M19 11v1a7 7 0 0 1-14 0v-1M12 19v4m-4 0h8"/></svg>`,
+        visuals: `<svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`,
+        changer: `<svg viewBox="0 0 24 24"><path d="M20.38 3.46L16 2 12 5.5 8 2l-4.38 1.46a2 2 0 0 0-1.34 1.89V19a2 2 0 0 0 2 2h15.44a2 2 0 0 0 2-2V5.35a2 2 0 0 0-1.34-1.89z"/></svg>`,
+        misc: `<svg viewBox="0 0 24 24"><line x1="4" y1="21" x2="4" y2="14" stroke="currentColor" stroke-width="2"/><line x1="4" y1="10" x2="4" y2="3" stroke="currentColor" stroke-width="2"/><line x1="12" y1="21" x2="12" y2="12" stroke="currentColor" stroke-width="2"/><line x1="12" y1="8" x2="12" y2="3" stroke="currentColor" stroke-width="2"/><line x1="20" y1="21" x2="20" y2="16" stroke="currentColor" stroke-width="2"/><line x1="20" y1="12" x2="20" y2="3" stroke="currentColor" stroke-width="2"/></svg>`,
+        other: `<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>`
     };
 
     const renderMenu = () => {
-        if (document.getElementById('int-csgo-menu')) return;
+        if (document.getElementById('int-menu-root')) return;
 
         const c = core ? core.config() : cfg;
 
         const menu = document.createElement('div');
-        menu.id = 'int-csgo-menu';
+        menu.id = 'int-menu-root';
         menu.innerHTML = `
-            <div id="int-menu-border-glow"></div>
-            <div id="int-menu-header">
-                <div class="int-menu-brand">
-                    <svg viewBox="0 0 24 24"><polygon points="12 2 2 22 22 22"/></svg>
-                    <span>INTERIUM</span>
-                    <span class="int-menu-tag">EchoCore v${core?.version || '2.0'}</span>
+            <div id="int-menu-top-line"></div>
+            <!-- LEFT SIDEBAR -->
+            <div id="int-menu-sidebar">
+                <div>
+                    <div id="int-menu-logo-box">
+                        <svg class="int-logo-chevron" viewBox="0 0 24 24"><polygon points="12 2 2 22 22 22"/></svg>
+                        <span class="int-logo-txt">INTERIUM</span>
+                    </div>
+                    <div id="int-nav-tree">
+                        <!-- MARKET CATEGORY -->
+                        <div class="int-cat-group" data-cat="market">
+                            <div class="int-cat-header">${ICONS.legit}<span>Market</span></div>
+                            <div class="int-sub-list">
+                                <div class="int-sub-item" data-sub="echomons">Echomons</div>
+                                <div class="int-sub-item" data-sub="search">Item Search</div>
+                            </div>
+                        </div>
+
+                        <!-- TRADING CATEGORY -->
+                        <div class="int-cat-group" data-cat="trade">
+                            <div class="int-cat-header">${ICONS.rage}<span>Trading</span></div>
+                            <div class="int-sub-list">
+                                <div class="int-sub-item" data-sub="evaluator">Evaluator</div>
+                                <div class="int-sub-item" data-sub="calculator">Delta Calc</div>
+                            </div>
+                        </div>
+
+                        <!-- VISUALS CATEGORY (Active by default) -->
+                        <div class="int-cat-group int-expanded" data-cat="visuals">
+                            <div class="int-cat-header int-active">${ICONS.visuals}<span>Visuals</span></div>
+                            <div class="int-sub-list">
+                                <div class="int-sub-item int-active" data-sub="inventory">Inventory</div>
+                                <div class="int-sub-item" data-sub="surfaces">Surfaces</div>
+                                <div class="int-sub-item" data-sub="effects">Effects</div>
+                            </div>
+                        </div>
+
+                        <!-- CHANGER CATEGORY -->
+                        <div class="int-cat-group" data-cat="changer">
+                            <div class="int-cat-header">${ICONS.changer}<span>Changer</span></div>
+                            <div class="int-sub-list">
+                                <div class="int-sub-item" data-sub="avatar">Avatar BGs</div>
+                                <div class="int-sub-item" data-sub="banner">Banner</div>
+                            </div>
+                        </div>
+
+                        <!-- MISC CATEGORY -->
+                        <div class="int-cat-group" data-cat="misc">
+                            <div class="int-cat-header">${ICONS.misc}<span>Misc</span></div>
+                            <div class="int-sub-list">
+                                <div class="int-sub-item" data-sub="main">Main</div>
+                                <div class="int-sub-item" data-sub="watermark">Watermark</div>
+                                <div class="int-sub-item" data-sub="fonts">Fonts</div>
+                            </div>
+                        </div>
+
+                        <!-- CONFIGS / OTHER CATEGORY -->
+                        <div class="int-cat-group" data-cat="configs">
+                            <div class="int-cat-header">${ICONS.other}<span>Other</span></div>
+                            <div class="int-sub-list">
+                                <div class="int-sub-item" data-sub="themes">Themes</div>
+                                <div class="int-sub-item" data-sub="settings">Settings</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="int-menu-controls">
-                    <button class="int-menu-btn" id="int-cs-min" title="Minimize">—</button>
-                    <button class="int-menu-btn" id="int-cs-close" title="Close (Insert)">✕</button>
+
+                <!-- SIDEBAR BOTTOM PROFILE -->
+                <div id="int-sidebar-user">
+                    <div class="int-user-sq">
+                        <img id="int-user-img" src="" alt="" />
+                    </div>
+                    <div class="int-user-meta">
+                        <div id="int-user-nick" class="int-user-nick">${state.user.name}</div>
+                        <div class="int-user-sub">Days: Lifetime</div>
+                        <div id="int-user-curr" class="int-user-curr">R$ ${state.user.robux}</div>
+                    </div>
                 </div>
             </div>
-            <div id="int-menu-main">
-                <div id="int-menu-sidebar">
-                    <div class="int-nav-list">
-                        <button class="int-nav-item int-active" data-tab="visuals">${ICONS.visuals}<span>VISUALS</span></button>
-                        <button class="int-nav-item" data-tab="market">${ICONS.market}<span>MARKET</span></button>
-                        <button class="int-nav-item" data-tab="trade">${ICONS.trade}<span>TRADING</span></button>
-                        <button class="int-nav-item" data-tab="misc">${ICONS.misc}<span>MISC</span></button>
-                        <button class="int-nav-item" data-tab="configs">${ICONS.configs}<span>CONFIGS</span></button>
-                    </div>
-                    <div class="int-sidebar-profile">
-                        <div class="int-sp-user">
-                            <div class="int-sp-avatar">
-                                <img id="int-sp-avatar-img" src="" alt="" />
-                                <div class="int-sp-dot"></div>
-                            </div>
-                            <div class="int-sp-meta">
-                                <div id="int-sp-name" class="int-sp-name">${state.user.name}</div>
-                                <div class="int-sp-sub">Lifetime VIP</div>
-                            </div>
-                        </div>
-                        <div class="int-sp-curr">
-                            <span class="int-sp-robux">R$ <span id="int-sp-robux">${state.user.robux}</span></span>
-                            <span class="int-sp-tickets">Tx <span id="int-sp-tickets">${state.user.tickets}</span></span>
-                        </div>
-                    </div>
-                </div>
-                <div id="int-menu-content">
-                    <!-- VISUALS TAB -->
-                    <div class="int-tab-pane int-active" id="int-tab-visuals">
-                        <div class="int-col">
-                            <div class="int-groupbox">
-                                <div class="int-gb-header">INVENTORY & CATALOG ENGINE</div>
-                                <div class="int-checkbox-row ${c.inventoryFixCards !== false ? 'int-checked' : ''}" data-cfg="inventoryFixCards">
-                                    <div class="int-checkbox-box"></div>
-                                    <span class="int-checkbox-label">1:1 Aspect-Ratio Thumbnail Fix</span>
-                                </div>
-                                <div class="int-slider-wrap">
-                                    <div class="int-slider-header">
-                                        <span>Render Scale</span>
-                                        <span class="int-slider-val" id="val-cardImageScale">${c.cardImageScale || 1.18}x</span>
-                                    </div>
-                                    <input type="range" class="int-slider-ctrl" id="cfg-cardImageScale" min="1.0" max="1.45" step="0.02" value="${c.cardImageScale || 1.18}">
-                                </div>
-                                <div class="int-checkbox-row ${c.itemBadges !== false ? 'int-checked' : ''}" data-cfg="itemBadges">
-                                    <div class="int-checkbox-box"></div>
-                                    <span class="int-checkbox-label">Live Echomons Value & RAP Badges</span>
-                                </div>
-                                <div class="int-checkbox-row ${c.showProjectedWarning !== false ? 'int-checked' : ''}" data-cfg="showProjectedWarning">
-                                    <div class="int-checkbox-box"></div>
-                                    <span class="int-checkbox-label">Projected Item Warning Tags</span>
-                                </div>
-                            </div>
 
-                            <div class="int-groupbox">
-                                <div class="int-gb-header">SURFACES & GLASSIFY</div>
-                                <div class="int-checkbox-row ${c.navbarEnabled ? 'int-checked' : ''}" data-cfg="navbarEnabled">
-                                    <div class="int-checkbox-box"></div>
-                                    <span class="int-checkbox-label">Navbar Glassify</span>
-                                </div>
-                                <div class="int-combo-wrap">
-                                    <span class="int-combo-label">Navbar Mode</span>
-                                    <select class="int-combo-select" id="cfg-navbarMode">
-                                        <option value="blur" ${c.navbarMode === 'blur' ? 'selected' : ''}>Blur (Frosted Glass)</option>
-                                        <option value="transparent" ${c.navbarMode === 'transparent' ? 'selected' : ''}>Transparent</option>
-                                        <option value="solid" ${c.navbarMode === 'solid' ? 'selected' : ''}>Solid Accent</option>
-                                    </select>
-                                </div>
-                                <div class="int-checkbox-row ${c.sidebarEnabled ? 'int-checked' : ''}" data-cfg="sidebarEnabled">
-                                    <div class="int-checkbox-box"></div>
-                                    <span class="int-checkbox-label">Sidebar Glassify</span>
-                                </div>
-                                <div class="int-combo-wrap">
-                                    <span class="int-combo-label">Sidebar Mode</span>
-                                    <select class="int-combo-select" id="cfg-sidebarMode">
-                                        <option value="blur" ${c.sidebarMode === 'blur' ? 'selected' : ''}>Blur (Frosted Glass)</option>
-                                        <option value="transparent" ${c.sidebarMode === 'transparent' ? 'selected' : ''}>Transparent</option>
-                                        <option value="solid" ${c.sidebarMode === 'solid' ? 'selected' : ''}>Solid Accent</option>
-                                    </select>
-                                </div>
-                            </div>
+            <!-- RIGHT CONTENT AREA -->
+            <div id="int-menu-body">
+                <!-- VISUALS -> INVENTORY SUBTAB -->
+                <div class="int-content-pane int-active" id="pane-visuals-inventory">
+                    <div class="int-content-col">
+                        <div class="int-ctl-checkbox ${c.inventoryFixCards !== false ? 'int-checked' : ''}" data-cfg="inventoryFixCards">
+                            <div class="int-chk-left"><div class="int-chk-box"></div><span class="int-chk-label">1:1 Aspect-Ratio Fix</span></div>
                         </div>
-
-                        <div class="int-col">
-                            <div class="int-groupbox">
-                                <div class="int-gb-header">PARTICLE CANVAS & FX</div>
-                                <div class="int-combo-wrap">
-                                    <span class="int-combo-label">Effect Preset</span>
-                                    <select class="int-combo-select" id="cfg-effectType">
-                                        <option value="none" ${c.effectType === 'none' ? 'selected' : ''}>Disabled</option>
-                                        <option value="snow" ${c.effectType === 'snow' ? 'selected' : ''}>Snow Fall</option>
-                                        <option value="rain" ${c.effectType === 'rain' ? 'selected' : ''}>Rain Stream</option>
-                                        <option value="stars" ${c.effectType === 'stars' ? 'selected' : ''}>Starfield Shimmer</option>
-                                        <option value="matrix" ${c.effectType === 'matrix' ? 'selected' : ''}>Matrix Rain</option>
-                                    </select>
-                                </div>
-                                <div class="int-slider-wrap">
-                                    <div class="int-slider-header">
-                                        <span>Intensity</span>
-                                        <span class="int-slider-val" id="val-effectIntensity">${c.effectIntensity || 50}%</span>
-                                    </div>
-                                    <input type="range" class="int-slider-ctrl" id="cfg-effectIntensity" min="10" max="100" step="5" value="${c.effectIntensity || 50}">
-                                </div>
-                                <div class="int-slider-wrap">
-                                    <div class="int-slider-header">
-                                        <span>Speed</span>
-                                        <span class="int-slider-val" id="val-effectSpeed">${c.effectSpeed || 50}%</span>
-                                    </div>
-                                    <input type="range" class="int-slider-ctrl" id="cfg-effectSpeed" min="10" max="100" step="5" value="${c.effectSpeed || 50}">
-                                </div>
-                            </div>
-
-                            <div class="int-groupbox">
-                                <div class="int-gb-header">WATERMARK OVERLAY</div>
-                                <div class="int-checkbox-row ${c.watermarkEnabled ? 'int-checked' : ''}" data-cfg="watermarkEnabled">
-                                    <div class="int-checkbox-box"></div>
-                                    <span class="int-checkbox-label">Enable HUD Watermark</span>
-                                </div>
-                                <div class="int-checkbox-row ${c.watermarkShowFps !== false ? 'int-checked' : ''}" data-cfg="watermarkShowFps">
-                                    <div class="int-checkbox-box"></div>
-                                    <span class="int-checkbox-label">Show FPS Indicator</span>
-                                </div>
-                                <div class="int-checkbox-row ${c.watermarkShowPing !== false ? 'int-checked' : ''}" data-cfg="watermarkShowPing">
-                                    <div class="int-checkbox-box"></div>
-                                    <span class="int-checkbox-label">Show Ping Latency</span>
-                                </div>
-                                <div class="int-checkbox-row ${c.watermarkShowTime !== false ? 'int-checked' : ''}" data-cfg="watermarkShowTime">
-                                    <div class="int-checkbox-box"></div>
-                                    <span class="int-checkbox-label">Show Clock Time</span>
-                                </div>
-                            </div>
+                        <div class="int-ctl-slider">
+                            <div class="int-sld-meta"><span>Image Render Scale</span><span class="int-sld-num" id="val-cardImageScale">${c.cardImageScale || 1.18}x</span></div>
+                            <input type="range" class="int-sld-input" id="cfg-cardImageScale" min="1.0" max="1.45" step="0.02" value="${c.cardImageScale || 1.18}">
+                        </div>
+                        <div class="int-ctl-checkbox ${c.itemBadges !== false ? 'int-checked' : ''}" data-cfg="itemBadges">
+                            <div class="int-chk-left"><div class="int-chk-box"></div><span class="int-chk-label">Live Echomons Badges</span></div>
+                        </div>
+                        <div class="int-ctl-checkbox ${c.showValueOnCards !== false ? 'int-checked' : ''}" data-cfg="showValueOnCards">
+                            <div class="int-chk-left"><div class="int-chk-box"></div><span class="int-chk-label">Show Value Rating</span></div>
+                        </div>
+                        <div class="int-ctl-checkbox ${c.showRapOnCards !== false ? 'int-checked' : ''}" data-cfg="showRapOnCards">
+                            <div class="int-chk-left"><div class="int-chk-box"></div><span class="int-chk-label">Show Recent Average Price</span></div>
+                        </div>
+                        <div class="int-ctl-sep"></div>
+                        <div class="int-ctl-checkbox ${c.showProjectedWarning !== false ? 'int-checked' : ''}" data-cfg="showProjectedWarning">
+                            <div class="int-chk-left"><div class="int-chk-box"></div><span class="int-chk-label">Projected Item Warning</span></div>
+                            <span class="int-chk-bind">PROJ</span>
                         </div>
                     </div>
-
-                    <!-- MARKET TAB -->
-                    <div class="int-tab-pane" id="int-tab-market">
-                        <div class="int-col" style="grid-column: span 2;">
-                            <div class="int-groupbox" style="height: 100%;">
-                                <div class="int-gb-header">ECHOMONS LIVE MARKET EXPLORER</div>
-                                <div style="display:flex;gap:8px;">
-                                    <input type="text" class="int-combo-select" id="int-mkt-search" placeholder="Search 75 limited items by name or ID..." style="flex:1;">
-                                    <select class="int-combo-select" id="int-mkt-sort" style="width:140px;">
-                                        <option value="value">Sort: Value</option>
-                                        <option value="rap">Sort: RAP</option>
-                                        <option value="demand">Sort: Demand</option>
-                                        <option value="name">Sort: Name</option>
-                                    </select>
-                                </div>
-                                <div id="int-mkt-list" class="int-scroll-box" style="display:flex;flex-direction:column;gap:6px;max-height:340px;overflow-y:auto;padding-right:4px;"></div>
-                            </div>
+                    <div class="int-content-col">
+                        <div class="int-ctl-checkbox int-checked">
+                            <div class="int-chk-left"><div class="int-chk-box"></div><span class="int-chk-label">Absolute Serial Badge</span></div>
                         </div>
-                    </div>
-
-                    <!-- TRADING TAB -->
-                    <div class="int-tab-pane" id="int-tab-trade">
-                        <div class="int-col">
-                            <div class="int-groupbox">
-                                <div class="int-gb-header">EXCHANGE EVALUATOR</div>
-                                <div class="int-combo-wrap">
-                                    <span class="int-combo-label">Your Side (Asset IDs)</span>
-                                    <input type="text" class="int-combo-select" id="int-tc-give" placeholder="e.g. 190272, 83451">
-                                </div>
-                                <div class="int-combo-wrap">
-                                    <span class="int-combo-label">Their Side (Asset IDs)</span>
-                                    <input type="text" class="int-combo-select" id="int-tc-recv" placeholder="e.g. 982145">
-                                </div>
-                            </div>
+                        <div class="int-ctl-checkbox int-checked">
+                            <div class="int-chk-left"><div class="int-chk-box"></div><span class="int-chk-label">Smooth Hover Animation</span></div>
                         </div>
-                        <div class="int-col">
-                            <div class="int-groupbox">
-                                <div class="int-gb-header">DELTA ANALYSIS</div>
-                                <div id="int-tc-result" style="padding:12px;background:#101016;border:1px solid #20202c;border-radius:4px;font-size:11.5px;line-height:1.6;">
-                                    Enter Asset IDs to calculate exact Win/Loss ratios via Echomons valuation.
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- MISC TAB -->
-                    <div class="int-tab-pane" id="int-tab-misc">
-                        <div class="int-col">
-                            <div class="int-groupbox">
-                                <div class="int-gb-header">CUSTOM BACKGROUND MEDIA</div>
-                                <div class="int-combo-wrap">
-                                    <span class="int-combo-label">Direct Media URL (Image / GIF / MP4)</span>
-                                    <input type="text" class="int-combo-select" id="cfg-miscBgUrl" placeholder="https://..." value="${c.miscBgUrl || ''}">
-                                </div>
-                                <div class="int-checkbox-row ${c.miscBgBlur ? 'int-checked' : ''}" data-cfg="miscBgBlur">
-                                    <div class="int-checkbox-box"></div>
-                                    <span class="int-checkbox-label">Background Blur Filter</span>
-                                </div>
-                                <div class="int-slider-wrap">
-                                    <div class="int-slider-header">
-                                        <span>Dark Overlay</span>
-                                        <span class="int-slider-val" id="val-miscBgDarkOpacity">${c.miscBgDarkOpacity || 55}%</span>
-                                    </div>
-                                    <input type="range" class="int-slider-ctrl" id="cfg-miscBgDarkOpacity" min="0" max="95" step="5" value="${c.miscBgDarkOpacity || 55}">
-                                </div>
-                            </div>
-
-                            <div class="int-groupbox">
-                                <div class="int-gb-header">USER PROFILE BANNER</div>
-                                <div class="int-checkbox-row ${c.profileBannerEnabled ? 'int-checked' : ''}" data-cfg="profileBannerEnabled">
-                                    <div class="int-checkbox-box"></div>
-                                    <span class="int-checkbox-label">Enable Profile Card Banner</span>
-                                </div>
-                                <div class="int-combo-wrap">
-                                    <span class="int-combo-label">Banner Image URL</span>
-                                    <input type="text" class="int-combo-select" id="cfg-profileBannerImage" placeholder="https://..." value="${c.profileBannerImage || ''}">
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="int-col">
-                            <div class="int-groupbox">
-                                <div class="int-gb-header">CUSTOM TYPOGRAPHY</div>
-                                <div class="int-combo-wrap">
-                                    <span class="int-combo-label">Menu Font</span>
-                                    <select class="int-combo-select" id="cfg-miscGuiFont">
-                                        <option value="Inter" ${c.miscGuiFont === 'Inter' ? 'selected' : ''}>Inter (Modern CS:GO)</option>
-                                        <option value="JetBrains Mono" ${c.miscGuiFont === 'JetBrains Mono' ? 'selected' : ''}>JetBrains Mono</option>
-                                        <option value="Share Tech Mono" ${c.miscGuiFont === 'Share Tech Mono' ? 'selected' : ''}>Share Tech Mono</option>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- CONFIGS TAB -->
-                    <div class="int-tab-pane" id="int-tab-configs">
-                        <div class="int-col">
-                            <div class="int-groupbox">
-                                <div class="int-gb-header">ACCENT THEME PRESETS</div>
-                                <div class="int-themes-grid">
-                                    <div class="int-theme-card ${c.theme === 'void' ? 'int-active' : ''}" data-theme="void">Void</div>
-                                    <div class="int-theme-card ${c.theme === 'crimson' ? 'int-active' : ''}" data-theme="crimson">Crimson</div>
-                                    <div class="int-theme-card ${c.theme === 'arctic' ? 'int-active' : ''}" data-theme="arctic">Arctic</div>
-                                    <div class="int-theme-card ${c.theme === 'midnight' ? 'int-active' : ''}" data-theme="midnight">Midnight</div>
-                                    <div class="int-theme-card ${c.theme === 'matrix' ? 'int-active' : ''}" data-theme="matrix">Matrix</div>
-                                    <div class="int-theme-card ${c.theme === 'rose' ? 'int-active' : ''}" data-theme="rose">Rose</div>
-                                    <div class="int-theme-card ${c.theme === 'mono' ? 'int-active' : ''}" data-theme="mono">Mono</div>
-                                    <div class="int-theme-card ${c.theme === 'sakura' ? 'int-active' : ''}" data-theme="sakura">Sakura</div>
-                                </div>
-                            </div>
-
-                            <div class="int-groupbox">
-                                <div class="int-gb-header">HOTKEY & SCALE</div>
-                                <div class="int-slider-wrap">
-                                    <div class="int-slider-header">
-                                        <span>GUI Scale</span>
-                                        <span class="int-slider-val" id="val-guiScale">${c.guiScale || 100}%</span>
-                                    </div>
-                                    <input type="range" class="int-slider-ctrl" id="cfg-guiScale" min="75" max="130" step="5" value="${c.guiScale || 100}">
-                                </div>
-                                <div class="int-combo-wrap">
-                                    <span class="int-combo-label">Toggle Menu Key</span>
-                                    <input type="text" class="int-combo-select" id="cfg-hotkeyToggleGui" style="text-align:center;font-weight:700;" value="${c.hotkeyToggleGui || 'Insert'}">
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="int-col">
-                            <div class="int-groupbox">
-                                <div class="int-gb-header">CONFIGURATION STORAGE</div>
-                                <div style="display:flex;flex-direction:column;gap:8px;">
-                                    <button class="int-cs-btn" id="int-cfg-export">Export Configuration (JSON)</button>
-                                    <button class="int-cs-btn" id="int-cfg-reset" style="background:#26181b;border-color:#4a242a;color:#f87171;">Reset to Factory Defaults</button>
-                                </div>
-                            </div>
+                        <div class="int-ctl-checkbox int-checked">
+                            <div class="int-chk-left"><div class="int-chk-box"></div><span class="int-chk-label">Catalog Quality Match</span></div>
                         </div>
                     </div>
                 </div>
+
+                <!-- VISUALS -> SURFACES SUBTAB -->
+                <div class="int-content-pane" id="pane-visuals-surfaces">
+                    <div class="int-content-col">
+                        <div class="int-ctl-checkbox ${c.navbarEnabled ? 'int-checked' : ''}" data-cfg="navbarEnabled">
+                            <div class="int-chk-left"><div class="int-chk-box"></div><span class="int-chk-label">Navbar Glassify</span></div>
+                        </div>
+                        <div class="int-ctl-combo" data-cfg-combo="navbarMode">
+                            <span class="int-combo-val">${c.navbarMode === 'blur' ? 'Blur' : (c.navbarMode === 'transparent' ? 'Clear' : 'Solid')}</span>
+                            <span class="int-combo-icon">&#8801;</span>
+                            <span class="int-combo-name">Navbar Mode</span>
+                            <div class="int-combo-popup">
+                                <div class="int-combo-option" data-val="blur">Blur</div>
+                                <div class="int-combo-option" data-val="transparent">Clear</div>
+                                <div class="int-combo-option" data-val="solid">Solid</div>
+                            </div>
+                        </div>
+                        <div class="int-ctl-checkbox ${c.sidebarEnabled ? 'int-checked' : ''}" data-cfg="sidebarEnabled">
+                            <div class="int-chk-left"><div class="int-chk-box"></div><span class="int-chk-label">Sidebar Glassify</span></div>
+                        </div>
+                        <div class="int-ctl-combo" data-cfg-combo="sidebarMode">
+                            <span class="int-combo-val">${c.sidebarMode === 'blur' ? 'Blur' : (c.sidebarMode === 'transparent' ? 'Clear' : 'Solid')}</span>
+                            <span class="int-combo-icon">&#8801;</span>
+                            <span class="int-combo-name">Sidebar Mode</span>
+                            <div class="int-combo-popup">
+                                <div class="int-combo-option" data-val="blur">Blur</div>
+                                <div class="int-combo-option" data-val="transparent">Clear</div>
+                                <div class="int-combo-option" data-val="solid">Solid</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="int-content-col">
+                        <div class="int-ctl-checkbox ${c.glassifyCatalog !== false ? 'int-checked' : ''}" data-cfg="glassifyCatalog">
+                            <div class="int-chk-left"><div class="int-chk-box"></div><span class="int-chk-label">Glassify Catalog Cards</span></div>
+                        </div>
+                        <div class="int-ctl-checkbox ${c.glassifyTrades !== false ? 'int-checked' : ''}" data-cfg="glassifyTrades">
+                            <div class="int-chk-left"><div class="int-chk-box"></div><span class="int-chk-label">Glassify Trade Pages</span></div>
+                        </div>
+                        <div class="int-ctl-checkbox ${c.glassifyProfile !== false ? 'int-checked' : ''}" data-cfg="glassifyProfile">
+                            <div class="int-chk-left"><div class="int-chk-box"></div><span class="int-chk-label">Glassify Profile Page</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VISUALS -> EFFECTS SUBTAB -->
+                <div class="int-content-pane" id="pane-visuals-effects">
+                    <div class="int-content-col">
+                        <div class="int-ctl-combo" data-cfg-combo="effectType">
+                            <span class="int-combo-val">${c.effectType || 'none'}</span>
+                            <span class="int-combo-icon">&#8801;</span>
+                            <span class="int-combo-name">Particle Effect</span>
+                            <div class="int-combo-popup">
+                                <div class="int-combo-option" data-val="none">None</div>
+                                <div class="int-combo-option" data-val="snow">Snow</div>
+                                <div class="int-combo-option" data-val="rain">Rain</div>
+                                <div class="int-combo-option" data-val="stars">Stars</div>
+                                <div class="int-combo-option" data-val="matrix">Matrix</div>
+                            </div>
+                        </div>
+                        <div class="int-ctl-slider">
+                            <div class="int-sld-meta"><span>Particle Intensity</span><span class="int-sld-num" id="val-effectIntensity">${c.effectIntensity || 50}%</span></div>
+                            <input type="range" class="int-sld-input" id="cfg-effectIntensity" min="10" max="100" step="5" value="${c.effectIntensity || 50}">
+                        </div>
+                        <div class="int-ctl-slider">
+                            <div class="int-sld-meta"><span>Particle Speed</span><span class="int-sld-num" id="val-effectSpeed">${c.effectSpeed || 50}%</span></div>
+                            <input type="range" class="int-sld-input" id="cfg-effectSpeed" min="10" max="100" step="5" value="${c.effectSpeed || 50}">
+                        </div>
+                    </div>
+                    <div class="int-content-col">
+                        <div style="font-size:11px;color:#888899;margin-bottom:4px;">Custom Background Media</div>
+                        <input type="text" class="int-ctl-input" id="cfg-miscBgUrl" placeholder="Direct Image / GIF URL (press Enter)" value="${c.miscBgUrl || ''}">
+                        <div class="int-ctl-checkbox ${c.miscBgBlur ? 'int-checked' : ''}" data-cfg="miscBgBlur" style="margin-top:6px;">
+                            <div class="int-chk-left"><div class="int-chk-box"></div><span class="int-chk-label">Background Blur Filter</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MARKET SUBTABS -->
+                <div class="int-content-pane" id="pane-market-echomons">
+                    <div class="int-content-col" style="flex: 2;">
+                        <div style="display:flex;gap:6px;margin-bottom:6px;">
+                            <input type="text" class="int-ctl-input" id="int-mkt-search" placeholder="Search 75 limiteds..." style="flex:1;">
+                            <div class="int-ctl-combo" data-cfg-combo="mktSort" style="flex-shrink:0;">
+                                <span class="int-combo-val" id="val-mktSort">Value</span>
+                                <span class="int-combo-icon">&#8801;</span>
+                                <span class="int-combo-name">Sort</span>
+                                <div class="int-combo-popup">
+                                    <div class="int-combo-option" data-val="value">Value</div>
+                                    <div class="int-combo-option" data-val="rap">RAP</div>
+                                    <div class="int-combo-option" data-val="demand">Demand</div>
+                                    <div class="int-combo-option" data-val="name">Name</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="int-mkt-list" style="display:flex;flex-direction:column;gap:5px;max-height:380px;overflow-y:auto;padding-right:4px;"></div>
+                    </div>
+                </div>
+
+                <!-- TRADING SUBTABS -->
+                <div class="int-content-pane" id="pane-trade-evaluator">
+                    <div class="int-content-col">
+                        <div style="font-size:11px;color:#888899;">Your Offer (Asset IDs)</div>
+                        <input type="text" class="int-ctl-input" id="int-tc-give" placeholder="e.g. 190272, 83451">
+                        <div style="font-size:11px;color:#888899;margin-top:8px;">Their Offer (Asset IDs)</div>
+                        <input type="text" class="int-ctl-input" id="int-tc-recv" placeholder="e.g. 982145">
+                    </div>
+                    <div class="int-content-col">
+                        <div style="font-size:11px;font-weight:700;color:#fff;margin-bottom:6px;">Trade Valuation Delta</div>
+                        <div id="int-tc-result" style="padding:10px;background:#0d0d10;border:1px solid #1c1c24;border-radius:2px;font-size:11px;line-height:1.6;">
+                            Enter Asset IDs to calculate exact Win/Loss differential.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CHANGER SUBTABS -->
+                <div class="int-content-pane" id="pane-changer-avatar">
+                    <div class="int-content-col">
+                        <div class="int-ctl-checkbox ${c.avatarBgEnabled ? 'int-checked' : ''}" data-cfg="avatarBgEnabled">
+                            <div class="int-chk-left"><div class="int-chk-box"></div><span class="int-chk-label">Avatar Background Enabled</span></div>
+                        </div>
+                        <div style="font-size:10.5px;color:#666677;margin:4px 0;">23 Presets on /my/avatar</div>
+                        <input type="text" class="int-ctl-input" id="cfg-avatarBgImage" placeholder="Custom URL (press Enter)" value="${c.avatarBgImage || ''}">
+                    </div>
+                </div>
+
+                <!-- MISC -> WATERMARK SUBTAB -->
+                <div class="int-content-pane" id="pane-misc-watermark">
+                    <div class="int-content-col">
+                        <div class="int-ctl-checkbox ${c.watermarkEnabled ? 'int-checked' : ''}" data-cfg="watermarkEnabled">
+                            <div class="int-chk-left"><div class="int-chk-box"></div><span class="int-chk-label">Top-Left Watermark Pill</span></div>
+                        </div>
+                        <div class="int-ctl-checkbox ${c.watermarkShowFps !== false ? 'int-checked' : ''}" data-cfg="watermarkShowFps">
+                            <div class="int-chk-left"><div class="int-chk-box"></div><span class="int-chk-label">Show FPS Counter</span></div>
+                        </div>
+                        <div class="int-ctl-checkbox ${c.watermarkShowPing !== false ? 'int-checked' : ''}" data-cfg="watermarkShowPing">
+                            <div class="int-chk-left"><div class="int-chk-box"></div><span class="int-chk-label">Show Ping Latency</span></div>
+                        </div>
+                    </div>
+                    <div class="int-content-col">
+                        <div class="int-ctl-checkbox ${c.watermarkShowTime !== false ? 'int-checked' : ''}" data-cfg="watermarkShowTime">
+                            <div class="int-chk-left"><div class="int-chk-box"></div><span class="int-chk-label">Show System Time</span></div>
+                        </div>
+                        <div class="int-ctl-checkbox ${c.watermarkShowUser !== false ? 'int-checked' : ''}" data-cfg="watermarkShowUser">
+                            <div class="int-chk-left"><div class="int-chk-box"></div><span class="int-chk-label">Show Username</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CONFIGS -> THEMES SUBTAB -->
+                <div class="int-content-pane" id="pane-configs-themes">
+                    <div class="int-content-col">
+                        <div class="int-ctl-combo" data-cfg-combo="theme">
+                            <span class="int-combo-val">${c.theme || 'void'}</span>
+                            <span class="int-combo-icon">&#8801;</span>
+                            <span class="int-combo-name">Theme Preset</span>
+                            <div class="int-combo-popup">
+                                <div class="int-combo-option" data-val="void">Void</div>
+                                <div class="int-combo-option" data-val="crimson">Crimson</div>
+                                <div class="int-combo-option" data-val="arctic">Arctic</div>
+                                <div class="int-combo-option" data-val="midnight">Midnight</div>
+                                <div class="int-combo-option" data-val="matrix">Matrix</div>
+                                <div class="int-combo-option" data-val="rose">Rose</div>
+                                <div class="int-combo-option" data-val="mono">Mono</div>
+                                <div class="int-combo-option" data-val="sakura">Sakura</div>
+                            </div>
+                        </div>
+                        <div class="int-ctl-slider">
+                            <div class="int-sld-meta"><span>GUI Scale</span><span class="int-sld-num" id="val-guiScale">${c.guiScale || 100}%</span></div>
+                            <input type="range" class="int-sld-input" id="cfg-guiScale" min="75" max="130" step="5" value="${c.guiScale || 100}">
+                        </div>
+                    </div>
+                    <div class="int-content-col">
+                        <div style="display:flex;flex-direction:column;gap:6px;">
+                            <div class="int-ctl-checkbox">
+                                <div class="int-chk-left"><span class="int-chk-label">Toggle Menu Key</span></div>
+                                <span class="int-chk-bind">${c.hotkeyToggleGui || 'INSERT'}</span>
+                            </div>
+                            <div class="int-ctl-sep"></div>
+                            <button id="int-btn-export" style="background:#111116;border:1px solid #22222e;padding:6px;border-radius:2px;color:#d0d0d8;font-size:11px;cursor:pointer;">Copy Config JSON</button>
+                            <button id="int-btn-reset" style="background:#1a1012;border:1px solid #33181a;padding:6px;border-radius:2px;color:#f87171;font-size:11px;cursor:pointer;">Reset Defaults</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="int-menu-resize"></div>
             </div>
         `;
         document.body.appendChild(menu);
@@ -2026,14 +1882,10 @@ console.info('[Interium] Standalone v2.0.0.20261105.160303 active.');
     };
 
     const bindMenuEvents = (menu) => {
-        const header = menu.querySelector('#int-menu-header');
-        const minBtn = menu.querySelector('#int-cs-min');
-        const closeBtn = menu.querySelector('#int-cs-close');
-        const main = menu.querySelector('#int-menu-main');
+        const logoBox = menu.querySelector('#int-menu-logo-box');
 
         // Draggable
-        header.addEventListener('mousedown', (e) => {
-            if (e.target.closest('.int-menu-btn')) return;
+        logoBox.addEventListener('mousedown', (e) => {
             state.drag.active = true;
             const r = menu.getBoundingClientRect();
             state.drag.ox = r.left;
@@ -2055,114 +1907,121 @@ console.info('[Interium] Standalone v2.0.0.20261105.160303 active.');
             state.drag.active = false;
         });
 
-        // Min & Close
-        minBtn.addEventListener('click', () => {
-            state.panelMinimized = !state.panelMinimized;
-            main.style.display = state.panelMinimized ? 'none' : 'flex';
-            menu.style.height = state.panelMinimized ? '34px' : '480px';
+        // Navigation Categories & Sub-items
+        menu.querySelectorAll('.int-cat-header').forEach(hdr => {
+            hdr.addEventListener('click', () => {
+                const group = hdr.closest('.int-cat-group');
+                menu.querySelectorAll('.int-cat-group').forEach(g => {
+                    if (g !== group) g.classList.remove('int-expanded');
+                });
+                group.classList.toggle('int-expanded');
+                menu.querySelectorAll('.int-cat-header').forEach(h => h.classList.remove('int-active'));
+                hdr.classList.add('int-active');
+
+                const firstSub = group.querySelector('.int-sub-item');
+                if (firstSub) firstSub.click();
+            });
         });
 
-        closeBtn.addEventListener('click', () => {
-            menu.classList.add('int-hidden');
-            state.panelOpen = false;
-        });
+        menu.querySelectorAll('.int-sub-item').forEach(sub => {
+            sub.addEventListener('click', (e) => {
+                e.stopPropagation();
+                menu.querySelectorAll('.int-sub-item').forEach(s => s.classList.remove('int-active'));
+                sub.classList.add('int-active');
 
-        // Sidebar Navigation
-        const navItems = menu.querySelectorAll('.int-nav-item');
-        const panes = menu.querySelectorAll('.int-tab-pane');
-        navItems.forEach(item => {
-            item.addEventListener('click', () => {
-                const target = item.dataset.tab;
-                navItems.forEach(i => i.classList.toggle('int-active', i === item));
-                panes.forEach(p => p.classList.toggle('int-active', p.id === `int-tab-${target}`));
-                if (target === 'market') populateMarketList();
+                const cat = sub.closest('.int-cat-group').dataset.cat;
+                const subName = sub.dataset.sub;
+                state.activeCategory = cat;
+                state.activeSub = subName;
+
+                menu.querySelectorAll('.int-content-pane').forEach(p => p.classList.remove('int-active'));
+                const targetPane = menu.querySelector(`#pane-${cat}-${subName}`) || menu.querySelector(`[id^="pane-${cat}"]`);
+                if (targetPane) targetPane.classList.add('int-active');
+
+                if (cat === 'market') populateMarketList();
             });
         });
 
         // Checkboxes
-        menu.querySelectorAll('.int-checkbox-row').forEach(row => {
-            row.addEventListener('click', () => {
-                const isChecked = row.classList.toggle('int-checked');
-                const field = row.dataset.cfg;
+        menu.querySelectorAll('.int-ctl-checkbox').forEach(chk => {
+            chk.addEventListener('click', () => {
+                const isChecked = chk.classList.toggle('int-checked');
+                const field = chk.dataset.cfg;
                 if (field) {
                     core?.saveConfig({ [field]: isChecked });
                     injectStyles();
-                    if (field === 'watermarkEnabled') updateWatermark();
+                    if (field === 'watermarkEnabled') renderWatermark();
                 }
             });
         });
 
         // Sliders
-        const bindSlider = (id, prop, unit = '', mult = 1) => {
+        const bindSlider = (id, prop, unit = '') => {
             const el = menu.querySelector(`#${id}`);
             const valEl = menu.querySelector(`#val-${id.replace('cfg-', '')}`);
             el?.addEventListener('input', () => {
                 const val = Number(el.value);
                 if (valEl) valEl.textContent = `${val}${unit}`;
-                core?.saveConfig({ [prop]: val * mult });
+                core?.saveConfig({ [prop]: val });
                 injectStyles();
                 if (prop === 'effectIntensity' || prop === 'effectSpeed') initEffects();
-                if (prop === 'miscBgDarkOpacity') applyCustomBackground();
             });
         };
 
         bindSlider('cfg-cardImageScale', 'cardImageScale', 'x');
         bindSlider('cfg-effectIntensity', 'effectIntensity', '%');
         bindSlider('cfg-effectSpeed', 'effectSpeed', '%');
-        bindSlider('cfg-miscBgDarkOpacity', 'miscBgDarkOpacity', '%');
         bindSlider('cfg-guiScale', 'guiScale', '%');
 
-        // Comboboxes
-        const bindSelect = (id, prop, callback) => {
-            const el = menu.querySelector(`#${id}`);
-            el?.addEventListener('change', () => {
-                core?.saveConfig({ [prop]: el.value });
-                injectStyles();
-                if (callback) callback();
+        // Combobox Popups
+        menu.querySelectorAll('.int-ctl-combo').forEach(combo => {
+            const popup = combo.querySelector('.int-combo-popup');
+            const valSpan = combo.querySelector('.int-combo-val');
+            const prop = combo.dataset.cfgCombo;
+
+            combo.addEventListener('click', (e) => {
+                if (e.target.closest('.int-combo-option')) return;
+                const isOpen = popup.classList.contains('int-open');
+                menu.querySelectorAll('.int-combo-popup').forEach(p => p.classList.remove('int-open'));
+                if (!isOpen) popup.classList.add('int-open');
             });
-        };
 
-        bindSelect('cfg-navbarMode', 'navbarMode');
-        bindSelect('cfg-sidebarMode', 'sidebarMode');
-        bindSelect('cfg-effectType', 'effectType', initEffects);
-        bindSelect('cfg-miscGuiFont', 'miscGuiFont');
-
-        // Theme Switcher
-        menu.querySelectorAll('.int-theme-card').forEach(card => {
-            card.addEventListener('click', () => {
-                const t = card.dataset.theme;
-                menu.querySelectorAll('.int-theme-card').forEach(c => c.classList.toggle('int-active', c === card));
-                core?.saveConfig({ theme: t });
-                injectStyles();
+            popup.querySelectorAll('.int-combo-option').forEach(opt => {
+                opt.addEventListener('click', () => {
+                    const val = opt.dataset.val;
+                    valSpan.textContent = opt.textContent;
+                    popup.classList.remove('int-open');
+                    if (prop === 'mktSort') {
+                        populateMarketList('', val);
+                    } else if (prop) {
+                        core?.saveConfig({ [prop]: val });
+                        injectStyles();
+                        if (prop === 'effectType') initEffects();
+                    }
+                });
             });
         });
 
-        // Background input
-        const bgInput = menu.querySelector('#cfg-miscBgUrl');
-        bgInput?.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                core?.saveConfig({ miscBgUrl: bgInput.value.trim() });
-                applyCustomBackground();
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.int-ctl-combo')) {
+                menu.querySelectorAll('.int-combo-popup').forEach(p => p.classList.remove('int-open'));
             }
         });
 
-        // Hotkey Toggle Handler
+        // Hotkey Toggle Handler (Default: INSERT)
         window.addEventListener('keydown', (e) => {
             const hotkey = core?.config().hotkeyToggleGui || 'Insert';
             if (e.key === hotkey || e.code === hotkey) {
-                state.panelOpen = !state.panelOpen;
-                menu.classList.toggle('int-hidden', !state.panelOpen);
+                state.menuOpen = !state.menuOpen;
+                menu.classList.toggle('int-hidden', !state.menuOpen);
             }
         });
 
-        // Market Search & Sort
+        // Market Search
         const mktSearch = menu.querySelector('#int-mkt-search');
-        const mktSort = menu.querySelector('#int-mkt-sort');
-        const renderMkt = () => populateMarketList(mktSearch.value, mktSort.value);
-        mktSearch?.addEventListener('input', renderMkt);
-        mktSort?.addEventListener('change', renderMkt);
+        mktSearch?.addEventListener('input', () => populateMarketList(mktSearch.value));
 
-        // Trade Calc
+        // Trade Evaluator
         const tcGive = menu.querySelector('#int-tc-give');
         const tcRecv = menu.querySelector('#int-tc-recv');
         const tcRes = menu.querySelector('#int-tc-result');
@@ -2172,7 +2031,7 @@ console.info('[Interium] Standalone v2.0.0.20261105.160303 active.');
             const gives = parseIds(tcGive?.value);
             const recvs = parseIds(tcRecv?.value);
             if (!gives.length && !recvs.length) {
-                tcRes.innerHTML = 'Enter Asset IDs to calculate exact Win/Loss ratios via Echomons valuation.';
+                tcRes.innerHTML = 'Enter Asset IDs to calculate exact Win/Loss differential.';
                 return;
             }
             const s = trading.getTradeSummary(gives, recvs);
@@ -2181,26 +2040,26 @@ console.info('[Interium] Standalone v2.0.0.20261105.160303 active.');
             const col = ratio > 0 ? '#10b981' : (ratio < 0 ? '#ff4466' : '#a1a1aa');
 
             tcRes.innerHTML = `
-                <div style="display:flex;justify-content:space-between;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid #20202c;">
-                    <span>Give: <strong style="color:var(--int-accent);">★ ${s.give.value.toLocaleString()}</strong> (R$ ${s.give.rap.toLocaleString()})</span>
-                    <span>Get: <strong style="color:var(--int-accent);">★ ${s.receive.value.toLocaleString()}</strong> (R$ ${s.receive.rap.toLocaleString()})</span>
+                <div style="display:flex;justify-content:space-between;margin-bottom:6px;border-bottom:1px solid #1c1c24;padding-bottom:4px;">
+                    <span>Give: <strong>★ ${s.give.value.toLocaleString()}</strong></span>
+                    <span>Get: <strong>★ ${s.receive.value.toLocaleString()}</strong></span>
                 </div>
-                <div style="font-weight:700;color:${col};font-size:12px;">
-                    Differential: ${diff >= 0 ? '+' : ''}${diff.toLocaleString()} Value (${ratio >= 0 ? '+' : ''}${ratio.toFixed(1)}%)
+                <div style="font-weight:700;color:${col};">
+                    Delta: ${diff >= 0 ? '+' : ''}${diff.toLocaleString()} (${ratio >= 0 ? '+' : ''}${ratio.toFixed(1)}%)
                 </div>
             `;
         };
         tcGive?.addEventListener('input', updateTc);
         tcRecv?.addEventListener('input', updateTc);
 
-        // Config export / reset
-        menu.querySelector('#int-cfg-export')?.addEventListener('click', () => {
+        // Export & Reset
+        menu.querySelector('#int-btn-export')?.addEventListener('click', () => {
             navigator.clipboard?.writeText(JSON.stringify(core?.config() || {}, null, 2));
-            alert('Interium CS:GO config copied to clipboard!');
+            alert('Config copied to clipboard!');
         });
 
-        menu.querySelector('#int-cfg-reset')?.addEventListener('click', () => {
-            if (confirm('Reset Interium config to defaults?')) {
+        menu.querySelector('#int-btn-reset')?.addEventListener('click', () => {
+            if (confirm('Reset to defaults?')) {
                 localStorage.removeItem('int_config');
                 location.reload();
             }
@@ -2225,18 +2084,18 @@ console.info('[Interium] Standalone v2.0.0.20261105.160303 active.');
         });
 
         if (!items.length) {
-            list.innerHTML = `<div style="text-align:center;padding:16px;color:#71717a;font-size:11px;">No items found</div>`;
+            list.innerHTML = `<div style="text-align:center;padding:12px;color:#666677;font-size:11px;">No items found</div>`;
             return;
         }
 
         list.innerHTML = items.map(item => `
-            <a href="/catalog/${item.id}" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:#15151c;border:1px solid #232330;border-radius:4px;text-decoration:none;color:inherit;">
+            <a href="/catalog/${item.id}" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;justify-content:space-between;padding:6px 8px;background:#0d0d10;border:1px solid #1a1a24;border-radius:2px;text-decoration:none;color:inherit;">
                 <div style="display:flex;align-items:center;gap:6px;min-width:0;flex:1;">
-                    <span style="font-size:11.5px;font-weight:600;color:#e4e4e7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.name}</span>
+                    <span style="font-size:11px;color:#ffffff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.name}</span>
                     ${item.isProjected ? '<span class="int-badge int-proj">PROJ</span>' : ''}
                     ${item.isRare ? '<span class="int-badge int-rare">RARE</span>' : ''}
                 </div>
-                <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+                <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
                     <span class="int-val">★ ${trading.formatNum(item.value)}</span>
                     <span class="int-rap">R$ ${trading.formatNum(item.rap)}</span>
                 </div>
@@ -2245,11 +2104,10 @@ console.info('[Interium] Standalone v2.0.0.20261105.160303 active.');
     };
 
     const init = () => {
-        injectFonts();
         injectStyles();
         applyCustomBackground();
         initEffects();
-        calcFps();
+        renderWatermark();
 
         if (document.body) {
             renderMenu();
@@ -2274,6 +2132,6 @@ console.info('[Interium] Standalone v2.0.0.20261105.160303 active.');
         init,
         injectStyles,
         renderMenu,
-        updateWatermark
+        renderWatermark
     });
 })();
