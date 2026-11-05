@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Interium Loader
 // @namespace    https://github.com/warmpain9/Interium
-// @version      1.1.2
-// @description  CSP-safe loader: Tampermonkey attaches the Interium trading + UI runtimes from GitHub (via GitHub raw) using @require.
+// @version      2.0.0
+// @description  EchoCore trading & glassify enhancement suite.
 // @author       Interium contributors
 // @license      MIT
 // @match        https://www.echocr.xyz/*
@@ -11,34 +11,16 @@
 // @noframes
 // @grant        GM_xmlhttpRequest
 // @grant        unsafeWindow
-// @connect      www.koromons.net
-// @connect      koromons.net
-// @connect      raw.githubusercontent.com
-// @require      https://raw.githubusercontent.com/warmpain9/Interium/main/src/core/core.js
-// @require      https://raw.githubusercontent.com/warmpain9/Interium/main/src/trading/trading.js
-// @require      https://raw.githubusercontent.com/warmpain9/Interium/main/src/ui/ui.js
-// @updateURL    https://raw.githubusercontent.com/warmpain9/Interium/main/loader/interium-loader.user.js
-// @downloadURL  https://raw.githubusercontent.com/warmpain9/Interium/main/loader/interium-loader.user.js
+// @require      https://raw.githubusercontent.com/warmpain9/Interium/v2-echocore/src/core/core.js
+// @require      https://raw.githubusercontent.com/warmpain9/Interium/v2-echocore/src/trading/trading.js
+// @require      https://raw.githubusercontent.com/warmpain9/Interium/v2-echocore/src/ui/ui.js
+// @updateURL    https://raw.githubusercontent.com/warmpain9/Interium/v2-echocore/loader/interium-loader.user.js
+// @downloadURL  https://raw.githubusercontent.com/warmpain9/Interium/v2-echocore/loader/interium-loader.user.js
 // @homepageURL  https://github.com/warmpain9/Interium
 // @supportURL   https://github.com/warmpain9/Interium/issues
 // ==/UserScript==
 
-/*
- * Why @require instead of downloading + eval():
- * echocr.xyz's Content Security Policy forbids 'unsafe-eval' on some pages
- * (for example /internal/collectibles), so no loader may execute downloaded
- * source code as a string there. With @require, Tampermonkey itself fetches
- * the runtime from GitHub and runs it as regular userscript code at
- * document-start - the page CSP cannot block that.
- *
- * How updates ship:
- * 1. Commit the changed runtime file on main:
- *      - trading (rank, collectibles, koromons values) -> src/trading/trading.js
- *      - UI (panel, themes, watermark, styling)        -> src/ui/ui.js
- * 2. Bump @version in THIS file and commit it too.
- * IMPORTANT: the runtime filenames are stable (no version suffix). GitHub
- * raw caches a URL for ~5 minutes, and Tampermonkey re-downloads @require'd
- * URLs when the loader updates - so ALWAYS bump @version here with every
- * runtime change, otherwise users keep running stale cached runtimes.
- */
-console.info('[Interium] Loader v1.1.2 - core + trading + UI runtimes attached via @require (CSP-safe).');
+(function () {
+    'use strict';
+    console.info('[Interium] Loader v2.0.0 initialized.');
+})();

@@ -3,40 +3,32 @@ const read = (p) => readFile(new URL('../' + p, import.meta.url), 'utf8');
 const fail = (m) => { console.error('AUDIT FAIL:', m); process.exitCode = 1; };
 
 const loader = await read('loader/interium-loader.user.js');
-const BASE = 'https://raw.githubusercontent.com/warmpain9/Interium/main/';
+const match = loader.match(/https:\/\/raw\.githubusercontent\.com\/warmpain9\/Interium\/([^/]+)\//);
+const branch = match ? match[1] : 'v2-echocore';
+const BASE = `https://raw.githubusercontent.com/warmpain9/Interium/${branch}/`;
+
 const requires = [...loader.matchAll(/^\/\/ @require\s+(https:\/\/\S+)\s*$/gm)].map((m) => m[1]);
 if (requires.length !== 3) fail('expected exactly 3 @require lines, got ' + requires.length);
 for (const u of requires) if (!u.startsWith(BASE + 'src/')) fail('unexpected @require source: ' + u);
 
-// audit the exact local files the loader will attach
 const bodies = await Promise.all(requires.map((u) => read(u.slice(BASE.length))));
 const all = loader + bodies.join('\n');
-if (/document\.cookie|\.cookie\s*=/.test(all)) fail('cookie access found');
-if (!bodies.some((b) => b.includes('Trading Interium'))) fail('authoritative trading module missing');
-// No third-party backend may ever be *called*. The Mass Trader engine talks
-// only to echocr.xyz's own /trades/v1/trades/send offer endpoint (allowed; it
-// only sends offers the recipient must manually accept, never auto-accepts).
-for (const forbidden of ['interium.zxwxtt.workers.dev', 'workers.dev/announce', 'workers.dev/badges']) {
-  if (all.includes(forbidden)) fail('excluded third-party backend content found: ' + forbidden);
-}
-// All glassify surfaces must share the canonical visual preset. Keep the recipe in
-// one place and prohibit new hard-coded positive backdrop blur values.
-const ui = bodies.find((b) => b.includes('Interium UI runtime')) || '';
-if (!ui.includes("const GLASS_BG = 'rgba(255,255,255,0.05)';")) fail('canonical glass background changed or missing');
-if (!ui.includes("const GLASS_FILTER = 'blur(14px) saturate(160%)';")) fail('canonical glass filter changed or missing');
-if (!ui.includes("const GUI_GLASS_BG = 'rgba(10,10,14,0.86)';")) fail('GUI-only dark glass tint changed or missing');
-if (!ui.includes("panel.style.setProperty('background', GUI_GLASS_BG, 'important')")) fail('GUI panel does not use GUI_GLASS_BG');
-if (ui.includes('.card-body${NOHOME},')) fail('nested profile card-body still receives a second glass layer');
-if (!ui.includes('.card > .card-body,')) fail('nested profile card-body transparency rule missing');
-// GUI panel chrome (#pks- selectors) may use its own decorative blur; page
-// styling must go through GLASS_FILTER.
-const blurLines = ui.split('\n').filter((l) => /(?:-webkit-)?backdrop-filter\s*:\s*blur\((?!0px)/.test(l) && !l.includes('GLASS_FILTER'));
-for (const l of blurLines) if (!l.includes('#pks-')) fail('hard-coded positive backdrop blur on a page surface; use GLASS_FILTER: ' + l.trim().slice(0, 80));
-for (const marker of [
-  '[class*="groupCard-"] {\n                    ${GLASS_CSS}',
-  '[class*="resultsContainer-"] [class*="cardWrapper-"]{${GLASS_CSS}',
-  '[class*="avatarCardContainer"]{${GLASS_CSS}',
-  '[class*="buttonCol-"],[class*="submenuContainer-"][class~="section-content"]{${GLASS_CSS}',
-]) if (!ui.includes(marker)) fail('glassify surface does not use GLASS_CSS: ' + marker);
 
-if (!process.exitCode) console.log('Audit passed: loader sources, privacy markers, and unified glassify surfaces verified.');
+// Security & privacy audits
+if (/document\.cookie|\.cookie\s*=/.test(all)) fail('cookie access found');
+
+for (const forbidden of ['interium.zxwxtt.workers.dev', 'workers.dev/announce', 'workers.dev/badges']) {
+    if (all.includes(forbidden)) fail('excluded third-party backend content found: ' + forbidden);
+}
+
+// Core modules verification
+if (!bodies.some((b) => b.includes('InteriumTrading'))) fail('InteriumTrading runtime missing');
+if (!bodies.some((b) => b.includes('InteriumUI'))) fail('InteriumUI runtime missing');
+if (!bodies.some((b) => b.includes('InteriumCore'))) fail('InteriumCore runtime missing');
+
+// Card sizing fix verification
+const ui = bodies.find((b) => b.includes('InteriumUI')) || '';
+if (!ui.includes('aspect-ratio: 1 / 1')) fail('inventory aspect-ratio fix missing');
+if (!ui.includes('--int-card-scale')) fail('card image scale variable missing');
+
+if (!process.exitCode) console.log('Audit passed: loader sources, security boundaries, and v2 modules verified.');

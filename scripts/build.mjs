@@ -1,13 +1,9 @@
-// Optional dev build: concatenates the three live runtimes into a single
-// dist/interium-main.js for local testing. The loader does NOT use dist/ -
-// it @require's the src/ files directly from GitHub raw, so shipping never
-// depends on this script. Runtime filenames are stable (no version suffix).
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 
 const read = (p) => readFile(new URL('../' + p, import.meta.url), 'utf8');
 const stripHeader = (s) => s.replace(/^\/\/ ==UserScript==[\s\S]*?^\/\/ ==\/UserScript==\s*/m, '');
 
-const banner = `/* Interium main runtime | MIT | Unofficial, not affiliated with EchoCore.\n * Trading code source: Trading Interium (authoritative; no trade code imported from src.js).\n */\n`;
+const banner = `/* Interium v2 runtime | MIT | Unofficial EchoCore enhancement suite */\n`;
 
 const [core, trading, ui] = await Promise.all([
     read('src/core/core.js'),
